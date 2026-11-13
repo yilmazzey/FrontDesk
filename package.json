@@ -1,0 +1,22 @@
+{
+  "name": "frontdesk",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "web",
+    "desktop"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w web",
+    "dev:web": "npm run dev -w web",
+    "dev:desktop": "npm run dev -w desktop",
+    "build": "npm run build -w web && npm run build -w desktop",
+    "build:web": "npm run build -w web",
+    "build:desktop": "npm run build -w desktop",
+    "preview:web": "npm run preview -w web",
+    "preview:desktop": "npm run preview -w desktop"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

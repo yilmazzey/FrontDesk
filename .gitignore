@@ -1,0 +1,20 @@
+node_modules
+dist
+dist-ssr
+*.local
+*.tsbuildinfo
+.DS_Store
+.vite
+
+# Tauri / Rust build output
+desktop/src-tauri/target
+desktop/src-tauri/gen
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Local editor/R artifacts
+.Rhistory
+.RData
