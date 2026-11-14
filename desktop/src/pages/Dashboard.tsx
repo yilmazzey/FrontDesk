@@ -1,4 +1,6 @@
-import { notes } from '../data'
+import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAccess } from '../state/access'
 
 const today = [
   { time: '09:30', title: 'Study sync — protocol review', meta: 'Microsoft Teams' },
@@ -6,7 +8,26 @@ const today = [
   { time: '15:30', title: 'Deep work block', meta: 'Held by FrontDesk' },
 ]
 
+function when(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
+}
+
 export default function Dashboard() {
+  const navigate = useNavigate()
+  const { grants, sources, models, info, loading } = useAccess()
+  const [question, setQuestion] = useState('')
+
+  function onAsk(event: FormEvent) {
+    event.preventDefault()
+    if (!question.trim()) return
+    navigate('/chat', { state: { question: question.trim() } })
+  }
+
+  const adapter = info?.selectedModel
+    ? models.find((model) => model.id === info.selectedModel)?.name ?? info.selectedModel
+    : 'Extractive (no model)'
+
   return (
     <div className="page">
       <header className="pageHead">
@@ -21,13 +42,13 @@ export default function Dashboard() {
           <p className="eventTag">Pfizer &amp; Newpage Solutions Hackathon Challenge</p>
         </div>
 
-        <button type="button" className="btn btn--primary">
-          New note
-          <span aria-hidden="true">+</span>
+        <button type="button" className="btn btn--primary" onClick={() => navigate('/access')}>
+          Manage access
+          <span aria-hidden="true">→</span>
         </button>
       </header>
 
-      <section className="ask" aria-label="Ask the desk">
+      <form className="ask" aria-label="Ask the desk" onSubmit={onAsk}>
         <label className="ask__label" htmlFor="ask">
           Ask the desk
         </label>
@@ -36,25 +57,26 @@ export default function Dashboard() {
             id="ask"
             className="ask__input"
             placeholder="What did I write about the OCR pipeline?"
-            readOnly
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
           />
-          <button type="button" className="btn btn--ghost" disabled>
+          <button type="submit" className="btn btn--ghost" disabled={!question.trim()}>
             Ask
           </button>
         </div>
         <p className="ask__hint">
           Answers cite the note or message they came from. No citation, no answer.
         </p>
-      </section>
+      </form>
 
       <section className="statRow" aria-label="This week">
         <article className="stat">
-          <span className="stat__value">128</span>
-          <span className="stat__label">Notes on this device</span>
+          <span className="stat__value">{loading ? '—' : sources.length}</span>
+          <span className="stat__label">Sources in scope</span>
         </article>
         <article className="stat">
-          <span className="stat__value">14</span>
-          <span className="stat__label">Pages read by OCR</span>
+          <span className="stat__value">{grants.length}</span>
+          <span className="stat__label">Active grants</span>
         </article>
         <article className="stat">
           <span className="stat__value">0</span>
@@ -66,25 +88,35 @@ export default function Dashboard() {
         <section className="panel" aria-labelledby="recent">
           <header className="panel__head">
             <h2 id="recent" className="panel__title">
-              Recent notes
+              In scope
             </h2>
-            <span className="panel__meta">All local</span>
+            <span className="panel__meta">Live from the source</span>
           </header>
 
-          <ul className="noteList">
-            {notes.slice(0, 4).map((note) => (
-              <li key={note.id}>
-                <button type="button" className="noteRow">
-                  <span className="noteRow__top">
-                    <span className="noteRow__title">{note.title}</span>
-                    <span className="noteRow__date">{note.updated}</span>
-                  </span>
-                  <span className="noteRow__body">{note.body}</span>
-                  <span className="tag">{note.tag}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {sources.length ? (
+            <ul className="noteList">
+              {sources.slice(0, 4).map((source) => (
+                <li key={source.id}>
+                  <button
+                    type="button"
+                    className="noteRow"
+                    onClick={() => navigate('/notes')}
+                  >
+                    <span className="noteRow__top">
+                      <span className="noteRow__title">{source.title}</span>
+                      <span className="noteRow__date">{when(source.modified)}</span>
+                    </span>
+                    <span className="noteRow__body">{source.location}</span>
+                    <span className="tag">{source.kind}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="panel__note">
+              Nothing is allowed yet. Open <strong>Manage access</strong> to grant a folder.
+            </p>
+          )}
         </section>
 
         <div className="stack">
@@ -118,15 +150,19 @@ export default function Dashboard() {
               <h2 id="permissions" className="panel__title">
                 Permissions
               </h2>
-              <span className="panel__meta">On this machine</span>
+              <span className="panel__meta">Revocable</span>
             </header>
 
             <ul className="checkList">
-              <li className="is-on">Local notes + OCR</li>
-              <li>Microsoft mail</li>
-              <li>Microsoft calendar</li>
-              <li>Local AI model</li>
+              {grants.map((grant) => (
+                <li key={grant.id} className="is-on">
+                  {grant.title}
+                </li>
+              ))}
+              {!grants.length ? <li>No sources granted</li> : null}
             </ul>
+
+            <p className="panel__note">Model · {adapter}</p>
           </section>
         </div>
       </div>

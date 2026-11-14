@@ -1,10 +1,9 @@
 # FrontDesk Desktop
 
-Minimal desktop shell for FrontDesk, built for the Pfizer & Newpage Solutions
-Hackathon Challenge. It is a plain Vite + React + TypeScript app today, wrapped
-by a Tauri v2 placeholder so the real package can be layered on without
-restructuring anything. See the [root README](../README.md) for the full team
-setup guide.
+Local-first desktop app for the Pfizer & Newpage Solutions Hackathon Challenge.
+It is a Tauri v2 app (Rust core + Vite/React UI) that reads granted sources on
+demand, answers with exact citations, and refuses when the evidence is missing.
+See the [root README](../README.md) for the full team setup guide.
 
 ## Run
 
@@ -12,33 +11,50 @@ From the repo root:
 
 ```bash
 npm install
-npm run dev:desktop   # http://localhost:5174
+npm run dev:tauri     # real desktop window
+npm run dev:desktop   # browser preview only, no file access
 ```
 
-Hash routing is used (`/#/notes`, `/#/settings`) so the same build works inside
-the Tauri webview, where there is no server to rewrite paths.
+## What works
 
-## Screens
+- **Access** — grant a folder, revoke it, choose a GGUF model, inspect the
+  metadata-only activity log.
+- **Notes** — read a granted Markdown/text/PDF/scan from its original.
+- **Ask** — extraction → answer → citation verifier. Uncited claims are
+  dropped; missing evidence returns `insufficient`.
+- **Search** — filter the sources currently in scope.
+- **Settings** — model folder, adapter, storage, connections.
 
-- **Dashboard** — today, recent notes, permission summary, model status
-- **Notes** — local note list + placeholder editor
-- **Search** — filters and citation-flavoured results
-- **Settings** — connections, behaviour, storage, about
+PDF text uses `pdftotext`; image OCR uses `tesseract`. Markdown and text need
+neither.
 
-All data is placeholder content in `src/data.ts`. There is no persistence, no
-Microsoft Graph, no OCR and no local model yet.
+## Models
+
+Drop `.gguf` files into `../models/`. Select one on Access or Settings, then
+press **Load / warm model**. The first load imports it into Ollama and can take
+a minute. **Extractive** answers instantly with no model.
+
+## Rust core
+
+```
+src-tauri/src/
+  commands.rs       IPC surface
+  permissions.rs    revocable grants (metadata only)
+  sources/          fixture, local folder, PDF/OCR, Graph stubs
+  retrieve/         in-memory chunker + BM25
+  answer.rs         scope → retrieve → generate → verify
+  model.rs          GGUF registry + local runtime adapter
+  audit.rs          metadata-only JSONL log
+```
+
+`cargo test --test eval` runs the 25-question honest-answer eval.
 
 ## Tauri
 
-`src-tauri/` holds a skeleton config (`tauri.conf.json`, `Cargo.toml`,
-`src/main.rs`). It is intentionally not runnable yet — no icons or lockfile
-have been generated. When ready:
+`src-tauri/` is runnable now: CLI, `lib`/`main` split, `ping` command,
+capability file, icons and `Cargo.lock` are in place. The frontend is
+hash-routed (`/#/notes`) because the webview has no server-side rewrites.
 
-```bash
-npm add -D @tauri-apps/cli
-npm run tauri init      # or edit the placeholder config in place
-npm run tauri dev
-```
-
-The dev server is fixed to port `5174` in `vite.config.ts`, matching
-`devUrl` in the Tauri config.
+Microsoft Graph, OneNote, Outlook, Teams and calendar are intentionally not
+connected yet. The connectors are stubs behind the same source dispatch, so the
+grant/revoke and citation paths do not change when they land.

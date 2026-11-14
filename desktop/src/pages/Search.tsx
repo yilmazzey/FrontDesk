@@ -1,19 +1,26 @@
 import { useMemo, useState } from 'react'
-import { notes } from '../data'
+import { Link } from 'react-router-dom'
+import { useAccess } from '../state/access'
+
+function when(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
+}
 
 export default function Search() {
+  const { sources } = useAccess()
   const [query, setQuery] = useState('')
 
   const results = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return notes
-    return notes.filter(
-      (n) =>
-        n.title.toLowerCase().includes(q) ||
-        n.body.toLowerCase().includes(q) ||
-        n.tag.toLowerCase().includes(q),
+    const cleaned = query.trim().toLowerCase()
+    if (!cleaned) return sources
+    return sources.filter(
+      (source) =>
+        source.title.toLowerCase().includes(cleaned) ||
+        source.location.toLowerCase().includes(cleaned) ||
+        source.kind.toLowerCase().includes(cleaned),
     )
-  }, [query])
+  }, [query, sources])
 
   return (
     <div className="page page--flush">
@@ -32,7 +39,7 @@ export default function Search() {
         </svg>
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(event) => setQuery(event.target.value)}
           placeholder="Search notes, scans and mail…"
           aria-label="Search"
           autoFocus
@@ -54,23 +61,23 @@ export default function Search() {
           Mail
         </button>
         <span className="filterRow__meta">
-          {results.length} {results.length === 1 ? 'result' : 'results'} · searched on this machine
+          {results.length} {results.length === 1 ? 'result' : 'results'} · from your allowed sources
         </span>
       </div>
 
       {results.length ? (
         <ul className="results">
-          {results.map((n) => (
-            <li key={n.id} className="result">
+          {results.map((source) => (
+            <li key={source.id} className="result">
               <div className="result__head">
-                <h2 className="result__title">{n.title}</h2>
-                <span className="tag">{n.tag}</span>
+                <h2 className="result__title">{source.title}</h2>
+                <span className="tag">{source.kind}</span>
               </div>
-              <p className="result__body">{n.body}</p>
+              <p className="result__body">{source.location}</p>
               <div className="result__foot">
-                <span>{n.updated}</span>
+                <span>As of {when(source.modified)}</span>
                 <span className="result__div" aria-hidden="true" />
-                <span>{n.source ?? 'Note'}</span>
+                <span>Read on demand</span>
                 <span className="result__cite">Cited, not guessed</span>
               </div>
             </li>
@@ -79,7 +86,10 @@ export default function Search() {
       ) : (
         <div className="empty">
           <p className="empty__title">Nothing on the desk matches that.</p>
-          <p>The local index only searches what you actually have. Try a broader word.</p>
+          <p>
+            The index only searches what you allow. <Link to="/access">Grant another source</Link>{' '}
+            or try a broader word.
+          </p>
         </div>
       )}
     </div>
