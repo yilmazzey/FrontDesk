@@ -15,12 +15,17 @@ pub struct PipelineResult {
 const MIN_SCORE: f64 = 0.5;
 const MAX_EXCERPTS: usize = 6;
 
+pub const MODE_CHAT: &str = "chat";
+pub const MODE_GROUNDED: &str = "grounded";
+
 pub fn ask(
     question: &str,
     grants: &[SourceGrant],
     selected_model: Option<&str>,
     models_dir: &Path,
+    mode: &str,
 ) -> PipelineResult {
+    let chat = mode == MODE_CHAT;
     let question = question.trim();
     if question.is_empty() {
         return PipelineResult {
@@ -30,12 +35,6 @@ pub fn ask(
     }
 
     let source_refs = sources::list_all(grants);
-    if source_refs.is_empty() {
-        return PipelineResult {
-            answer: Answer::insufficient("none"),
-            read_sources: Vec::new(),
-        };
-    }
 
     let mut chunks: Vec<Chunk> = Vec::new();
     let mut read_sources = Vec::new();
@@ -49,108 +48,146 @@ pub fn ask(
         }
     }
 
-    if chunks.is_empty() {
-        return PipelineResult {
-            answer: Answer::insufficient("none"),
-            read_sources,
-        };
-    }
-
     let scored = bm25::search(question, &chunks, MAX_EXCERPTS);
-    if scored.is_empty() || scored[0].score < MIN_SCORE {
-        return PipelineResult {
-            answer: Answer::insufficient("none"),
-            read_sources,
-        };
+    let model_id = selected_model.filter(|id| !id.is_empty() && *id != "extractive");
+    let excerpts = select_excerpts(question, &chunks, &scored);
+
+    // Chat mode with a model can answer from general knowledge, so it does not
+    // need a source hit. Every other path is evidence-bound.
+    if !(chat && model_id.is_some()) {
+        if excerpts.is_empty() || !evidence_sufficient(question, &scored, &excerpts) {
+            return PipelineResult {
+                answer: Answer::insufficient("none"),
+                read_sources,
+            };
+        }
     }
 
-    // A single incidental word ("say" in an unrelated sentence) is not enough
-    // evidence. Require at least half of the question's content words to appear
-    // in the top few retrieved chunks; otherwise refuse honestly.
-    let query_words: HashSet<String> = bm25::content_words(question).into_iter().collect();
-    let visible_words: HashSet<String> = scored
-        .iter()
-        .take(3)
-        .flat_map(|item| bm25::content_words(&item.chunk.text))
-        .collect();
-    let matched = query_words.intersection(&visible_words).count();
-    let needed = if query_words.len() <= 1 {
-        1
-    } else {
-        ((query_words.len() as f64) * 0.5).ceil() as usize
-    };
-    if matched < needed {
-        return PipelineResult {
-            answer: Answer::insufficient("none"),
-            read_sources,
-        };
+    if !chat {
+        if let Some(clarification) = clarify(question, &scored) {
+            return PipelineResult {
+                answer: Answer {
+                    status: "needs_clarification".into(),
+                    text:
+                        "I can answer that from more than one allowed source. Which one did you mean?"
+                            .into(),
+                    citations: Vec::new(),
+                    clarification: Some(clarification),
+                    model: "none".into(),
+                    basis: "none".into(),
+                },
+                read_sources,
+            };
+        }
     }
 
-    let excerpts: Vec<Chunk> = scored
-        .iter()
-        .take(MAX_EXCERPTS)
-        .map(|s| s.chunk.clone())
-        .collect();
-
-    if let Some(clarification) = clarify(question, &scored) {
-        return PipelineResult {
-            answer: Answer {
-                status: "needs_clarification".into(),
-                text:
-                    "I can answer that from more than one allowed source. Which one did you mean?"
-                        .into(),
-                citations: Vec::new(),
-                clarification: Some(clarification),
-                model: "none".into(),
-            },
-            read_sources,
-        };
-    }
-
-    let Some(model_id) = selected_model.filter(|id| !id.is_empty() && *id != "extractive") else {
+    let Some(model_id) = model_id else {
+        if excerpts.is_empty() {
+            return PipelineResult {
+                answer: Answer::insufficient("none"),
+                read_sources,
+            };
+        }
         let (text, cited) = extractive(question, &excerpts);
         return PipelineResult {
-            answer: answered(text, &cited, &excerpts, "extractive"),
+            answer: answered(text, &cited, &excerpts, "extractive", "sources"),
             read_sources,
         };
     };
 
-    let system =
+    let system = if chat {
+        "You are FrontDesk, a helpful local assistant running on the user's machine. \
+Answer the question directly and practically, like a knowledgeable colleague. \
+You MAY use your own general knowledge and give advice when the numbered excerpts do not cover the question; do not present such general knowledge as coming from the user's files. \
+When a sentence relies on an excerpt, end that sentence with the excerpt number in square brackets, for example [1]. Never invent a citation and never cite an excerpt you did not use. \
+Citing is mandatory whenever you use an excerpt: if excerpts are provided and you summarize or quote them, your answer must contain at least one [n]. \
+Do not reply NOT_IN_SOURCES in chat mode. If the excerpts are relevant, use them; if not, answer from general knowledge and, when the question is about their documents, briefly say what their files do not cover. \
+Keep the answer to one to four short paragraphs."
+    } else {
         "You are FrontDesk, a local-first assistant. Answer ONLY from the numbered excerpts. \
 Every factual sentence must end with the excerpt number in square brackets, for example [1]. \
 Never use outside knowledge, never guess, and never invent a citation. \
 If the excerpts do not contain the answer, reply exactly NOT_IN_SOURCES. \
-Keep the answer to one to three short sentences.";
+Keep the answer to one to three short sentences."
+    };
 
-    let mut user = String::from("Excerpts:\n\n");
-    for (index, excerpt) in excerpts.iter().enumerate() {
-        user.push_str(&format!(
-            "[{}] {} — {} (as of {})\n{}\n\n",
-            index + 1,
-            excerpt.title,
-            excerpt.location,
-            excerpt.timestamp,
-            excerpt.text
-        ));
+    let mut user = String::new();
+    if !excerpts.is_empty() {
+        user.push_str("Excerpts:\n\n");
+        for (index, excerpt) in excerpts.iter().enumerate() {
+            user.push_str(&format!(
+                "[{}] {} — {} (as of {})\n{}\n\n",
+                index + 1,
+                excerpt.title,
+                excerpt.location,
+                excerpt.timestamp,
+                excerpt.text
+            ));
+        }
+    } else {
+        user.push_str("No excerpts were retrieved from the user's sources.\n\n");
     }
     user.push_str(&format!("Question: {question}\n"));
 
     match model::generate(models_dir, model_id, system, &user) {
-        Ok(raw) => match verify(&raw, &excerpts) {
-            Some((text, cited)) => PipelineResult {
-                answer: answered(text, &cited, &excerpts, &format!("gguf:{model_id}")),
-                read_sources,
-            },
-            None => PipelineResult {
-                answer: Answer::insufficient(&format!("gguf:{model_id}")),
-                read_sources,
-            },
-        },
+        Ok(raw) => {
+            if chat {
+                let (text, cited, basis) = verify_chat(&raw, &excerpts);
+                let (cited, basis) =
+                    if cited.is_empty() && wants_overview(question) && !excerpts.is_empty() {
+                        let inferred = overview_citations(&text, &excerpts);
+                        if inferred.is_empty() {
+                            (cited, basis)
+                        } else {
+                            (inferred, "mixed".to_string())
+                        }
+                    } else {
+                        (cited, basis)
+                    };
+                PipelineResult {
+                    answer: answered(text, &cited, &excerpts, &format!("gguf:{model_id}"), &basis),
+                    read_sources,
+                }
+            } else {
+                match verify(&raw, &excerpts) {
+                    Some((text, cited)) => PipelineResult {
+                        answer: answered(
+                            text,
+                            &cited,
+                            &excerpts,
+                            &format!("gguf:{model_id}"),
+                            "sources",
+                        ),
+                        read_sources,
+                    },
+                    None => PipelineResult {
+                        answer: Answer::insufficient(&format!("gguf:{model_id}")),
+                        read_sources,
+                    },
+                }
+            }
+        }
         Err(error) => {
+            if excerpts.is_empty() {
+                return PipelineResult {
+                    answer: Answer {
+                        status: "error".into(),
+                        text: format!(
+                            "The local model could not run and there are no sources to quote: {error}"
+                        ),
+                        citations: Vec::new(),
+                        clarification: None,
+                        model: format!("gguf:{model_id}"),
+                        basis: "none".into(),
+                    },
+                    read_sources,
+                };
+            }
+
             // A model failure must never turn into a guess. Fall back to the
             // extractive adapter, which is inherently citation-bound.
             let (text, cited) = extractive(question, &excerpts);
-            let mut answer = answered(text, &cited, &excerpts, "extractive");
+            let mut answer = answered(text, &cited, &excerpts, "extractive", "sources");
             answer.text = format!(
                 "{}\n\n(The local model could not run: {error}. This answer is extractive.)",
                 answer.text
@@ -163,13 +200,14 @@ Keep the answer to one to three short sentences.";
     }
 }
 
-fn answered(text: String, cited: &[usize], excerpts: &[Chunk], model: &str) -> Answer {
+fn answered(text: String, cited: &[usize], excerpts: &[Chunk], model: &str, basis: &str) -> Answer {
     Answer {
         status: "answered".into(),
         text,
         citations: citations_for(cited, excerpts),
         clarification: None,
         model: model.into(),
+        basis: basis.into(),
     }
 }
 
@@ -188,6 +226,322 @@ fn citations_for(indices: &[usize], excerpts: &[Chunk]) -> Vec<Citation> {
             deep_link: None,
         })
         .collect()
+}
+
+/// Pick the excerpts handed to the adapter. Overview questions ("summarize
+/// this") have no search terms, so they read the most substantial source
+/// instead of refusing.
+fn select_excerpts(question: &str, chunks: &[Chunk], scored: &[Scored]) -> Vec<Chunk> {
+    if chunks.is_empty() {
+        return Vec::new();
+    }
+
+    if wants_overview(question) {
+        return overview_excerpts(question, chunks);
+    }
+
+    if !scored.is_empty() {
+        return scored
+            .iter()
+            .take(MAX_EXCERPTS)
+            .map(|item| item.chunk.clone())
+            .collect();
+    }
+
+    title_excerpts(question, chunks).unwrap_or_default()
+}
+
+fn wants_overview(question: &str) -> bool {
+    let lower = question.to_lowercase();
+    [
+        "summarize",
+        "summarise",
+        "summary",
+        "overview",
+        "tl;dr",
+        "tldr",
+        "main point",
+        "key point",
+        "key points",
+        "what is this about",
+        "what's this about",
+        "what is the article about",
+        "what is the paper about",
+        "explain the article",
+        "explain the paper",
+        "describe the article",
+        "describe the paper",
+        "give me the gist",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
+fn overview_excerpts(question: &str, chunks: &[Chunk]) -> Vec<Chunk> {
+    if let Some(title_matched) = title_excerpts(question, chunks) {
+        if !title_matched.is_empty() {
+            return title_matched;
+        }
+    }
+
+    let lower = question.to_lowercase();
+    let preferred: &[&str] =
+        if lower.contains("article") || lower.contains("paper") || lower.contains("pdf") {
+            &["pdf"]
+        } else if lower.contains("note") {
+            &["md", "markdown", "txt"]
+        } else if lower.contains("slide") {
+            &["pdf", "png", "jpg", "jpeg"]
+        } else {
+            &[]
+        };
+
+    let mut groups = grouped_by_source(chunks);
+    if !preferred.is_empty() {
+        let matching: Vec<Vec<Chunk>> = groups
+            .iter()
+            .filter(|group| {
+                group
+                    .first()
+                    .map(|chunk| {
+                        let origin = chunk.origin.to_lowercase();
+                        preferred
+                            .iter()
+                            .any(|ext| origin.ends_with(&format!(".{ext}")))
+                    })
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        if !matching.is_empty() {
+            groups = matching;
+        }
+    }
+
+    groups
+        .into_iter()
+        .max_by_key(|group| {
+            let chars: usize = group.iter().map(|chunk| chunk.text.len()).sum();
+            (group.len(), chars)
+        })
+        .map(|group| group.into_iter().take(4).collect())
+        .unwrap_or_default()
+}
+
+fn title_excerpts(question: &str, chunks: &[Chunk]) -> Option<Vec<Chunk>> {
+    let question_words: HashSet<String> = bm25::content_words(question).into_iter().collect();
+    let mut best: Option<(usize, Vec<Chunk>)> = None;
+
+    for group in grouped_by_source(chunks) {
+        let Some(first) = group.first() else {
+            continue;
+        };
+        let title_words: HashSet<String> = bm25::content_words(&first.title).into_iter().collect();
+        let overlap = title_words.intersection(&question_words).count();
+        if overlap == 0 {
+            continue;
+        }
+        if best
+            .as_ref()
+            .map(|(score, _)| overlap > *score)
+            .unwrap_or(true)
+        {
+            best = Some((overlap, group));
+        }
+    }
+
+    best.map(|(_, group)| group.into_iter().take(4).collect())
+}
+
+fn grouped_by_source(chunks: &[Chunk]) -> Vec<Vec<Chunk>> {
+    let mut groups: Vec<Vec<Chunk>> = Vec::new();
+    let mut index: HashMap<&str, usize> = HashMap::new();
+
+    for chunk in chunks {
+        match index.get(chunk.source_id.as_str()) {
+            Some(position) => groups[*position].push(chunk.clone()),
+            None => {
+                index.insert(chunk.source_id.as_str(), groups.len());
+                groups.push(vec![chunk.clone()]);
+            }
+        }
+    }
+
+    groups
+}
+
+/// A grounded answer needs a real lexical hit. Chat mode skips this gate,
+/// but when sources are used, the coverage rule still prevents "say" in an
+/// unrelated sentence from counting as evidence for a whole question.
+fn evidence_sufficient(question: &str, scored: &[Scored], excerpts: &[Chunk]) -> bool {
+    if wants_overview(question) {
+        return !excerpts.is_empty();
+    }
+
+    let Some(top) = scored.first() else {
+        return false;
+    };
+    if top.score < MIN_SCORE {
+        return false;
+    }
+
+    let question_words: HashSet<String> = bm25::content_words(question).into_iter().collect();
+    if question_words.is_empty() {
+        return false;
+    }
+
+    let visible: HashSet<String> = excerpts
+        .iter()
+        .flat_map(|chunk| bm25::content_words(&format!("{} {}", chunk.title, chunk.text)))
+        .collect();
+    let matched = question_words.intersection(&visible).count();
+    let needed = (((question_words.len().min(4)) as f64) * 0.5).ceil() as usize;
+
+    matched >= needed.max(1)
+}
+
+/// Chat mode keeps general-knowledge sentences and only attaches a citation
+/// when the sentence is actually grounded in a retrieved excerpt. Fake or
+/// ungrounded brackets are stripped instead of being shown as sources.
+fn verify_chat(raw: &str, excerpts: &[Chunk]) -> (String, Vec<usize>, String) {
+    let cleaned = raw.replace("NOT_IN_SOURCES", "");
+    let mut kept: Vec<String> = Vec::new();
+    let mut cited: BTreeSet<usize> = BTreeSet::new();
+    let mut uncited = 0;
+
+    for sentence in sentences_with_refs(&cleaned) {
+        let mut grounded_refs = Vec::new();
+        for index in refs_in(&sentence) {
+            if index >= 1 && index <= excerpts.len() && is_grounded(&sentence, &excerpts[index - 1])
+            {
+                grounded_refs.push(index);
+            }
+        }
+
+        let clean = strip_refs(&sentence);
+        let clean = clean.trim();
+        if clean.is_empty() {
+            continue;
+        }
+
+        if grounded_refs.is_empty() {
+            uncited += 1;
+        } else {
+            for index in grounded_refs {
+                cited.insert(index);
+            }
+        }
+
+        kept.push(clean.to_string());
+    }
+
+    let text = if kept.is_empty() {
+        strip_refs(&cleaned).trim().to_string()
+    } else {
+        kept.join(" ")
+    };
+
+    let basis = if cited.is_empty() {
+        "model"
+    } else if uncited > 0 {
+        "mixed"
+    } else {
+        "sources"
+    };
+
+    (text, cited.into_iter().collect(), basis.into())
+}
+
+/// Split text into sentences, but keep citations attached to the claim they
+/// follow. Models often write "The rule is X. [1] Next sentence." — a naive
+/// split would leave [1] on its own line and lose the grounding.
+fn sentences_with_refs(text: &str) -> Vec<String> {
+    let mut merged: Vec<String> = Vec::new();
+
+    for piece in split_sentences(text) {
+        let trimmed = piece.trim_start();
+        if trimmed.starts_with('[') {
+            let (leading, rest) = split_leading_refs(trimmed);
+            if let Some(last) = merged.last_mut() {
+                last.push(' ');
+                last.push_str(leading);
+            } else if !leading.is_empty() {
+                merged.push(leading.to_string());
+            }
+            if !rest.trim().is_empty() {
+                merged.push(rest.trim().to_string());
+            }
+            continue;
+        }
+        merged.push(piece);
+    }
+
+    merged
+}
+
+fn split_leading_refs(text: &str) -> (&str, &str) {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut i = 0;
+    let mut index = 0;
+
+    loop {
+        while i < chars.len() && chars[i].1.is_whitespace() {
+            i += 1;
+        }
+        if i >= chars.len() || chars[i].1 != '[' {
+            break;
+        }
+
+        let mut j = i + 1;
+        let mut digits = 0;
+        while j < chars.len() && chars[j].1.is_ascii_digit() {
+            digits += 1;
+            j += 1;
+        }
+        if j >= chars.len() || chars[j].1 != ']' || digits == 0 {
+            break;
+        }
+
+        i = j + 1;
+        while i < chars.len() && chars[i].1.is_whitespace() {
+            i += 1;
+        }
+        index = if i < chars.len() {
+            chars[i].0
+        } else {
+            text.len()
+        };
+    }
+
+    (&text[..index], &text[index..])
+}
+
+fn is_grounded(sentence: &str, excerpt: &Chunk) -> bool {
+    let sentence_words: HashSet<String> = bm25::content_words(sentence).into_iter().collect();
+    let excerpt_words: HashSet<String> = bm25::content_words(&excerpt.text).into_iter().collect();
+    !sentence_words.is_disjoint(&excerpt_words)
+}
+
+/// For a summary the model often forgets inline brackets even though the text
+/// clearly came from the excerpts. Attach the closest excerpts only when the
+/// answer shares enough words with them; the UI labels this as mixed.
+fn overview_citations(text: &str, excerpts: &[Chunk]) -> Vec<usize> {
+    let answer_words: HashSet<String> = bm25::content_words(text).into_iter().collect();
+    let mut scored: Vec<(usize, usize)> = excerpts
+        .iter()
+        .enumerate()
+        .map(|(index, excerpt)| {
+            let excerpt_words: HashSet<String> =
+                bm25::content_words(&excerpt.text).into_iter().collect();
+            (index + 1, answer_words.intersection(&excerpt_words).count())
+        })
+        .filter(|(_, overlap)| *overlap >= 3)
+        .collect();
+
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    let mut chosen: Vec<usize> = scored.into_iter().take(2).map(|(index, _)| index).collect();
+    chosen.sort_unstable();
+    chosen
 }
 
 fn extractive(question: &str, excerpts: &[Chunk]) -> (String, Vec<usize>) {
@@ -300,7 +654,7 @@ fn verify(raw: &str, excerpts: &[Chunk]) -> Option<(String, Vec<usize>)> {
     let mut kept: Vec<String> = Vec::new();
     let mut cited: BTreeSet<usize> = BTreeSet::new();
 
-    for sentence in split_sentences(raw) {
+    for sentence in sentences_with_refs(raw) {
         let refs = refs_in(&sentence);
         let valid: Vec<usize> = refs
             .into_iter()
@@ -414,5 +768,89 @@ fn strip_refs(text: &str) -> String {
         }
     }
 
-    out.split_whitespace().collect::<Vec<_>>().join(" ")
+    let mut cleaned = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    for _ in 0..3 {
+        cleaned = cleaned.replace(", ,", ",").replace(",,", ",");
+    }
+    cleaned = cleaned
+        .replace(" ,", ",")
+        .replace(" .", ".")
+        .replace(" ;", ";")
+        .replace(" :", ":")
+        .replace(", and .", ".")
+        .replace(" and .", ".")
+        .replace("..", ".");
+    cleaned.trim().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn chunk(id: &str, text: &str) -> Chunk {
+        Chunk {
+            source_id: id.into(),
+            source_type: "file".into(),
+            title: "Fixture".into(),
+            location: "part 1".into(),
+            origin: "/tmp/fixture.md".into(),
+            timestamp: "2026-11-14T00:00:00Z".into(),
+            text: text.into(),
+        }
+    }
+
+    #[test]
+    fn chat_mode_keeps_general_knowledge_without_a_fake_citation() {
+        let (text, cited, basis) = verify_chat(
+            "Start with a one-paragraph abstract. Cite the closest section [9].",
+            &[],
+        );
+
+        assert!(cited.is_empty());
+        assert_eq!(basis, "model");
+        assert!(
+            !text.contains("[9]"),
+            "fake citation must be stripped: {text}"
+        );
+        assert!(text.contains("abstract"));
+    }
+
+    #[test]
+    fn chat_mode_grounds_a_real_citation() {
+        let excerpts = vec![chunk(
+            "file:1",
+            "The retention window for scanned documents is seven years.",
+        )];
+        let (text, cited, basis) = verify_chat(
+            "The retention window for scanned documents is seven years. [1]",
+            &excerpts,
+        );
+
+        assert_eq!(cited, vec![1]);
+        assert_eq!(basis, "sources");
+        assert!(text.contains("seven years"));
+        assert!(!text.contains("[1]"));
+    }
+
+    #[test]
+    fn chat_mode_labels_mixed_answers() {
+        let excerpts = vec![chunk(
+            "file:1",
+            "The retention window for scanned documents is seven years.",
+        )];
+        let (_, cited, basis) = verify_chat(
+            "The retention window is seven years. [1] Keep a short abstract up front.",
+            &excerpts,
+        );
+
+        assert_eq!(cited, vec![1]);
+        assert_eq!(basis, "mixed");
+    }
+
+    #[test]
+    fn overview_questions_are_recognised() {
+        assert!(wants_overview("Summarize the article"));
+        assert!(wants_overview("What is this about?"));
+        assert!(!wants_overview("What is the retention window?"));
+    }
 }

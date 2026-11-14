@@ -43,7 +43,10 @@ pub fn search(question: &str, chunks: &[Chunk], limit: usize) -> Vec<Scored> {
         return Vec::new();
     }
 
-    let docs: Vec<Vec<String>> = chunks.iter().map(|c| tokens(&c.text)).collect();
+    let docs: Vec<Vec<String>> = chunks
+        .iter()
+        .map(|c| tokens(&format!("{} {}", c.title, c.text)))
+        .collect();
     let total_docs = docs.len() as f64;
     let average_len = docs.iter().map(Vec::len).sum::<usize>() as f64 / total_docs;
 

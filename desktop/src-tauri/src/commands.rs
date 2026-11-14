@@ -118,8 +118,14 @@ pub fn read_source(state: State<'_, AppState>, id: String) -> Result<Excerpt, St
 #[tauri::command]
 pub fn ask(state: State<'_, AppState>, question: String) -> Result<Answer, String> {
     let grants = state.permissions.lock().unwrap().list();
-    let selected = state.settings.lock().unwrap().get().selected_model;
-    let result = answer::ask(&question, &grants, selected.as_deref(), &state.models_dir);
+    let settings = state.settings.lock().unwrap().get();
+    let result = answer::ask(
+        &question,
+        &grants,
+        settings.selected_model.as_deref(),
+        &state.models_dir,
+        &settings.answer_mode,
+    );
 
     {
         let audit = state.audit.lock().unwrap();
@@ -145,16 +151,24 @@ pub fn select_model(state: State<'_, AppState>, id: Option<String>) -> Result<Ap
 }
 
 #[tauri::command]
+pub fn select_mode(state: State<'_, AppState>, mode: String) -> Result<AppInfo, String> {
+    state.settings.lock().unwrap().set_mode(&mode);
+    app_info(state)
+}
+
+#[tauri::command]
 pub fn warm_model(state: State<'_, AppState>, id: String) -> Result<String, String> {
     model::warm(&state.models_dir, &id)
 }
 
 #[tauri::command]
 pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo, String> {
+    let settings = state.settings.lock().unwrap().get();
     Ok(AppInfo {
         data_dir: state.data_dir.to_string_lossy().to_string(),
         models_dir: state.models_dir.to_string_lossy().to_string(),
-        selected_model: state.settings.lock().unwrap().get().selected_model,
+        selected_model: settings.selected_model,
+        answer_mode: settings.answer_mode,
     })
 }
 

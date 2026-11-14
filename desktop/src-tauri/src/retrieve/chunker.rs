@@ -6,7 +6,10 @@ pub struct Chunk {
     pub source_id: String,
     pub source_type: String,
     pub title: String,
+    /// Where the excerpt sits inside the source (page or part).
     pub location: String,
+    /// The original file path or URL, used for routing only.
+    pub origin: String,
     pub timestamp: String,
     pub text: String,
 }
@@ -84,6 +87,7 @@ fn flush(
         source_type: source.kind.clone(),
         title: source.title.clone(),
         location,
+        origin: source.location.clone(),
         timestamp: source.modified.clone(),
         text: text.to_string(),
     });

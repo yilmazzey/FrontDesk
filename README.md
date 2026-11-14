@@ -11,9 +11,11 @@ The repo is a two-workspace monorepo:
 | `desktop/` | Tauri app with a local Rust core: Access grants, Notes, Ask/Chat, Search, Settings and audit. | `http://localhost:5174` |
 
 The 3D experience is real. The desktop app is now a working local-first MVP: it reads granted
-folders on demand, answers with exact citations, refuses when the evidence is missing, and can
-run a GGUF model from `models/`. Microsoft Graph is behind the same source interface but not
-connected yet.
+folders on demand, answers with exact citations, and can run a GGUF model from `models/`. Ask has
+two modes: **Chat** (default) answers like a normal assistant and may use the model's general
+knowledge, labeling anything that did not come from your files; **Sources only** is the strict
+mode that cites every claim or refuses. Microsoft Graph is behind the same source interface but
+not connected yet.
 
 > **New to this branch?** Read [`WHATS_NEW.md`](WHATS_NEW.md) for a plain-English summary of what
 > changed on `yilmazzey` compared with the earlier desktop skeleton, plus a one-screen quick start.
@@ -149,9 +151,9 @@ Desktop:
 
 - **`/#/`** — Dashboard: live source count, grants, quick ask.
 - **`/#/notes`** — read a granted note from its original on demand.
-- **`/#/chat`** — ask a question, get an answer plus exact citations.
+- **`/#/chat`** — chat with the local model, or switch to Sources only for citation-or-refuse answers.
 - **`/#/search`** — filter the sources currently in scope.
-- **`/#/access`** — grant/revoke folders, choose the model adapter, inspect metadata-only activity.
+- **`/#/access`** — grant/revoke folders, choose answer style and model adapter, inspect metadata-only activity.
 - **`/#/settings`** — connections, model folder, storage, behaviour.
 
 ## Project structure
@@ -184,9 +186,9 @@ Desktop:
 | `desktop/src/shell/AppShell.tsx` | Sidebar, titlebar, core status, theme switch, ⌘K → Search. |
 | `desktop/src/pages/Dashboard.tsx` | Live sources, grants, quick ask, model status. |
 | `desktop/src/pages/Notes.tsx` | Read a granted note from its original on demand. |
-| `desktop/src/pages/Chat.tsx` | Ask pipeline: answer, citations, clarification, refusal. |
+| `desktop/src/pages/Chat.tsx` | Answer pipeline: chat/sources switch, citations, basis label, clarification, refusal. |
 | `desktop/src/pages/Search.tsx` | Filter the sources currently in scope. |
-| `desktop/src/pages/Access.tsx` | Grant/revoke folders, model picker, metadata-only audit. |
+| `desktop/src/pages/Access.tsx` | Grant/revoke folders, answer style, model picker, metadata-only audit. |
 | `desktop/src/pages/Settings.tsx` | Connections, models, behaviour, storage, about. |
 | `desktop/src/lib/ipc.ts` | Typed `invoke` wrappers + browser-preview fallback. |
 | `desktop/src/state/access.tsx` | Shared grants, sources, models and app info. |
@@ -195,7 +197,7 @@ Desktop:
 | `desktop/src-tauri/src/permissions.rs` | Revocable grants, persisted as metadata only. |
 | `desktop/src-tauri/src/sources/` | Fixture, local folder, PDF/OCR and Graph stubs. |
 | `desktop/src-tauri/src/retrieve/` | In-memory chunker and BM25. |
-| `desktop/src-tauri/src/answer.rs` | Scope → retrieve → generate → verify pipeline. |
+| `desktop/src-tauri/src/answer.rs` | Scope → retrieve → generate → verify pipeline, chat and grounded modes. |
 | `desktop/src-tauri/src/model.rs` | GGUF registry + local runtime adapter. |
 | `desktop/src-tauri/src/audit.rs` | Metadata-only read log. |
 | `desktop/src-tauri/tests/eval.rs` | 25-question honest-answer eval. |
@@ -231,8 +233,9 @@ Real now:
 - Revocable folder grants persisted as metadata only.
 - Live reads of Markdown/text, PDF text layers, and local OCR for images and PDFs with no text layer; nothing mirrored.
 - In-memory BM25 retrieval and a citation verifier that drops uncited claims.
+- Two answer modes: **Chat** may use general knowledge and labels when an answer did not come from your files; **Sources only** drops uncited claims and refuses.
 - Extractive answers with no model, plus a GGUF model adapter (Phi-4-mini is first).
-- Honest refusal and a one-question clarification loop, covered by a 25-case eval.
+- Honest refusal and a one-question clarification loop in Sources only, covered by a 25-case eval.
 - Metadata-only audit log with export/clear.
 
 Still placeholder:
@@ -248,8 +251,12 @@ Still placeholder:
   and excerpts live in memory. `grants.json` and `audit.jsonl` contain no content.
 - **Original is the source of truth** — every citation carries the source id, location and
   timestamp; **Open original** launches the real file.
-- **Honest by design** — `answer.rs` requires a valid citation per sentence and a minimum term
-  coverage; otherwise it returns `insufficient` with no citations.
+- **Honest by design** — in **Sources only**, `answer.rs` requires a valid citation per sentence
+  and a minimum term coverage; otherwise it returns `insufficient` with no citations. In **Chat**,
+  uncited sentences are allowed but the answer is labeled **General knowledge · not from your
+  files**, and fake citations are stripped.
+- **No fake citations** — the verifier drops any bracket that does not match a retrieved excerpt,
+  in both modes.
 - **User control** — `permissions.rs` is the only gate; revoking a grant removes it from the next
   query immediately.
 - **Microsoft-friendly** — `sources/m365.rs` is where `$search` + on-demand body fetches will land,

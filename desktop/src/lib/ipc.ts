@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type {
   Answer,
+  AnswerMode,
   AppInfo,
   AuditEntry,
   Citation,
@@ -43,6 +44,8 @@ let browserGrants: SourceGrant[] = [
   },
 ]
 
+let browserMode: AnswerMode = 'chat'
+
 function browserSources(): SourceRef[] {
   if (!browserGrants.some((grant) => grant.id === 'fixture:desk')) return []
   return FIXTURE.map((note) => ({
@@ -71,14 +74,20 @@ function words(value: string): string[] {
 }
 
 function browserAsk(question: string): Answer {
+  const noModel: Answer = {
+    status: 'error',
+    text:
+      browserMode === 'chat'
+        ? 'Chat mode needs the desktop app and a local model. The browser preview cannot run a model, so it can only quote the sample notes in Sources-only mode.'
+        : 'Not in your allowed sources. No sources are currently granted.',
+    citations: [],
+    clarification: null,
+    model: 'browser-preview',
+    basis: 'none',
+  }
+
   if (!browserGrants.some((grant) => grant.id === 'fixture:desk')) {
-    return {
-      status: 'insufficient',
-      text: 'Not in your allowed sources. No sources are currently granted.',
-      citations: [],
-      clarification: null,
-      model: 'browser-preview',
-    }
+    return noModel
   }
 
   const query = words(question)
@@ -89,22 +98,25 @@ function browserAsk(question: string): Answer {
       citations: [],
       clarification: null,
       model: 'browser-preview',
+      basis: 'none',
     }
   }
 
   const scored = FIXTURE.map((note) => {
-    const body = note.body.toLowerCase()
+    const body = `${note.title} ${note.body}`.toLowerCase()
     const score = query.reduce((total, word) => total + (body.includes(word) ? 1 : 0), 0)
     return { note, score }
   }).sort((a, b) => b.score - a.score)
 
   if (!scored[0] || scored[0].score === 0) {
+    if (browserMode === 'chat') return noModel
     return {
       status: 'insufficient',
       text: 'Not in your allowed sources. I only answer from what you have granted, and I did not find that there.',
       citations: [],
       clarification: null,
       model: 'browser-preview',
+      basis: 'none',
     }
   }
 
@@ -135,6 +147,7 @@ function browserAsk(question: string): Answer {
     citations: [citation],
     clarification: null,
     model: 'browser-preview',
+    basis: 'sources',
   }
 }
 
@@ -206,7 +219,23 @@ export const api = {
 
   selectModel: async (id: string | null): Promise<AppInfo> => {
     if (inTauri()) return call<AppInfo>('select_model', { id })
-    return { dataDir: 'browser://data', modelsDir: 'browser://models', selectedModel: id }
+    return {
+      dataDir: 'browser://data',
+      modelsDir: 'browser://models',
+      selectedModel: id,
+      answerMode: browserMode,
+    }
+  },
+
+  selectMode: async (mode: AnswerMode): Promise<AppInfo> => {
+    if (inTauri()) return call<AppInfo>('select_mode', { mode })
+    browserMode = mode
+    return {
+      dataDir: 'browser://data',
+      modelsDir: 'browser://models',
+      selectedModel: null,
+      answerMode: browserMode,
+    }
   },
 
   warmModel: async (id: string): Promise<string> => {
@@ -217,7 +246,12 @@ export const api = {
   appInfo: async (): Promise<AppInfo> =>
     inTauri()
       ? call<AppInfo>('app_info')
-      : { dataDir: 'browser://data', modelsDir: 'browser://models', selectedModel: null },
+      : {
+          dataDir: 'browser://data',
+          modelsDir: 'browser://models',
+          selectedModel: null,
+          answerMode: browserMode,
+        },
 
   listAudit: async (limit = 50): Promise<AuditEntry[]> =>
     inTauri() ? call<AuditEntry[]>('list_audit', { limit }) : [],

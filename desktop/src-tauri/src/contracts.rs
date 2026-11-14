@@ -70,6 +70,8 @@ pub struct Answer {
     pub citations: Vec<Citation>,
     pub clarification: Option<Clarification>,
     pub model: String,
+    /// `sources | model | mixed | none`
+    pub basis: String,
 }
 
 impl Answer {
@@ -80,6 +82,7 @@ impl Answer {
             citations: Vec::new(),
             clarification: None,
             model: model.into(),
+            basis: "none".into(),
         }
     }
 }
@@ -103,4 +106,6 @@ pub struct AppInfo {
     pub data_dir: String,
     pub models_dir: String,
     pub selected_model: Option<String>,
+    /// `chat | grounded`
+    pub answer_mode: String,
 }

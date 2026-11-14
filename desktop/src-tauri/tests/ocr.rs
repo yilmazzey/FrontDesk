@@ -31,6 +31,7 @@ fn scanned_page_is_cited_by_page_and_not_persisted() {
         &grants(),
         None,
         Path::new("."),
+        "grounded",
     );
     let answer = result.answer;
 

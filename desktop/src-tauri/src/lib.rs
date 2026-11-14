@@ -37,6 +37,7 @@ pub fn run() {
             commands::ask,
             commands::list_models,
             commands::select_model,
+            commands::select_mode,
             commands::warm_model,
             commands::app_info,
             commands::list_audit,

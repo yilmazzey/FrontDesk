@@ -27,6 +27,7 @@ export default function Access() {
     grantFixture,
     revoke,
     selectModel,
+    selectMode,
     warmModel,
   } = useAccess()
   const [path, setPath] = useState('')
@@ -206,6 +207,21 @@ export default function Access() {
             Drop a <code>.gguf</code> file into the models folder to add it. The extractive adapter
             is instant and needs no model at all.
           </p>
+
+          <label className="fieldLabel" htmlFor="modeSelect">
+            Answer style
+          </label>
+          <select
+            id="modeSelect"
+            className="select"
+            value={info?.answerMode ?? 'chat'}
+            onChange={(event) =>
+              void selectMode(event.target.value === 'grounded' ? 'grounded' : 'chat')
+            }
+          >
+            <option value="chat">Chat — may use general knowledge</option>
+            <option value="grounded">Sources only — cite or refuse</option>
+          </select>
 
           <label className="fieldLabel" htmlFor="modelSelect">
             Answer adapter

@@ -89,7 +89,7 @@ fn eval_set_has_no_uncited_answers() {
     let mut clarified = 0;
 
     for (question, expect) in cases {
-        let result = answer::ask(question, &grants, None, Path::new("."));
+        let result = answer::ask(question, &grants, None, Path::new("."), "grounded");
         let answer = result.answer;
 
         match expect {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import { api } from '../lib/ipc'
+import { useAccess } from '../state/access'
 import type { Answer } from '../types/source'
 
 function when(value: string): string {
@@ -8,14 +9,23 @@ function when(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
+function basisLabel(answer: Answer): string {
+  if (answer.basis === 'model') return 'General knowledge · not from your files'
+  if (answer.basis === 'mixed') return 'Your files + general knowledge'
+  if (answer.basis === 'sources') return 'From your sources'
+  return ''
+}
+
 export default function Chat() {
   const location = useLocation()
+  const { info, selectMode } = useAccess()
   const initial = (location.state as { question?: string } | null)?.question ?? ''
   const [question, setQuestion] = useState(initial)
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const autoAsked = useRef(false)
+  const mode = info?.answerMode ?? 'chat'
 
   const ask = useCallback(async (value: string) => {
     const trimmed = value.trim()
@@ -61,11 +71,34 @@ export default function Chat() {
             Answers with <em>receipts.</em>
           </h1>
           <p className="pageLede">
-            FrontDesk reads only the sources you allowed, cites the exact excerpt, and says so
-            plainly when the answer is not there. No citation, no answer.
+            {mode === 'chat'
+              ? 'Chat with your local model. It can use its own general knowledge, and cites your files whenever it uses them.'
+              : 'Answers only from the sources you allowed. Every claim is cited, and missing evidence is refused.'}
           </p>
         </div>
       </header>
+
+      <div className="modeRow" role="group" aria-label="Answer mode">
+        <button
+          type="button"
+          className={`modeChip${mode === 'chat' ? ' is-on' : ''}`}
+          onClick={() => void selectMode('chat')}
+        >
+          Chat
+        </button>
+        <button
+          type="button"
+          className={`modeChip${mode === 'grounded' ? ' is-on' : ''}`}
+          onClick={() => void selectMode('grounded')}
+        >
+          Sources only
+        </button>
+        <span className="modeHint">
+          {mode === 'chat'
+            ? 'General advice is labeled when it does not come from your files.'
+            : 'No citation, no answer.'}
+        </span>
+      </div>
 
       <form className="chatForm" onSubmit={onSubmit}>
         <label className="srOnly" htmlFor="chatQuestion">
@@ -75,7 +108,11 @@ export default function Chat() {
           id="chatQuestion"
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="What did I write about the retention window?"
+          placeholder={
+            mode === 'chat'
+              ? 'What does my article say about attention? Or: how should I structure a summary?'
+              : 'What did I write about the retention window?'
+          }
           autoFocus
         />
         <button type="submit" className="btn btn--primary" disabled={busy || !question.trim()}>
@@ -94,9 +131,14 @@ export default function Chat() {
                 ? 'Answered'
                 : answer.status === 'needs_clarification'
                   ? 'Needs one clarification'
-                  : 'Not in your sources'}
+                  : answer.status === 'error'
+                    ? 'Something went wrong'
+                    : 'Not in your sources'}
             </span>
-            <span className="answer__model">{answer.model}</span>
+            <span className="answer__model">
+              {basisLabel(answer) ? `${basisLabel(answer)} · ` : ''}
+              {answer.model}
+            </span>
           </div>
 
           <p className="answer__text">{answer.text}</p>

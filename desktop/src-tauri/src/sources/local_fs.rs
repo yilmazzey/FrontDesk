@@ -6,7 +6,7 @@ use walkdir::{DirEntry, WalkDir};
 
 use crate::contracts::{SourceGrant, SourceRef};
 
-const TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "txt", "pdf"];
+const TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "txt", "pdf", "tex", "html", "htm", "rst"];
 const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "webp", "tif", "tiff", "bmp"];
 const MAX_FILES: usize = 2_000;
 const MAX_BYTES: u64 = 40 * 1024 * 1024;
@@ -124,8 +124,13 @@ pub fn read_text(path: &str) -> Result<String, String> {
         .to_ascii_lowercase();
 
     match ext.as_str() {
-        "md" | "markdown" | "txt" => {
+        "md" | "markdown" | "txt" | "tex" | "rst" => {
             fs::read_to_string(path).map_err(|e| format!("Could not read {}: {e}", path.display()))
+        }
+        "html" | "htm" => {
+            let raw = fs::read_to_string(path)
+                .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+            Ok(strip_html(&raw))
         }
         "pdf" => {
             let text = run_tool("pdftotext", &[path.to_string_lossy().as_ref(), "-"])?;
@@ -201,4 +206,56 @@ fn run_tool(program: &str, args: &[&str]) -> Result<String, String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+/// Minimal HTML to text. Scripts and styles are dropped, tags become spaces,
+/// and whitespace is collapsed so the chunker sees readable prose.
+fn strip_html(raw: &str) -> String {
+    let mut text = raw.to_string();
+
+    for tag in ["script", "style"] {
+        loop {
+            let lower = text.to_ascii_lowercase();
+            let Some(open) = lower.find(&format!("<{tag}")) else {
+                break;
+            };
+            let Some(close_offset) = lower[open..].find(&format!("</{tag}")) else {
+                text.truncate(open);
+                break;
+            };
+            let close = open + close_offset;
+            let end = text[close..]
+                .find('>')
+                .map(|offset| close + offset + 1)
+                .unwrap_or(text.len());
+            text.replace_range(open..end, " ");
+        }
+    }
+
+    let mut out = String::with_capacity(text.len());
+    let mut inside_tag = false;
+    for ch in text.chars() {
+        match ch {
+            '<' => {
+                inside_tag = true;
+                out.push(' ');
+            }
+            '>' => inside_tag = false,
+            _ if !inside_tag => out.push(ch),
+            _ => {}
+        }
+    }
+
+    for (entity, value) in [
+        ("&nbsp;", " "),
+        ("&amp;", "&"),
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+        ("&quot;", "\""),
+        ("&#39;", "'"),
+    ] {
+        out = out.replace(entity, value);
+    }
+
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }

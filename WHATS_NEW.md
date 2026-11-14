@@ -24,11 +24,20 @@ The **Notes** page reads a Markdown, text, PDF or image file only when you open
 it. Nothing is copied into a database. If you edit the file, the next read shows
 the new version.
 
-### 4. Ask gives cited answers or an honest refusal
-The **Ask** page searches the sources you allowed, picks the best excerpts, and
-answers. Every answer shows the exact quote it came from, with a timestamp and
-an **Open original** button. If the answer is not in your allowed sources, it
-says so and gives **no** citation. It does not guess.
+### 4. Ask is a chat, not just a search box
+Ask has two modes:
+
+- **Chat** (default) — talks like a normal assistant. It can answer general
+  questions and give advice from the model's own knowledge. When it uses your
+  files, it cites them, and the answer is labeled **Mixed** or **From your
+  sources**. When it does not use your files, it is labeled **General
+  knowledge · not from your files**.
+- **Sources only** — the strict mode. Every claim must come from an allowed
+  source, the exact quote is shown, and missing evidence is refused with **no**
+  citation.
+
+So "what is the capital of France?" now gets a real answer in Chat mode, while
+"what does my protocol say about retention?" still shows the exact excerpt.
 
 ### 5. It can ask one clarifying question
 If two allowed sources match equally, FrontDesk asks which one you meant instead
@@ -40,18 +49,25 @@ Choose it on Access or Settings and press **Load / warm model**. Models are plai
 `.gguf` files: drop one in, remove one, no code change. **Extractive** mode needs
 no model at all and is the fastest demo.
 
-### 7. OCR and scanned PDFs work
+### 7. OCR, PDFs and more file types work
 Images are read with `tesseract`. PDFs with no text layer are turned into page
 images with `pdftoppm`, OCR'd, and the temporary images are deleted immediately.
-The answer cites the page. Nothing OCR'd is saved.
+The answer cites the page. Nothing OCR'd is saved. Markdown, text, LaTeX, reST
+and HTML files are read too, so a paper folder with `main.tex`, `main.pdf` and
+`notes.md` all work.
+
+Summary questions ("summarize the article", "what is this about?") now read the
+most relevant source instead of refusing because the question has no matching
+keywords.
 
 ### 8. There is a private activity log
 Access shows a log of **that** a source was read, never **what** it said. It is a
 local file with no note or mail content in it.
 
 ### 9. There are real tests
-- A 25-question test: 17 answerable, 5 unanswerable, 3 ambiguous.
+- A 25-question test: 17 answerable, 5 unanswerable, 3 ambiguous, run in Sources-only mode.
 - Answerable questions must have a real citation; unanswerable ones must have none.
+- Chat-mode unit tests: general knowledge is kept and labeled, real citations are grounded, mixed answers are labeled, and fake citations are stripped.
 - Two OCR tests, one for an image and one for a scanned PDF.
 - A test that finds the GGUF model in `models/`.
 

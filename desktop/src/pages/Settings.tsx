@@ -15,7 +15,7 @@ function bytes(value: number): string {
 }
 
 export default function Settings() {
-  const { info, models, sources, selectModel, warmModel } = useAccess()
+  const { info, models, sources, selectModel, selectMode, warmModel } = useAccess()
   const [toggles, setToggles] = useState(() => switches.map(([, , on]) => on))
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -99,6 +99,21 @@ export default function Settings() {
             </h2>
             <span className="panel__meta">GGUF folder</span>
           </header>
+
+          <label className="fieldLabel" htmlFor="settingsMode">
+            Answer style
+          </label>
+          <select
+            id="settingsMode"
+            className="select"
+            value={info?.answerMode ?? 'chat'}
+            onChange={(event) =>
+              void selectMode(event.target.value === 'grounded' ? 'grounded' : 'chat')
+            }
+          >
+            <option value="chat">Chat — may use general knowledge</option>
+            <option value="grounded">Sources only — cite or refuse</option>
+          </select>
 
           <label className="fieldLabel" htmlFor="settingsModel">
             Answer adapter

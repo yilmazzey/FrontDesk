@@ -2,7 +2,8 @@
 
 Local-first desktop app for the Pfizer & Newpage Solutions Hackathon Challenge.
 It is a Tauri v2 app (Rust core + Vite/React UI) that reads granted sources on
-demand, answers with exact citations, and refuses when the evidence is missing.
+demand. **Chat** mode answers like a normal assistant and labels anything that
+did not come from your files; **Sources only** mode cites every claim or refuses.
 See the [root README](../README.md) for the full team setup guide.
 
 ## Run
@@ -17,11 +18,13 @@ npm run dev:desktop   # browser preview only, no file access
 
 ## What works
 
-- **Access** — grant a folder, revoke it, choose a GGUF model, inspect the
-  metadata-only activity log.
+- **Access** — grant a folder, revoke it, choose answer style and GGUF model,
+  inspect the metadata-only activity log.
 - **Notes** — read a granted Markdown/text/PDF/scan from its original.
-- **Ask** — extraction → answer → citation verifier. Uncited claims are
-  dropped; missing evidence returns `insufficient`.
+- **Chat** — extraction → answer → verifier. In **Chat** the model may use
+  general knowledge and the answer is labeled when it did not come from your
+  files; in **Sources only** uncited claims are dropped and missing evidence
+  returns `insufficient`.
 - **Search** — filter the sources currently in scope.
 - **Settings** — model folder, adapter, storage, connections.
 
@@ -42,7 +45,7 @@ src-tauri/src/
   permissions.rs    revocable grants (metadata only)
   sources/          fixture, local folder, PDF/OCR, Graph stubs
   retrieve/         in-memory chunker + BM25
-  answer.rs         scope → retrieve → generate → verify
+  answer.rs         scope → retrieve → generate → verify (chat + grounded)
   model.rs          GGUF registry + local runtime adapter
   audit.rs          metadata-only JSONL log
 ```

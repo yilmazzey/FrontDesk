@@ -43,7 +43,9 @@ export type Clarification = {
   options: string[]
 }
 
-export type AnswerStatus = 'answered' | 'insufficient' | 'needs_clarification'
+export type AnswerStatus = 'answered' | 'insufficient' | 'needs_clarification' | 'error'
+
+export type AnswerBasis = 'sources' | 'model' | 'mixed' | 'none'
 
 export type Answer = {
   status: AnswerStatus
@@ -51,6 +53,7 @@ export type Answer = {
   citations: Citation[]
   clarification: Clarification | null
   model: string
+  basis: AnswerBasis
 }
 
 export type ModelRef = {
@@ -62,10 +65,13 @@ export type ModelRef = {
   status: 'ready' | 'importing' | 'unavailable'
 }
 
+export type AnswerMode = 'chat' | 'grounded'
+
 export type AppInfo = {
   dataDir: string
   modelsDir: string
   selectedModel: string | null
+  answerMode: AnswerMode
 }
 
 export type AuditEntry = {

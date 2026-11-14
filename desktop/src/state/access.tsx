@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from '../lib/ipc'
-import type { AppInfo, ModelRef, SourceGrant, SourceRef } from '../types/source'
+import type { AnswerMode, AppInfo, ModelRef, SourceGrant, SourceRef } from '../types/source'
 
 type AccessValue = {
   grants: SourceGrant[]
@@ -22,6 +22,7 @@ type AccessValue = {
   grantFixture: () => Promise<void>
   revoke: (id: string) => Promise<void>
   selectModel: (id: string | null) => Promise<void>
+  selectMode: (mode: AnswerMode) => Promise<void>
   warmModel: (id: string) => Promise<string>
 }
 
@@ -86,6 +87,11 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const selectMode = useCallback(async (mode: AnswerMode) => {
+    const next = await api.selectMode(mode)
+    setInfo(next)
+  }, [])
+
   const warmModel = useCallback(async (id: string) => {
     const status = await api.warmModel(id)
     const next = await api.appInfo()
@@ -106,6 +112,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       grantFixture,
       revoke,
       selectModel,
+      selectMode,
       warmModel,
     }),
     [
@@ -120,6 +127,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       grantFixture,
       revoke,
       selectModel,
+      selectMode,
       warmModel,
     ],
   )
