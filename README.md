@@ -15,6 +15,9 @@ folders on demand, answers with exact citations, refuses when the evidence is mi
 run a GGUF model from `models/`. Microsoft Graph is behind the same source interface but not
 connected yet.
 
+> **New to this branch?** Read [`WHATS_NEW.md`](WHATS_NEW.md) for a plain-English summary of what
+> changed on `yilmazzey` compared with the earlier desktop skeleton, plus a one-screen quick start.
+
 ## Team
 
 - [Damla Sanlı](https://www.linkedin.com/in/damlasanli/)
@@ -54,7 +57,10 @@ brew install ollama tesseract poppler   # optional, for models and extraction
 ```bash
 git clone https://github.com/yilmazzey/FrontDesk.git
 cd FrontDesk
+git checkout yilmazzey
 ```
+
+All the MVP work lives on the `yilmazzey` branch. `main` still has the earlier skeleton.
 
 ### 3. Install once from the repo root
 
@@ -105,7 +111,7 @@ citation pipeline instantly with no model at all.
 npm run build                  # type-check + build both workspaces
 npm run build:web
 npm run build:desktop
-cd desktop/src-tauri && cargo test --test eval   # 25-question honest-answer eval
+cd desktop/src-tauri && cargo test   # evals, OCR and model registry
 ```
 
 ### Troubleshooting
