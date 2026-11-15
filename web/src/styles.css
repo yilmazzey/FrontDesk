@@ -121,6 +121,7 @@ a {
   pointer-events: none;
   z-index: 2;
   background:
+    radial-gradient(80% 62% at 86% 0%, rgba(255, 196, 130, 0.1) 0%, rgba(255, 196, 130, 0) 58%),
     radial-gradient(58% 46% at 60% 26%, rgba(255, 168, 88, 0.1) 0%, rgba(255, 168, 88, 0) 72%),
     linear-gradient(to bottom, rgba(9, 7, 6, 0.72) 0%, rgba(9, 7, 6, 0) 20%, rgba(9, 7, 6, 0) 44%, rgba(9, 7, 6, 0.82) 92%),
     radial-gradient(120% 88% at 58% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.5) 100%);
@@ -501,6 +502,80 @@ a {
   border-radius: 50%;
   background: var(--amber);
   animation: live 2s ease-in-out infinite;
+}
+
+/* ---- Desk zoom ---------------------------------------------------------- */
+/* The desk is a real 3D model, so it can be pushed in and out. Kept quiet and
+   out of the way, just above the HUD on the right. */
+
+.deskZoom {
+  position: absolute;
+  right: var(--pad);
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid rgba(244, 236, 225, 0.16);
+  border-radius: var(--radius);
+  background: rgba(9, 7, 6, 0.52);
+  color: var(--ink-dim);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.deskZoom__btn,
+.deskZoom__reset {
+  display: grid;
+  place-items: center;
+  height: 30px;
+  min-width: 30px;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1;
+  color: inherit;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.deskZoom__reset {
+  min-width: 52px;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+}
+
+.deskZoom__btn:not(:disabled):hover,
+.deskZoom__reset:hover {
+  background: rgba(244, 236, 225, 0.12);
+  color: var(--ink);
+}
+
+.deskZoom__btn:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+[data-theme='light'] .deskZoom {
+  border-color: rgba(36, 29, 22, 0.16);
+  background: rgba(247, 241, 228, 0.72);
+  color: var(--ink-dark-dim);
+}
+
+[data-theme='light'] .deskZoom__btn:not(:disabled):hover,
+[data-theme='light'] .deskZoom__reset:hover {
+  background: rgba(36, 29, 22, 0.09);
+  color: var(--ink-dark);
+}
+
+@media (max-width: 640px) {
+  .deskZoom {
+    bottom: calc(58px + env(safe-area-inset-bottom));
+  }
 }
 
 .switch {
@@ -3337,6 +3412,19 @@ a {
 
 [data-theme='light'] .stage__scrim {
   background:
+    /* Late-afternoon window light spilling in from the top right. */
+    radial-gradient(
+      62% 54% at 92% -4%,
+      rgba(255, 240, 202, 0.92) 0%,
+      rgba(255, 232, 186, 0.46) 30%,
+      rgba(255, 232, 186, 0) 64%
+    ),
+    linear-gradient(
+      208deg,
+      rgba(255, 231, 187, 0.42) 0%,
+      rgba(255, 231, 187, 0.12) 26%,
+      rgba(255, 231, 187, 0) 54%
+    ),
     radial-gradient(58% 46% at 60% 26%, rgba(255, 226, 176, 0.32) 0%, rgba(255, 226, 176, 0) 72%),
     linear-gradient(
       to bottom,
@@ -3345,7 +3433,7 @@ a {
       rgba(248, 238, 222, 0) 46%,
       rgba(246, 235, 218, 0.72) 94%
     ),
-    radial-gradient(120% 88% at 58% 38%, rgba(120, 90, 50, 0) 44%, rgba(120, 90, 50, 0.16) 100%);
+    radial-gradient(120% 88% at 58% 38%, rgba(120, 90, 50, 0) 44%, rgba(120, 90, 50, 0.18) 100%);
 }
 
 [data-theme='light'] .hero::before {
@@ -3446,6 +3534,36 @@ a {
 .journal__galleryHead .journal__sectionLabel {
   flex: 1;
   margin-bottom: 0;
+}
+
+/* ---- Full-bleed presentation slides ------------------------------------- */
+
+.journal__gallery--slides {
+  justify-content: flex-start;
+  padding-top: clamp(20px, 3.4vh, 40px);
+  padding-bottom: clamp(8px, 1.6vh, 16px);
+}
+
+.journal__galleryStage {
+  position: relative;
+  width: 100%;
+  height: clamp(440px, calc(100dvh - 270px), 960px);
+}
+
+.journal__galleryHint {
+  margin: clamp(10px, 1.6vh, 16px) auto 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgba(36, 29, 22, 0.42);
+}
+
+@media (max-width: 720px) {
+  .journal__galleryStage {
+    height: clamp(320px, calc(100dvh - 240px), 620px);
+  }
 }
 
 .journal__sectionLabel span:last-child {

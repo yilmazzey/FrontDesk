@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import { Sparkles } from '@react-three/drei'
 import { useUI } from '../store'
 import type { DeskBounds } from './useDesk'
 
@@ -108,6 +109,21 @@ export function LampLight({ bounds, scene }: { bounds: DeskBounds; scene: THREE.
           toneMapped={false}
         />
       </sprite>
+
+      {/* Dust drifting in the beam. Kept inside a small box under the shade so
+          it reads as motes in the cone, not snow across the room. */}
+      {lampOn ? (
+        <Sparkles
+          position={[anchor.x, anchor.y - 0.28, anchor.z]}
+          scale={[0.42, 0.5, 0.42]}
+          count={26}
+          size={2.1}
+          speed={0.22}
+          opacity={0.55}
+          color="#ffd6a0"
+          noise={0.9}
+        />
+      ) : null}
     </group>
   )
 }

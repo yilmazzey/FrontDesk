@@ -15,9 +15,15 @@ export const site = {
 
 /** Camera framing, in model units (the desk is roughly 2.1 × 1.4 m). */
 export const framing = {
+  /**
+   * The desk is framed around the monitor rather than the middle of the room.
+   * The camera sits close enough that the desk crops off the bottom and right
+   * edges — a cropped object reads as large and intentional. Zoom (store) is
+   * applied along this view ray on top of the authored pose.
+   */
   desk: {
-    position: [1.86, 2.02, 2.66] as [number, number, number],
-    target: [-0.02, 0.99, 0.06] as [number, number, number],
+    position: [1.68, 1.92, 1.72] as [number, number, number],
+    target: [0.5, 1.2, 0.02] as [number, number, number],
     fov: 35,
   },
   notebook: {

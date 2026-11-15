@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { DeskScene } from '../scene/DeskScene'
 import { Hero, Hud, ScrollCue, TopBar } from '../components/Chrome'
+import { ZoomControl } from '../components/ZoomControl'
 import { Journal } from '../components/Journal'
 import { NotebookOverlay } from '../components/NotebookOverlay'
 import { LoaderOverlay } from '../components/LoaderOverlay'
@@ -104,6 +105,7 @@ export default function Home() {
         <Hero />
         <ScrollCue />
         <Hud />
+        <ZoomControl />
       </motion.div>
 
       <div className="journalScroll">

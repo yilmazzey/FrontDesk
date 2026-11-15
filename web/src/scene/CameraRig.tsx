@@ -21,7 +21,10 @@ const toVector = (value: readonly [number, number, number]) => new THREE.Vector3
  */
 export function CameraRig() {
   const mode = useUI((s) => s.mode)
+  const zoom = useUI((s) => s.zoom)
   const { camera, size, pointer } = useThree()
+
+  const zoomNow = useRef(zoom)
 
   const lookAt = useRef(toVector(framing.desk.target))
   const desired = useRef(toVector(framing.desk.position))
@@ -55,6 +58,10 @@ export function CameraRig() {
 
   useFrame((state, rawDelta) => {
     const dt = Math.min(rawDelta, 0.05)
+    // The authored poses are the "1×" framing. Zoom moves the camera along the
+    // view ray, so the desk stays centred while it grows and shrinks.
+    zoomNow.current = THREE.MathUtils.damp(zoomNow.current, zoom, 6, dt)
+    const z = zoomNow.current
     const pose =
       mode === 'notebook' ? framing.notebook : mode === 'entering' ? framing.screen : framing.desk
 
@@ -95,6 +102,10 @@ export function CameraRig() {
 
       blended.current.copy(fromPos.current).lerp(toPos.current, progress)
       blendedTarget.current.copy(fromTarget.current).lerp(toTarget.current, progress)
+      blended.current
+        .sub(blendedTarget.current)
+        .divideScalar(z)
+        .add(blendedTarget.current)
 
       // Fade the idle drift and pointer parallax out as the dolly starts.
       const idle = 1 - progress
@@ -129,6 +140,7 @@ export function CameraRig() {
     goal.current.x += driftX + px
     goal.current.y += driftY + py
     goal.current.y += (pullback - 1) * 0.18
+    goal.current.sub(target.current).divideScalar(z).add(target.current)
 
     const lambda = mode === 'desk' ? 3.2 : 3.6
 
