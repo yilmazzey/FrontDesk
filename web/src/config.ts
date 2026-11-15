@@ -22,8 +22,8 @@ export const framing = {
    * applied along this view ray on top of the authored pose.
    */
   desk: {
-    position: [1.255, 1.648, 1.283] as [number, number, number],
-    target: [0.429, 1.144, 0.093] as [number, number, number],
+    position: [1.222, 1.648, 1.306] as [number, number, number],
+    target: [0.396, 1.144, 0.116] as [number, number, number],
     fov: 35,
   },
   notebook: {
