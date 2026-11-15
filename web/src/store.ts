@@ -39,7 +39,6 @@ type Store = {
   /** camera zoom on the desk. 1 is the authored pose, larger is closer. */
   zoom: number
   setZoom: (zoom: number) => void
-  nudgeZoom: (delta: number) => void
 
   /** whole-page colour scheme */
   theme: Theme
@@ -68,9 +67,7 @@ export const useUI = create<Store>((set) => ({
   setHover: (hover) => set({ hover }),
 
   zoom: 1,
-  setZoom: (zoom) => set({ zoom: Math.min(2.1, Math.max(0.78, zoom)) }),
-  nudgeZoom: (delta) =>
-    set((s) => ({ zoom: Math.min(2.1, Math.max(0.78, s.zoom + delta)) })),
+  setZoom: (zoom) => set({ zoom: Math.min(2.6, Math.max(0.6, zoom)) }),
 
   theme: readTheme(),
   setTheme: (theme) => set({ theme }),
