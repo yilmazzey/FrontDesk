@@ -10,15 +10,21 @@ function when(value: string): string {
 }
 
 function basisLabel(answer: Answer): string {
-  if (answer.basis === 'model') return 'General knowledge · not from your files'
+  if (answer.basis === 'model') return 'General knowledge'
   if (answer.basis === 'mixed') return 'Your files + general knowledge'
-  if (answer.basis === 'sources') return 'From your sources'
+  if (answer.basis === 'sources') return 'From your files'
   return ''
 }
 
+const suggestions = [
+  'Summarise what my files say about attention.',
+  'How should I structure a literature summary?',
+  'What is a good weekly review ritual?',
+]
+
 export default function Chat() {
   const location = useLocation()
-  const { info, selectMode } = useAccess()
+  const { info } = useAccess()
   const initial = (location.state as { question?: string } | null)?.question ?? ''
   const [question, setQuestion] = useState(initial)
   const [answer, setAnswer] = useState<Answer | null>(null)
@@ -66,39 +72,17 @@ export default function Chat() {
     <div className="page">
       <header className="pageHead">
         <div>
-          <p className="eyebrow">Ask the desk</p>
+          <p className="eyebrow">Assistant</p>
           <h1 className="pageTitle">
-            Answers with <em>receipts.</em>
+            Ask. It <em>answers.</em>
           </h1>
           <p className="pageLede">
-            {mode === 'chat'
-              ? 'Chat with your local model. It can use its own general knowledge, and cites your files whenever it uses them.'
-              : 'Answers only from the sources you allowed. Every claim is cited, and missing evidence is refused.'}
+            {mode === 'grounded'
+              ? 'Strict mode is on: every claim is cited to your files, or the answer is refused.'
+              : 'One assistant for your files and everything else. It cites your notes when it uses them, and labels answers that come from general knowledge.'}
           </p>
         </div>
       </header>
-
-      <div className="modeRow" role="group" aria-label="Answer mode">
-        <button
-          type="button"
-          className={`modeChip${mode === 'chat' ? ' is-on' : ''}`}
-          onClick={() => void selectMode('chat')}
-        >
-          Chat
-        </button>
-        <button
-          type="button"
-          className={`modeChip${mode === 'grounded' ? ' is-on' : ''}`}
-          onClick={() => void selectMode('grounded')}
-        >
-          Sources only
-        </button>
-        <span className="modeHint">
-          {mode === 'chat'
-            ? 'General advice is labeled when it does not come from your files.'
-            : 'No citation, no answer.'}
-        </span>
-      </div>
 
       <form className="chatForm" onSubmit={onSubmit}>
         <label className="srOnly" htmlFor="chatQuestion">
@@ -108,37 +92,48 @@ export default function Chat() {
           id="chatQuestion"
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder={
-            mode === 'chat'
-              ? 'What does my article say about attention? Or: how should I structure a summary?'
-              : 'What did I write about the retention window?'
-          }
+          placeholder="Ask about your files, or ask anything else…"
           autoFocus
         />
         <button type="submit" className="btn btn--primary" disabled={busy || !question.trim()}>
-          {busy ? 'Reading…' : 'Ask'}
+          {busy ? 'Thinking…' : 'Ask'}
         </button>
       </form>
 
+      <div className="chatSuggestions" aria-label="Example questions">
+        {suggestions.map((suggestion) => (
+          <button
+            key={suggestion}
+            type="button"
+            className="chatSuggestion"
+            onClick={() => void ask(suggestion)}
+            disabled={busy}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+
       {error ? <p className="notice notice--bad">{error}</p> : null}
-      {busy ? <p className="notice">Reading the allowed sources on this machine…</p> : null}
+      {busy ? (
+        <p className="notice">Reading the allowed sources and thinking on this machine…</p>
+      ) : null}
 
       {answer ? (
         <section className={`answer answer--${answer.status}`} aria-live="polite">
           <div className="answer__head">
-            <span className={`answer__status answer__status--${answer.status}`}>
-              {answer.status === 'answered'
-                ? 'Answered'
-                : answer.status === 'needs_clarification'
+            {answer.status === 'answered' ? (
+              <span className={`basis basis--${answer.basis}`}>{basisLabel(answer)}</span>
+            ) : (
+              <span className={`answer__status answer__status--${answer.status}`}>
+                {answer.status === 'needs_clarification'
                   ? 'Needs one clarification'
                   : answer.status === 'error'
                     ? 'Something went wrong'
-                    : 'Not in your sources'}
-            </span>
-            <span className="answer__model">
-              {basisLabel(answer) ? `${basisLabel(answer)} · ` : ''}
-              {answer.model}
-            </span>
+                    : 'Not in your files'}
+              </span>
+            )}
+            <span className="answer__model">{answer.model}</span>
           </div>
 
           <p className="answer__text">{answer.text}</p>
@@ -162,28 +157,35 @@ export default function Chat() {
           ) : null}
 
           {answer.citations.length ? (
-            <div className="citations">
-              <p className="citations__label">Sources</p>
-              {answer.citations.map((citation, index) => (
-                <article key={`${citation.id}-${index}`} className="citation">
-                  <header className="citation__head">
-                    <span className="citation__n">[{index + 1}]</span>
-                    <strong>{citation.title}</strong>
-                    <span className="tag">{citation.sourceType}</span>
-                  </header>
-                  <p className="citation__meta">
-                    {citation.location} · as of {when(citation.timestamp)}
-                  </p>
-                  <blockquote className="citation__excerpt">{citation.excerpt}</blockquote>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => void openOriginal(citation.sourceId)}
-                  >
-                    Open original ↗
-                  </button>
-                </article>
-              ))}
+            <div className="sourceList">
+              <p className="sourceList__label">Sources</p>
+              <ul>
+                {answer.citations.map((citation, index) => (
+                  <li key={`${citation.id}-${index}`} className="sourceItem">
+                    <span className="sourceItem__n">[{index + 1}]</span>
+                    <div className="sourceItem__body">
+                      <div className="sourceItem__head">
+                        <strong>{citation.title}</strong>
+                        <span className="tag">{citation.sourceType}</span>
+                      </div>
+                      <p className="sourceItem__meta">
+                        {citation.location} · as of {when(citation.timestamp)}
+                      </p>
+                      <details className="sourceItem__more">
+                        <summary>Excerpt</summary>
+                        <blockquote>{citation.excerpt}</blockquote>
+                      </details>
+                    </div>
+                    <button
+                      type="button"
+                      className="sourceItem__open"
+                      onClick={() => void openOriginal(citation.sourceId)}
+                    >
+                      Open ↗
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
         </section>

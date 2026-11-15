@@ -1,15 +1,38 @@
 use std::fs;
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use std::thread::sleep;
 use std::time::Duration;
 
 use serde_json::{json, Value};
 
 use crate::contracts::ModelRef;
-use crate::retrieve::chunker::Chunk;
 
+/// llama.cpp's OpenAI-compatible server is the preferred runtime: it loads the
+/// GGUF file directly, so there is no import/Modelfile step and no Ollama
+/// dependency. Ollama stays as a fallback for machines that already have it.
 const OLLAMA: &str = "http://127.0.0.1:11434";
+
+struct LlamaServer {
+    model: PathBuf,
+    base: String,
+    child: Child,
+}
+
+impl Drop for LlamaServer {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+static LLAMA: OnceLock<Mutex<Option<LlamaServer>>> = OnceLock::new();
+
+fn llama_slot() -> &'static Mutex<Option<LlamaServer>> {
+    LLAMA.get_or_init(|| Mutex::new(None))
+}
 
 /// Every model is a GGUF file the user drops into the models folder. Adding or
 /// removing a file is the entire "plug a model in/out" workflow.
@@ -61,9 +84,14 @@ pub fn path_for(models_dir: &Path, id: &str) -> Option<PathBuf> {
     }
 }
 
-/// Import (if needed) and warm a model without asking a question.
+/// Warm a model without asking a question. For llama.cpp this loads the GGUF
+/// into the server process; for the Ollama fallback it imports the model.
 pub fn warm(models_dir: &Path, id: &str) -> Result<String, String> {
     let path = path_for(models_dir, id).ok_or_else(|| format!("Model not found: {id}"))?;
+    if llama_available() {
+        ensure_llama(&path)?;
+        return Ok(format!("{} is ready (llama.cpp)", prettify(&id)));
+    }
     ensure_server()?;
     let name = ensure_model(&path)?;
     Ok(format!("{name} is ready"))
@@ -71,6 +99,13 @@ pub fn warm(models_dir: &Path, id: &str) -> Result<String, String> {
 
 pub fn generate(models_dir: &Path, id: &str, system: &str, user: &str) -> Result<String, String> {
     let path = path_for(models_dir, id).ok_or_else(|| format!("Model not found: {id}"))?;
+
+    if llama_available() {
+        let base = ensure_llama(&path)?;
+        return generate_llama(&base, system, user);
+    }
+
+    // Fallback: an existing Ollama install.
     ensure_server()?;
     let name = ensure_model(&path)?;
 
@@ -114,6 +149,133 @@ fn prettify(stem: &str) -> String {
         .join(" ")
 }
 
+fn llama_binary() -> PathBuf {
+    std::env::var_os("FRONTDESK_LLAMA_SERVER")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("llama-server"))
+}
+
+/// True when `llama-server` (or FRONTDESK_LLAMA_SERVER) can be executed.
+fn llama_available() -> bool {
+    Command::new(llama_binary())
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok()
+}
+
+fn healthy(base: &str) -> bool {
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_millis(600))
+        .timeout_read(Duration::from_millis(1500))
+        .build();
+    agent.get(&format!("{base}/health")).call().is_ok()
+}
+
+/// Start one llama-server process for the selected GGUF and reuse it until a
+/// different model is chosen. The model is loaded lazily so app start stays
+/// fast, and the child is killed when it is replaced or the app exits.
+fn ensure_llama(path: &Path) -> Result<String, String> {
+    let slot = llama_slot();
+    let mut guard = slot
+        .lock()
+        .map_err(|_| "The llama.cpp runtime lock was poisoned.".to_string())?;
+
+    if let Some(server) = guard.as_ref() {
+        if server.model == path && healthy(&server.base) {
+            return Ok(server.base.clone());
+        }
+    }
+    if let Some(old) = guard.take() {
+        drop(old);
+    }
+
+    // Ask the OS for a free loopback port. The listener is released before
+    // llama-server binds it; the window is small and startup health-checks
+    // catch a collision.
+    let listener = TcpListener::bind(("127.0.0.1", 0))
+        .map_err(|e| format!("Could not reserve a port for llama.cpp: {e}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| format!("Could not read the reserved port: {e}"))?
+        .port();
+    drop(listener);
+
+    let mut child = Command::new(llama_binary())
+        .arg("--model")
+        .arg(path)
+        .args(["--host", "127.0.0.1"])
+        .arg("--port")
+        .arg(port.to_string())
+        .args(["--ctx-size", "8192", "--n-gpu-layers", "99", "--no-webui"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("llama-server could not start: {e}"))?;
+
+    let base = format!("http://127.0.0.1:{port}");
+
+    // Loading a 4-bit model can take a while on a laptop; two minutes is a
+    // generous ceiling before we report a real failure.
+    for _ in 0..240 {
+        if let Ok(Some(status)) = child.try_wait() {
+            return Err(format!(
+                "llama-server stopped while loading the model ({status})."
+            ));
+        }
+        if healthy(&base) {
+            *guard = Some(LlamaServer {
+                model: path.to_path_buf(),
+                base: base.clone(),
+                child,
+            });
+            return Ok(base);
+        }
+        sleep(Duration::from_millis(500));
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+    Err("llama-server did not become ready within two minutes.".into())
+}
+
+fn generate_llama(base: &str, system: &str, user: &str) -> Result<String, String> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(3))
+        .timeout_read(Duration::from_secs(300))
+        .build();
+
+    let body = json!({
+        "model": "frontdesk-local",
+        "messages": [
+            { "role": "system", "content": system },
+            { "role": "user", "content": user }
+        ],
+        "temperature": 0.2,
+        "max_tokens": 512,
+        "stream": false
+    });
+
+    let response = agent
+        .post(&format!("{base}/v1/chat/completions"))
+        .send_json(body)
+        .map_err(|e| format!("llama.cpp request failed: {e}"))?;
+
+    let parsed: Value = response
+        .into_json()
+        .map_err(|e| format!("Could not parse the llama.cpp response: {e}"))?;
+
+    parsed
+        .pointer("/choices/0/message/content")
+        .and_then(Value::as_str)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "llama.cpp returned an empty answer.".to_string())
+}
+
+// ---- Ollama fallback -------------------------------------------------------
+
 fn sanitize(stem: &str) -> String {
     let mut name: String = stem
         .to_lowercase()
@@ -150,7 +312,12 @@ fn ensure_server() -> Result<(), String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("Ollama is not installed or not on PATH: {e}"))?;
+        .map_err(|e| {
+            format!(
+                "No local runtime found. Install llama.cpp (`brew install llama.cpp`) so \
+                 `llama-server` is on PATH, or install Ollama. Then retry. ({e})"
+            )
+        })?;
 
     for _ in 0..30 {
         sleep(Duration::from_millis(500));
@@ -207,17 +374,4 @@ fn ensure_model(path: &Path) -> Result<String, String> {
     }
 
     Ok(name)
-}
-
-/// Reserved for the next adapter: llama.cpp's OpenAI-compatible server. The
-/// UI and pipeline only depend on `generate`, so a new runtime is a new
-/// function here, not a rewrite.
-#[allow(dead_code)]
-pub fn ollama_base() -> &'static str {
-    OLLAMA
-}
-
-#[allow(dead_code)]
-pub fn excerpt_count(_chunks: &[Chunk]) -> usize {
-    _chunks.len()
 }

@@ -78,7 +78,7 @@ function browserAsk(question: string): Answer {
     status: 'error',
     text:
       browserMode === 'chat'
-        ? 'Chat mode needs the desktop app and a local model. The browser preview cannot run a model, so it can only quote the sample notes in Sources-only mode.'
+        ? 'The assistant needs the desktop app and a local model. The browser preview cannot run one.'
         : 'Not in your allowed sources. No sources are currently granted.',
     citations: [],
     clarification: null,

@@ -219,8 +219,8 @@ export default function Access() {
               void selectMode(event.target.value === 'grounded' ? 'grounded' : 'chat')
             }
           >
-            <option value="chat">Chat — may use general knowledge</option>
-            <option value="grounded">Sources only — cite or refuse</option>
+            <option value="chat">Assistant — answer freely, cite files when used</option>
+            <option value="grounded">Strict citations — refuse when not in files</option>
           </select>
 
           <label className="fieldLabel" htmlFor="modelSelect">

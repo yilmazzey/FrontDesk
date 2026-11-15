@@ -2,8 +2,9 @@
 
 Local-first desktop app for the Pfizer & Newpage Solutions Hackathon Challenge.
 It is a Tauri v2 app (Rust core + Vite/React UI) that reads granted sources on
-demand. **Chat** mode answers like a normal assistant and labels anything that
-did not come from your files; **Sources only** mode cites every claim or refuses.
+demand. **Ask** is one assistant: it answers generally, cites your files when it
+uses them, and labels answers that come from general knowledge. A strict
+citation-or-refuse setting is still available.
 See the [root README](../README.md) for the full team setup guide.
 
 ## Run
@@ -21,11 +22,11 @@ npm run dev:desktop   # browser preview only, no file access
 - **Access** — grant a folder, revoke it, choose answer style and GGUF model,
   inspect the metadata-only activity log.
 - **Notes** — read a granted Markdown/text/PDF/scan from its original.
-- **Chat** — extraction → answer → verifier. In **Chat** the model may use
-  general knowledge and the answer is labeled when it did not come from your
-  files; in **Sources only** uncited claims are dropped and missing evidence
-  returns `insufficient`.
-- **Search** — filter the sources currently in scope.
+- **Ask** — one assistant. It prefers your retrieved files, cites them when it
+  uses them, and otherwise answers from general knowledge with a clear label.
+  Strict mode drops uncited claims and returns `insufficient` instead.
+- **Search** — a plain browser for the files and mail currently in scope, with
+  kind filters and no answer box.
 - **Settings** — model folder, adapter, storage, connections.
 
 PDF text uses `pdftotext`; image OCR uses `tesseract`. Markdown and text need
@@ -34,8 +35,9 @@ neither.
 ## Models
 
 Drop `.gguf` files into `../models/`. Select one on Access or Settings, then
-press **Load / warm model**. The first load imports it into Ollama and can take
-a minute. **Extractive** answers instantly with no model.
+press **Load / warm model**. FrontDesk starts llama.cpp's `llama-server` with the
+GGUF directly (`brew install llama.cpp`); if it is not installed, it falls back
+to Ollama. **Extractive** answers instantly with no model.
 
 ## Rust core
 

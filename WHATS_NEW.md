@@ -1,7 +1,9 @@
 # What changed on `yilmazzey`
 
 This branch turns the desktop folder from a **clickable mock-up** into a **working
-local-first app**. The web landing page is unchanged.
+local-first app**, and pushes the landing page's 3D desk and gallery further: the
+desk is zoomable and framed on the monitor, and the gallery is now full-bleed
+presentation slides.
 
 Before this branch, the desktop app had screens with fake data. The Rust side did
 nothing, there was no real file access, no answers, no model and no tests.
@@ -24,20 +26,22 @@ The **Notes** page reads a Markdown, text, PDF or image file only when you open
 it. Nothing is copied into a database. If you edit the file, the next read shows
 the new version.
 
-### 4. Ask is a chat, not just a search box
-Ask has two modes:
+### 4. Ask is one assistant
+Ask is a single assistant, not a search box and not two competing screens:
 
-- **Chat** (default) — talks like a normal assistant. It can answer general
-  questions and give advice from the model's own knowledge. When it uses your
-  files, it cites them, and the answer is labeled **Mixed** or **From your
-  sources**. When it does not use your files, it is labeled **General
-  knowledge · not from your files**.
-- **Sources only** — the strict mode. Every claim must come from an allowed
-  source, the exact quote is shown, and missing evidence is refused with **no**
-  citation.
+- It prefers the files you allowed and cites them with a compact **Sources**
+  list under the answer.
+- When your files do not cover the question, it answers from general knowledge
+  and labels that clearly instead of pretending it came from your notes.
+- Answers stay short by default, with an excerpt tucked behind each source.
+- **Search** is still there, but only as a plain file browser: it lists and
+  filters what you granted and never answers.
 
-So "what is the capital of France?" now gets a real answer in Chat mode, while
-"what does my protocol say about retention?" still shows the exact excerpt.
+A **Strict citations** setting (Access/Settings) keeps the older citation-or-refuse
+behaviour for demos or grading. There is no mode switch on the Ask page.
+
+So "what is the capital of France?" gets a short general answer, while "what does
+my protocol say about retention?" shows the exact excerpt it used.
 
 ### 5. It can ask one clarifying question
 If two allowed sources match equally, FrontDesk asks which one you meant instead
@@ -46,8 +50,13 @@ of picking one at random.
 ### 6. It can run a local model
 The first model, `microsoft_Phi-4-mini-instruct-Q4_K_M.gguf`, sits in `models/`.
 Choose it on Access or Settings and press **Load / warm model**. Models are plain
-`.gguf` files: drop one in, remove one, no code change. **Extractive** mode needs
-no model at all and is the fastest demo.
+`.gguf` files: drop one in, remove one, no code change. FrontDesk now starts
+llama.cpp's `llama-server` with the GGUF directly; if `llama-server` is not on
+PATH it falls back to Ollama. **Extractive** mode needs no model at all and is
+the fastest demo.
+
+Web access is not wired yet: it needs a consent screen and a search backend
+before answers can cite URLs. Everything still runs locally by default.
 
 ### 7. OCR, PDFs and more file types work
 Images are read with `tesseract`. PDFs with no text layer are turned into page
@@ -102,8 +111,9 @@ npm run dev:tauri
 Optional, for models and OCR:
 
 ```bash
-brew install ollama tesseract poppler
-ollama serve
+brew install llama.cpp tesseract poppler
+# Optional fallback if you already use Ollama:
+# brew install ollama && ollama serve
 ```
 
 The full setup, routes, troubleshooting and non-negotiables are in

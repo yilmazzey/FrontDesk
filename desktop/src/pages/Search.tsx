@@ -1,35 +1,58 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAccess } from '../state/access'
+import type { SourceRef } from '../types/source'
 
 function when(value: string): string {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
 }
 
+type Filter = 'all' | 'notes' | 'scans' | 'mail'
+
+function category(source: SourceRef): Exclude<Filter, 'all'> {
+  if (source.kind === 'mail' || source.kind === 'onenote') return 'mail'
+  if (source.kind === 'ocr' || source.location.toLowerCase().endsWith('.pdf')) return 'scans'
+  return 'notes'
+}
+
+const filters: Array<{ id: Filter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'scans', label: 'Scans' },
+  { id: 'mail', label: 'Mail' },
+]
+
 export default function Search() {
   const { sources } = useAccess()
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<Filter>('all')
 
   const results = useMemo(() => {
     const cleaned = query.trim().toLowerCase()
-    if (!cleaned) return sources
-    return sources.filter(
-      (source) =>
+    return sources.filter((source) => {
+      if (filter !== 'all' && category(source) !== filter) return false
+      if (!cleaned) return true
+      return (
         source.title.toLowerCase().includes(cleaned) ||
         source.location.toLowerCase().includes(cleaned) ||
-        source.kind.toLowerCase().includes(cleaned),
-    )
-  }, [query, sources])
+        source.kind.toLowerCase().includes(cleaned)
+      )
+    })
+  }, [query, sources, filter])
 
   return (
     <div className="page page--flush">
       <header className="pageHead pageHead--tight">
         <div>
-          <p className="eyebrow">Local index</p>
+          <p className="eyebrow">Files on the desk</p>
           <h1 className="pageTitle">
-            Find the <em>right page.</em>
+            Browse what you've <em>allowed.</em>
           </h1>
+          <p className="pageLede pageLede--tight">
+            A plain file browser for the notes, scans and mail you granted. No answers here —{' '}
+            <Link to="/chat">ask the assistant</Link> when you want one.
+          </p>
         </div>
       </header>
 
@@ -40,28 +63,27 @@ export default function Search() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search notes, scans and mail…"
-          aria-label="Search"
+          placeholder="Filter by name, path or type…"
+          aria-label="Filter files"
           autoFocus
         />
         <kbd>⌘K</kbd>
       </div>
 
       <div className="filterRow" aria-label="Filters">
-        <button type="button" className="filter is-on">
-          All
-        </button>
-        <button type="button" className="filter">
-          Notes
-        </button>
-        <button type="button" className="filter">
-          Scans
-        </button>
-        <button type="button" className="filter">
-          Mail
-        </button>
+        {filters.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`filter${filter === item.id ? ' is-on' : ''}`}
+            onClick={() => setFilter(item.id)}
+            aria-pressed={filter === item.id}
+          >
+            {item.label}
+          </button>
+        ))}
         <span className="filterRow__meta">
-          {results.length} {results.length === 1 ? 'result' : 'results'} · from your allowed sources
+          {results.length} {results.length === 1 ? 'file' : 'files'} · from your allowed sources
         </span>
       </div>
 
@@ -78,7 +100,7 @@ export default function Search() {
                 <span>As of {when(source.modified)}</span>
                 <span className="result__div" aria-hidden="true" />
                 <span>Read on demand</span>
-                <span className="result__cite">Cited, not guessed</span>
+                <span className="result__cite">Original stays where it is</span>
               </div>
             </li>
           ))}
@@ -87,7 +109,7 @@ export default function Search() {
         <div className="empty">
           <p className="empty__title">Nothing on the desk matches that.</p>
           <p>
-            The index only searches what you allow. <Link to="/access">Grant another source</Link>{' '}
+            The browser only lists what you allow. <Link to="/access">Grant another source</Link>{' '}
             or try a broader word.
           </p>
         </div>

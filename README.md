@@ -7,15 +7,15 @@ The repo is a two-workspace monorepo:
 
 | Workspace | What it is | Dev URL |
 | --- | --- | --- |
-| `web/` | Public landing page: 3D desk, full-page Embla gallery, notebook, and `/monitor` onboarding. | `http://localhost:5173` |
+| `web/` | Public landing page: zoomable 3D desk, full-bleed slide gallery, notebook, and `/monitor` onboarding. | `http://localhost:5173` |
 | `desktop/` | Tauri app with a local Rust core: Access grants, Notes, Ask/Chat, Search, Settings and audit. | `http://localhost:5174` |
 
 The 3D experience is real. The desktop app is now a working local-first MVP: it reads granted
-folders on demand, answers with exact citations, and can run a GGUF model from `models/`. Ask has
-two modes: **Chat** (default) answers like a normal assistant and may use the model's general
-knowledge, labeling anything that did not come from your files; **Sources only** is the strict
-mode that cites every claim or refuses. Microsoft Graph is behind the same source interface but
-not connected yet.
+folders on demand, answers with exact citations, and can run a GGUF model from `models/`. Ask is
+one assistant: it cites your files when it uses them, labels answers that come from general
+knowledge, and keeps replies short. A strict **Strict citations** setting is still available for
+citation-or-refuse answers. Microsoft Graph is behind the same source interface but not connected
+yet.
 
 > **New to this branch?** Read [`WHATS_NEW.md`](WHATS_NEW.md) for a plain-English summary of what
 > changed on `yilmazzey` compared with the earlier desktop skeleton, plus a one-screen quick start.
@@ -36,7 +36,8 @@ not connected yet.
 - **npm 10 or newer** — check with `npm -v`
 - **Git**
 - **Rust (stable) + Xcode Command Line Tools** — needed for the real desktop window
-- **Ollama** — optional, only for GGUF model answers
+- **llama.cpp** — preferred runtime for GGUF answers (`llama-server` on PATH)
+- **Ollama** — optional fallback if you already have it
 
 Optional extraction tools:
 
@@ -103,9 +104,15 @@ Drop a `.gguf` file into `models/` at the repo root. The current model is:
 models/microsoft_Phi-4-mini-instruct-Q4_K_M.gguf
 ```
 
-Then open **Access → Local model**, choose the model, and press **Load / warm model**. The
-first load imports it into Ollama and can take a minute. Choose **Extractive** to demo the
-citation pipeline instantly with no model at all.
+Then open **Access → Local model**, choose the model, and press **Load / warm model**. FrontDesk
+starts `llama-server` with the GGUF directly — no import or Modelfile step:
+
+```bash
+brew install llama.cpp
+```
+
+If `llama-server` is not installed, FrontDesk falls back to a local Ollama install. Choose
+**Extractive** to demo the citation pipeline instantly with no model at all.
 
 ### 7. Build and test before you push
 
@@ -129,8 +136,9 @@ cd desktop/src-tauri && cargo test   # evals, OCR and model registry
 - **Weird cached UI** — hard-refresh (`Cmd/Ctrl + Shift + R`) after pulling.
 - **`Port 5174 is already in use`** — the browser preview and `dev:tauri` share the port. Stop
   the other Vite process first (`lsof -ti:5174 | xargs kill`).
-- **Model import fails** — start `ollama serve`, check `ollama list`, then press
-  **Load / warm model** again. The GGUF must be a complete file in `models/`.
+- **Model import fails** — install llama.cpp so `llama-server` is on PATH (`brew install
+  llama.cpp`), or start `ollama serve` if you use the fallback. Then press **Load / warm model**
+  again. The GGUF must be a complete file in `models/`.
 - **PDF or OCR returns an error** — install `pdftotext` and `tesseract` (`brew install poppler
   tesseract`). Markdown and text files need neither.
 
@@ -151,8 +159,8 @@ Desktop:
 
 - **`/#/`** — Dashboard: live source count, grants, quick ask.
 - **`/#/notes`** — read a granted note from its original on demand.
-- **`/#/chat`** — chat with the local model, or switch to Sources only for citation-or-refuse answers.
-- **`/#/search`** — filter the sources currently in scope.
+- **`/#/chat`** — one assistant: short answers, citations when it uses your files, general knowledge labeled when it does not.
+- **`/#/search`** — a plain browser for the files and mail currently in scope (no answers).
 - **`/#/access`** — grant/revoke folders, choose answer style and model adapter, inspect metadata-only activity.
 - **`/#/settings`** — connections, model folder, storage, behaviour.
 
@@ -170,7 +178,9 @@ Desktop:
 | `web/src/scene/CameraRig.tsx` | Damped camera moves, scroll dolly, portrait framing. |
 | `web/src/components/NotebookOverlay.tsx` | Open-book dialog, focus trap, sections. |
 | `web/src/content/NotebookContent.tsx` | About us (team), Pricing, Privacy copy. |
-| `web/src/components/Gallery.tsx` | Full-page Embla gallery. |
+| `web/src/components/Gallery.tsx` | Full-bleed presentation gallery with placeholder slides. |
+| `web/src/components/CircularGallery.tsx` | Vendored React Bits WebGL carousel (typed via `.d.ts`). |
+| `web/src/components/ZoomControl.tsx` | Desk zoom buttons, ⌘/Ctrl + wheel and +/− keys. |
 | `web/src/components/Journal.tsx` | Sticky journal bar, gallery, footer. |
 | `web/src/pages/MonitorPage.tsx` | `/monitor` onboarding placeholder. |
 | `web/src/lib/scroll.ts` | Non-reactive scroll value read by the camera rig. |
@@ -198,7 +208,7 @@ Desktop:
 | `desktop/src-tauri/src/sources/` | Fixture, local folder, PDF/OCR and Graph stubs. |
 | `desktop/src-tauri/src/retrieve/` | In-memory chunker and BM25. |
 | `desktop/src-tauri/src/answer.rs` | Scope → retrieve → generate → verify pipeline, chat and grounded modes. |
-| `desktop/src-tauri/src/model.rs` | GGUF registry + local runtime adapter. |
+| `desktop/src-tauri/src/model.rs` | GGUF registry + llama.cpp runtime (Ollama fallback). |
 | `desktop/src-tauri/src/audit.rs` | Metadata-only read log. |
 | `desktop/src-tauri/tests/eval.rs` | 25-question honest-answer eval. |
 | `models/` | Drop-in GGUF models (gitignored). |
@@ -208,7 +218,9 @@ Desktop:
 All tunables live in `web/src/config.ts`.
 
 **Camera** — `framing.desk` / `framing.notebook` / `framing.screen`. Positions are in metres; the
-desk is ~2.1 m wide. Portrait screens automatically pull back and raise the target.
+desk is ~2.1 m wide. The resting desk pose is framed on the monitor and crops the desk off the
+bottom and right. Portrait screens automatically pull back and raise the target. The `zoom` value
+in the store pushes the camera along the view ray (0.78×–2.1×) without touching layout.
 
 **Interactive objects** — `parts` maps an object id to mesh/node names inside `desk.glb`. Click
 targets are generated from the real bounding boxes. The lamp and notebook use `HitBox` in
@@ -218,9 +230,10 @@ targets in `LivingDesk`.
 **Screen plane** — `screenPlane` is measured from the geometry. The monitor node is yawed ~25°, so
 the UI plane has to match its quaternion, or it will float off the glass.
 
-**Gallery** — `Gallery.tsx` uses Embla with `align: 'center'` and `containScroll: false`, so the
-active card is large and the previous/next cards peek in from the sides. Slide size and page-height
-layout live in the gallery block in `styles.css`.
+**Gallery** — `Gallery.tsx` renders the React Bits `CircularGallery` WebGL carousel with 16:9
+presentation slides. Slide content is placeholder data in `gallerySlides.ts`; replace each `image`
+with a real screenshot or asset. Vertical wheel gestures scroll the page, while drag, arrow keys,
+horizontal wheel and Shift + wheel move the gallery.
 
 **Theme** — the toggle writes `data-theme` on `<html>` and persists to `localStorage`. The journal
 is always printed on warm paper; the scene and app chrome follow the theme.
@@ -233,9 +246,9 @@ Real now:
 - Revocable folder grants persisted as metadata only.
 - Live reads of Markdown/text, PDF text layers, and local OCR for images and PDFs with no text layer; nothing mirrored.
 - In-memory BM25 retrieval and a citation verifier that drops uncited claims.
-- Two answer modes: **Chat** may use general knowledge and labels when an answer did not come from your files; **Sources only** drops uncited claims and refuses.
-- Extractive answers with no model, plus a GGUF model adapter (Phi-4-mini is first).
-- Honest refusal and a one-question clarification loop in Sources only, covered by a 25-case eval.
+- One assistant: answers generally, cites your files when it uses them, and labels general-knowledge answers. A strict citation-or-refuse setting remains.
+- Extractive answers with no model, plus a GGUF adapter that prefers llama.cpp's `llama-server` and falls back to Ollama.
+- Honest refusal and a one-question clarification loop in strict mode, covered by a 25-case eval.
 - Metadata-only audit log with export/clear.
 
 Still placeholder:
@@ -251,10 +264,10 @@ Still placeholder:
   and excerpts live in memory. `grants.json` and `audit.jsonl` contain no content.
 - **Original is the source of truth** — every citation carries the source id, location and
   timestamp; **Open original** launches the real file.
-- **Honest by design** — in **Sources only**, `answer.rs` requires a valid citation per sentence
-  and a minimum term coverage; otherwise it returns `insufficient` with no citations. In **Chat**,
-  uncited sentences are allowed but the answer is labeled **General knowledge · not from your
-  files**, and fake citations are stripped.
+- **Honest by design** — in **strict citations**, `answer.rs` requires a valid citation per
+  sentence and a minimum term coverage; otherwise it returns `insufficient` with no citations.
+  In **assistant** mode, uncited sentences are allowed but the answer is labeled **General
+  knowledge**, and fake citations are stripped.
 - **No fake citations** — the verifier drops any bracket that does not match a retrieved excerpt,
   in both modes.
 - **User control** — `permissions.rs` is the only gate; revoking a grant removes it from the next
