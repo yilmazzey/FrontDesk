@@ -58,6 +58,10 @@ fn resolve_models_dir(data_dir: &Path) -> PathBuf {
         }
     }
 
+    // Only in a dev build: a packaged app must never look back into the
+    // repository that happened to compile it. Users drop GGUF files into the
+    // app-data models folder instead (Settings → Local model).
+    #[cfg(debug_assertions)]
     if let Some(manifest) = option_env!("CARGO_MANIFEST_DIR") {
         let candidate = Path::new(manifest).join("../../models");
         if candidate.is_dir() {

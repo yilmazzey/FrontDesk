@@ -1,0 +1,93 @@
+name: Release desktop
+
+# Tag a commit with vX.Y.Z to produce signed installer drafts for macOS,
+# Windows and Linux. Drafts are uploaded to a GitHub Release; publishing the
+# release makes them available at /releases/latest/download/<asset>.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-14
+            args: '--target aarch64-apple-darwin --bundles dmg'
+          - platform: macos-13
+            args: '--target x86_64-apple-darwin --bundles dmg'
+          - platform: ubuntu-22.04
+            args: '--bundles appimage,deb'
+          - platform: windows-latest
+            args: '--bundles nsis'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-14' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Linux bundle dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Build, sign and attach installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing + notarisation. Leave these unset for an unsigned
+          # local build; GitHub will then attach an ad-hoc signed bundle that
+          # users have to allow through Gatekeeper manually.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: 'FrontDesk ${{ github.ref_name }}'
+          releaseBody: |
+            FrontDesk desktop installers.
+
+            - macOS: universal DMG (Apple Silicon + Intel)
+            - Windows: NSIS installer
+            - Linux: AppImage and .deb
+
+            The installer does not bundle a language model. Drop a GGUF file into
+            the model folder from Settings, connect Ollama, or keep using the
+            extractive answerer.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

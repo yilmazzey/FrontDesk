@@ -186,7 +186,7 @@ Desktop:
 | `web/src/lib/scroll.ts` | Non-reactive scroll value read by the camera rig. |
 | `web/src/styles.css` | Landing, journal, gallery, monitor and theme CSS. |
 | `web/public/desk.glb` | Optimized model (1.8 MB). |
-| `web/public/downloads/` | Placeholder desktop package page. |
+| `web/public/downloads/` | Desktop download page, with OS-detecting links to release assets. |
 | `web/assets/computer_desk.glb` | Original 50 MB source, kept for re-export. |
 
 ### Desktop
@@ -255,7 +255,8 @@ Still placeholder:
 
 - Microsoft Graph auth and the Outlook/OneNote connectors (stubs behind the same dispatch).
 - Teams and calendar.
-- Signed installer / notarisation; `/monitor` sign-in buttons.
+- Code-signing certificates and notarisation — the release pipeline is wired, but it needs an Apple
+  Developer ID; `/monitor` sign-in buttons.
 - Persistent history or version diffs — FrontDesk reads the live original instead.
 
 ## Non-negotiables in the code
@@ -296,6 +297,61 @@ commits — they are ignored already.
   (Netlify `_redirects`, Vercel rewrites, nginx `try_files`). `vite preview` already does this.
 - **Desktop** — build `desktop/`, then layer Tauri on top. The frontend stays hash-routed
   (`/#/notes`) because the webview has no server-side rewrites.
+
+## Packaging & distribution
+
+FrontDesk is a Tauri v2 app, so the bundled installers are thin: the system webview supplies the
+browser, and Rust + the static frontend are the only payload.
+
+```bash
+npm run package:desktop          # release bundles for the current OS
+npm run package:desktop:debug    # faster, unoptimised bundle
+```
+
+Output lands in `desktop/src-tauri/target/release/bundle/`:
+
+| Platform | Artifact | Measured / expected |
+| --- | --- | --- |
+| macOS Apple Silicon | `FrontDesk_0.1.0_aarch64.dmg` | **4.0 MB** (`.app` 13 MB) |
+| macOS Intel | `FrontDesk_0.1.0_x64.dmg` | ~4 MB |
+| Windows 10/11 | `FrontDesk_0.1.0_x64-setup.exe` (NSIS) | ~6 MB |
+| Linux | `FrontDesk_0.1.0_amd64.AppImage`, `.deb` | ~15 MB / ~6 MB |
+| Local model (optional) | `microsoft_Phi-4-mini-instruct-Q4_K_M.gguf` | 2.3 GB |
+
+The measured macOS build is 12 MB of binary (Rust, plugins, embedded frontend) which compresses to a
+4 MB DMG. Packaging does not require code changes: `tauri.conf.json` already declares the bundle
+metadata, categories, icons and per-platform installer settings.
+
+### Release pipeline
+
+`.github/workflows/release.yml` builds macOS (arm64 + x64), Windows and Linux on a `v*` tag and
+attaches the installers to a **draft** GitHub release. Publish the draft to make the website links
+work (`/releases/latest/download/<asset>`).
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Signing secrets (all optional; without them the bundles are unsigned):
+
+- `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,
+  `APPLE_PASSWORD`, `APPLE_TEAM_ID` — Developer ID signing + notarisation.
+- Windows code signing is not wired up yet; add `certificateThumbprint`/`signCommand` under
+  `bundle.windows` and the matching secrets when a certificate exists.
+
+### What the installer does *not* include
+
+- **A language model.** The 2.3 GB GGUF stays out of the download on purpose. Settings points at
+  the app-data `models/` folder; Ollama is still a fallback, and the extractive answerer needs
+  neither. A first-run model downloader is the natural next step.
+- **`llama-server`, `pdftotext`, `tesseract`.** These are read from `PATH` (or
+  `FRONTDESK_LLAMA_SERVER`). Shipping them means Tauri sidecars (`bundle.externalBin`) plus their
+  dylibs and `tessdata`; until then, document the Homebrew/apt requirement or treat OCR and GGUF as
+  optional capabilities.
+
+`web/public/downloads/frontdesk-desktop.html` detects the visitor's OS/architecture, links the
+matching release asset, and lists sizes. Bump `VERSION` in that page with each app version.
 
 ## Model credit
 
