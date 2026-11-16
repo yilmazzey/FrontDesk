@@ -1926,7 +1926,7 @@ a {
 .flipbook__cover {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(280px, 0.82fr) 11px minmax(0, 1.6fr);
+  grid-template-columns: minmax(0, 1fr) 11px minmax(0, 1fr);
   width: min(1180px, 100%);
   height: min(800px, 90dvh);
   padding: 11px;
@@ -2368,6 +2368,9 @@ a {
   position: absolute;
   inset: 0;
   z-index: 1;
+  /* A fixed shadow: recomputing a drop-shadow every frame was the biggest
+     cost of the old turn. */
+  filter: drop-shadow(0 12px 22px rgba(40, 24, 8, 0.22));
 }
 
 .flipTurn__back {
@@ -2381,8 +2384,7 @@ a {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.3;
-  mix-blend-mode: multiply;
+  opacity: 0.12;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.2'/%3E%3C/svg%3E");
 }
 

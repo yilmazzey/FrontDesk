@@ -50,15 +50,13 @@ interface Pt {
   y: number
 }
 
-/** A page being folded: which way, which corner, and where that corner is. */
+/** A page being folded: which way, from where to where, and which corner. */
 interface Turn {
   dir: 1 | -1
   from: NotebookSection
   to: NotebookSection
   /** The corner's resting point, in right-leaf pixels. */
   corner: Pt
-  /** Where the corner is now. */
-  at: Pt
 }
 
 const sub = (a: Pt, b: Pt): Pt => ({ x: a.x - b.x, y: a.y - b.y })
@@ -96,19 +94,19 @@ const polygon = (points: Pt[]) =>
  * Where the page and its mirrored back go for a corner at `at`. The fold is
  * the line halfway between the corner's rest and its current point.
  */
-function foldStyles(turn: Turn, w: number, h: number) {
+function foldStyles(turn: Turn, at: Pt, w: number, h: number) {
   const page = [
     { x: 0, y: 0 },
     { x: w, y: 0 },
     { x: w, y: h },
     { x: 0, y: h },
   ]
-  const d = sub(turn.at, turn.corner)
+  const d = sub(at, turn.corner)
   const l = length(d)
   if (l < 0.5) return null
 
   const n = { x: d.x / l, y: d.y / l }
-  const m = lerp(turn.corner, turn.at, 0.5)
+  const m = lerp(turn.corner, at, 0.5)
   const front = clipPolygon(page, m, n, false)
   const flap = clipPolygon(page, m, n, true)
 
@@ -149,8 +147,13 @@ export function NotebookOverlay() {
   const currentRef = useRef(current)
   currentRef.current = current
   const [turn, setTurn] = useState<Turn | null>(null)
-  const [size, setSize] = useState({ w: 0, h: 0 })
+  // The sheet is painted straight to the DOM while the corner moves, so a
+  // drag or flip does not re-render the whole notebook on every frame.
+  const [revealed, setRevealed] = useState(false)
+  const [, setSize] = useState({ w: 0, h: 0 })
   const turnRef = useRef<Turn | null>(null)
+  const atRef = useRef<Pt>({ x: 0, y: 0 })
+  const revealedRef = useRef(false)
   const sizeRef = useRef({ w: 0, h: 0 })
   const pressRef = useRef<{ start: Pt; dragging: boolean } | null>(null)
   const animRef = useRef<ReturnType<typeof animate> | null>(null)
@@ -161,12 +164,9 @@ export function NotebookOverlay() {
   const closeRef = useRef<HTMLButtonElement>(null)
   const pageRef = useRef<HTMLDivElement>(null)
   const leafRef = useRef<HTMLElement>(null)
+  const frontRef = useRef<HTMLDivElement>(null)
+  const backRef = useRef<HTMLDivElement>(null)
   const goRef = useRef<(target: NotebookSection) => void>(() => {})
-
-  const setTurnNow = useCallback((next: Turn | null) => {
-    turnRef.current = next
-    setTurn(next)
-  }, [])
 
   const stop = useCallback(() => {
     animRef.current?.stop()
@@ -174,19 +174,78 @@ export function NotebookOverlay() {
     playingRef.current = false
   }, [])
 
+  /** Write the fold for a corner at `at` straight onto the sheet. */
+  const paint = useCallback((at: Pt) => {
+    const active = turnRef.current
+    const { w, h } = sizeRef.current
+    const front = frontRef.current
+    const back = backRef.current
+    if (!active || !w || !front || !back) return
+
+    const fold = foldStyles(active, at, w, h)
+    if (!fold) {
+      front.style.clipPath = 'none'
+      back.style.clipPath = 'polygon(0 0)'
+      back.style.transform = 'none'
+      return
+    }
+
+    front.style.clipPath = fold.front.clipPath as string
+    back.style.clipPath = fold.flap.clipPath as string
+    back.style.transform = fold.flap.transform as string
+
+    if (!revealedRef.current) {
+      revealedRef.current = true
+      setRevealed(true)
+    }
+  }, [])
+
+  const endTurn = useCallback(() => {
+    turnRef.current = null
+    revealedRef.current = false
+    setRevealed(false)
+    setTurn(null)
+  }, [])
+
+  /**
+   * Start (or keep) a turn and place its corner. State changes only when the
+   * turn actually changes, so repeated pointer moves stay off React's path.
+   */
+  const ensureTurn = useCallback((next: Turn, at: Pt) => {
+    atRef.current = at
+    const active = turnRef.current
+    if (
+      active &&
+      active.dir === next.dir &&
+      active.from === next.from &&
+      active.to === next.to &&
+      active.corner.x === next.corner.x &&
+      active.corner.y === next.corner.y
+    ) {
+      return
+    }
+    turnRef.current = next
+    revealedRef.current = false
+    setRevealed(false)
+    setTurn(next)
+  }, [])
+
   useEffect(() => {
     if (!open) {
       opened.current = false
       stop()
       pressRef.current = null
-      setTurnNow(null)
+      turnRef.current = null
+      revealedRef.current = false
+      setRevealed(false)
+      setTurn(null)
       return
     }
     if (!opened.current) {
       opened.current = true
       setCurrent(section)
     }
-  }, [open, section, setTurnNow, stop])
+  }, [open, section, stop])
 
   useEffect(() => {
     if (!open) return
@@ -254,34 +313,39 @@ export function NotebookOverlay() {
 
   useEffect(() => () => stop(), [stop])
 
+  // Paint the freshly mounted sheet at whatever corner the pointer is on.
+  useLayoutEffect(() => {
+    if (turn) paint(atRef.current)
+  }, [turn, paint])
+
   const indexOf = (id: NotebookSection) => ORDER.indexOf(id)
 
   const commit = useCallback(
     (to: NotebookSection) => {
-      setTurnNow(null)
+      turnRef.current = null
+      revealedRef.current = false
+      setRevealed(false)
+      setTurn(null)
       setCurrent(to)
       setSection(to)
     },
-    [setSection, setTurnNow],
+    [setSection],
   )
 
   const run = useCallback(
-    (fromTurn: Turn, to: Pt, complete: boolean) => {
+    (fromTurn: Turn, fromAt: Pt, to: Pt, complete: boolean) => {
       stop()
       playingRef.current = true
       const { h } = sizeRef.current
-      const start = fromTurn.at
       const lift = complete && fromTurn.dir === 1 ? h * 0.14 * (fromTurn.corner.y === 0 ? 1 : -1) : 0
       const config = complete ? TURN : SETTLE
 
       animRef.current = animate(0, 1, {
         ...config,
         onUpdate: (t) => {
-          const p = lerp(start, to, t)
-          setTurnNow({
-            ...fromTurn,
-            at: { x: p.x, y: p.y + Math.sin(Math.PI * t) * lift },
-          })
+          const p = lerp(fromAt, to, t)
+          atRef.current = { x: p.x, y: p.y + Math.sin(Math.PI * t) * lift }
+          paint(atRef.current)
         },
         onComplete: () => {
           animRef.current = null
@@ -289,12 +353,12 @@ export function NotebookOverlay() {
           if (complete) {
             commit(fromTurn.to)
           } else {
-            setTurnNow(null)
+            endTurn()
           }
         },
       })
     },
-    [commit, setTurnNow, stop],
+    [commit, endTurn, paint, stop],
   )
 
   const flipTo = useCallback(
@@ -310,11 +374,15 @@ export function NotebookOverlay() {
       const corner = { x: w, y: h }
       const startAt = direction === 1 ? { ...corner } : { x: 0, y: h }
       const endAt = direction === 1 ? { x: -w, y: h } : { ...corner }
-      const fromTurn: Turn = { dir: direction, from: current, to: target, corner, at: startAt }
-      setTurnNow(fromTurn)
-      run(fromTurn, endAt, true)
+      const next: Turn = { dir: direction, from: current, to: target, corner }
+      turnRef.current = next
+      atRef.current = startAt
+      revealedRef.current = false
+      setRevealed(false)
+      setTurn(next)
+      run(next, startAt, endAt, true)
     },
-    [commit, current, reduce, run, setTurnNow],
+    [commit, current, reduce, run],
   )
 
   const go = useCallback(
@@ -354,21 +422,20 @@ export function NotebookOverlay() {
     if (length(sub(p, corner)) > PEEK_ZONE) return
 
     // Hover peek already lifted the corner; pick the sheet up from there
-    // instead of ignoring the press.
+    // instead of snapping it back to the edge.
     const active = turnRef.current
+    const sameCorner =
+      active?.dir === 1 && active.corner.x === corner.x && active.corner.y === corner.y
     try {
       event.currentTarget.setPointerCapture(event.pointerId)
     } catch {
       // Synthetic events and some stylus drivers have no capturable pointer.
     }
     pressRef.current = { start: p, dragging: false }
-    setTurnNow({
-      dir: 1,
-      from: current,
-      to: ORDER[indexOf(current) + 1],
-      corner,
-      at: active?.dir === 1 ? active.at : corner,
-    })
+    ensureTurn(
+      { dir: 1, from: current, to: ORDER[indexOf(current) + 1], corner },
+      sameCorner ? atRef.current : corner,
+    )
   }
 
   const onPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
@@ -380,13 +447,11 @@ export function NotebookOverlay() {
     if (press && active) {
       if (!press.dragging && length(sub(p, press.start)) < DRAG_SLOP) return
       press.dragging = true
-      setTurnNow({
-        ...active,
-        at: {
-          x: Math.max(-w, Math.min(w, p.x)),
-          y: Math.max(0, Math.min(h, p.y)),
-        },
-      })
+      atRef.current = {
+        x: Math.max(-w, Math.min(w, p.x)),
+        y: Math.max(0, Math.min(h, p.y)),
+      }
+      paint(atRef.current)
       return
     }
     if (press || playingRef.current || reduce || !w) return
@@ -398,20 +463,16 @@ export function NotebookOverlay() {
     const toward = sub(p, corner)
     const dist = length(toward)
     if (dist >= PEEK_ZONE) {
-      if (active) run(active, active.corner, false)
+      if (active) run(active, atRef.current, active.corner, false)
       return
     }
 
     stop()
     const lift = Math.min(PEEK_MAX, Math.max(1, dist) * 0.6 + 14)
     const unit = dist < 1 ? { x: -1, y: 0 } : { x: toward.x / dist, y: toward.y / dist }
-    setTurnNow({
-      dir: 1,
-      from: current,
-      to: ORDER[indexOf(current) + 1],
-      corner,
-      at: { x: corner.x + unit.x * lift, y: corner.y + unit.y * lift },
-    })
+    const at = { x: corner.x + unit.x * lift, y: corner.y + unit.y * lift }
+    ensureTurn({ dir: 1, from: current, to: ORDER[indexOf(current) + 1], corner }, at)
+    paint(at)
   }
 
   const onPointerUp = () => {
@@ -421,19 +482,20 @@ export function NotebookOverlay() {
     if (!press || !active) return
 
     const { w } = sizeRef.current
-    const crossed = active.dir === 1 ? active.at.x < 0 : active.at.x > 0
+    const at = atRef.current
+    const crossed = active.dir === 1 ? at.x < 0 : at.x > 0
     const complete = press.dragging ? crossed : true
     const restingCorner =
       active.dir === 1
         ? { x: -w, y: active.corner.y }
         : { x: w, y: active.corner.y }
-    run(active, complete ? restingCorner : active.corner, complete)
+    run(active, at, complete ? restingCorner : active.corner, complete)
   }
 
   const onPointerLeave = () => {
     const active = turnRef.current
     if (!pressRef.current && active && !playingRef.current) {
-      run(active, active.corner, false)
+      run(active, atRef.current, active.corner, false)
     }
   }
 
@@ -444,11 +506,10 @@ export function NotebookOverlay() {
 
   /* ----- what the book shows ----- */
 
-  const fold = turn && size.w ? foldStyles(turn, size.w, size.h) : null
   const underSection = turn ? (turn.dir === 1 ? turn.to : turn.from) : current
   // Only reveal the next page once the sheet is actually folded, so pressing
   // a corner without dragging does not flash the following page.
-  const displayed = fold ? underSection : current
+  const displayed = turn && revealed ? underSection : current
   const frontSection = turn ? (turn.dir === 1 ? turn.from : turn.to) : current
   const atStart = indexOf(current) === 0
   const atEnd = indexOf(current) === ORDER.length - 1
@@ -606,17 +667,10 @@ export function NotebookOverlay() {
                 </footer>
               </div>
 
-              {turn && fold && (
+              {turn && (
                 <div className="flipTurn" aria-hidden="true">
-                  <div
-                    className="flipTurn__shadow"
-                    style={{
-                      filter: `drop-shadow(0 ${2 + fold.progress * 6}px ${
-                        6 + fold.progress * 10
-                      }px rgb(0 0 0 / ${0.12 + (1 - fold.progress) * 0.1}))`,
-                    }}
-                  >
-                    <div className="flipTurn__back" style={fold.flap}>
+                  <div className="flipTurn__shadow">
+                    <div className="flipTurn__back" ref={backRef}>
                       <div className="flipTurn__verso">
                         <span className="flipTurn__versoTiny">verso · FrontDesk</span>
                         <p>Keep the desk quiet.</p>
@@ -625,7 +679,7 @@ export function NotebookOverlay() {
                     </div>
                   </div>
 
-                  <div className="flipTurn__front" style={fold.front}>
+                  <div className="flipTurn__front" ref={frontRef}>
                     <div className="flipTurn__page">
                       <header className="flipbook__folio">
                         <span>{SECTION_TITLES[frontSection]}</span>
