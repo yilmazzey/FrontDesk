@@ -1,27 +1,61 @@
 import { useMemo, useState } from 'react'
-import { notes } from '../data'
+import { isDesktopApp, loadMicrosoftSources } from '../services/microsoft'
+import {
+  searchMicrosoftSources,
+  type MicrosoftSourceFilter,
+} from '../services/microsoftSearch'
+
+const filters: Array<{ value: MicrosoftSourceFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'onenote', label: 'Notes' },
+  { value: 'email', label: 'Mail' },
+  { value: 'calendar', label: 'Calendar' },
+]
+
+function messageOf(reason: unknown) {
+  return reason instanceof Error ? reason.message : String(reason)
+}
 
 export default function Search() {
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<MicrosoftSourceFilter>('all')
+  const [sources, setSources] = useState<Awaited<ReturnType<typeof loadMicrosoftSources>>>(null)
+  const [busy, setBusy] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const [error, setError] = useState('')
+  const desktopApp = isDesktopApp()
+  const results = useMemo(
+    () => (query.trim() && sources ? searchMicrosoftSources(query, sources, filter) : []),
+    [filter, query, sources],
+  )
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return notes
-    return notes.filter(
-      (n) =>
-        n.title.toLowerCase().includes(q) ||
-        n.body.toLowerCase().includes(q) ||
-        n.tag.toLowerCase().includes(q),
-    )
-  }, [query])
+  const loadSources = async (refresh = false) => {
+    setBusy(true)
+    setError('')
+    try {
+      const loaded = await loadMicrosoftSources(refresh)
+      if (!loaded) {
+        setError('Connect your Microsoft account in Settings to search Microsoft data.')
+        setSearched(false)
+        return
+      }
+      setSources(loaded)
+      setSearched(true)
+    } catch (reason) {
+      setError(messageOf(reason))
+      setSearched(false)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="page page--flush">
       <header className="pageHead pageHead--tight">
         <div>
-          <p className="eyebrow">Local index</p>
+          <p className="eyebrow">Microsoft index</p>
           <h1 className="pageTitle">
-            Find the <em>right page.</em>
+            Find the <em>right source.</em>
           </h1>
         </div>
       </header>
@@ -32,56 +66,84 @@ export default function Search() {
         </svg>
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search notes, scans and mail…"
-          aria-label="Search"
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !sources) void loadSources()
+          }}
+          placeholder="Search Microsoft mail, calendar and OneNote…"
+          aria-label="Search Microsoft sources"
           autoFocus
         />
-        <kbd>⌘K</kbd>
+        {!sources ? (
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            disabled={!desktopApp || !query.trim() || busy}
+            onClick={() => void loadSources()}
+          >
+            {busy ? 'Loading…' : 'Search'}
+          </button>
+        ) : null}
       </div>
 
-      <div className="filterRow" aria-label="Filters">
-        <button type="button" className="filter is-on">
-          All
-        </button>
-        <button type="button" className="filter">
-          Notes
-        </button>
-        <button type="button" className="filter">
-          Scans
-        </button>
-        <button type="button" className="filter">
-          Mail
-        </button>
+      <div className="filterRow" aria-label="Microsoft source filters">
+        {filters.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            className={`filter${filter === item.value ? ' is-on' : ''}`}
+            onClick={() => setFilter(item.value)}
+          >
+            {item.label}
+          </button>
+        ))}
         <span className="filterRow__meta">
-          {results.length} {results.length === 1 ? 'result' : 'results'} · searched on this machine
+          {sources
+            ? `${results.length} ${results.length === 1 ? 'result' : 'results'} · ${sources.length} Microsoft sources loaded`
+            : 'Microsoft data only · memory cache'}
         </span>
+        {sources ? (
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            disabled={busy}
+            onClick={() => void loadSources(true)}
+          >
+            {busy ? 'Refreshing…' : 'Refresh'}
+          </button>
+        ) : null}
       </div>
 
-      {results.length ? (
+      {!desktopApp ? (
+        <p className="panel__note">Open FrontDesk in the Tauri desktop app to search Microsoft data.</p>
+      ) : null}
+      {error ? <p className="connectionError" role="alert">{error}</p> : null}
+
+      {searched && results.length ? (
         <ul className="results">
-          {results.map((n) => (
-            <li key={n.id} className="result">
+          {results.map((hit) => (
+            <li key={hit.source.id} className="result">
               <div className="result__head">
-                <h2 className="result__title">{n.title}</h2>
-                <span className="tag">{n.tag}</span>
+                <h2 className="result__title">{hit.source.title}</h2>
+                <span className="tag">{hit.source.kind}</span>
               </div>
-              <p className="result__body">{n.body}</p>
+              <p className="result__body">{hit.excerpt}</p>
               <div className="result__foot">
-                <span>{n.updated}</span>
-                <span className="result__div" aria-hidden="true" />
-                <span>{n.source ?? 'Note'}</span>
-                <span className="result__cite">Cited, not guessed</span>
+                {hit.source.detail ?? 'Microsoft'}
+                {hit.source.date ? ` · ${hit.source.date}` : ''}
+                <span className="result__cite">[{hit.citation}] Microsoft source</span>
               </div>
             </li>
           ))}
         </ul>
-      ) : (
+      ) : null}
+
+      {searched && !results.length ? (
         <div className="empty">
-          <p className="empty__title">Nothing on the desk matches that.</p>
-          <p>The local index only searches what you actually have. Try a broader word.</p>
+          <p className="empty__title">Nothing in Microsoft data matches that.</p>
+          <p>Try a different word or switch the source filter.</p>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

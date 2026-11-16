@@ -1,12 +1,37 @@
-import { notes } from '../data'
-
-const today = [
-  { time: '09:30', title: 'Study sync — protocol review', meta: 'Microsoft Teams' },
-  { time: '11:00', title: '1:1 with Ada', meta: 'Calendar' },
-  { time: '15:30', title: 'Deep work block', meta: 'Held by FrontDesk' },
-]
+import { useEffect, useState } from 'react'
+import { MicrosoftAssistant } from '../components/MicrosoftAssistant'
+import {
+  getMicrosoftDashboardData,
+  isDesktopApp,
+  type MicrosoftDashboardData,
+} from '../services/microsoft'
 
 export default function Dashboard() {
+  const [microsoftData, setMicrosoftData] = useState<MicrosoftDashboardData | null>(null)
+  const [microsoftStatus, setMicrosoftStatus] = useState<
+    'loading' | 'connected' | 'disconnected' | 'browser' | 'error'
+  >('loading')
+  const [microsoftError, setMicrosoftError] = useState('')
+
+  useEffect(() => {
+    if (!isDesktopApp()) {
+      setMicrosoftStatus('browser')
+      return
+    }
+
+    const start = new Date()
+    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000)
+    getMicrosoftDashboardData(start.toISOString(), end.toISOString())
+      .then((data) => {
+        setMicrosoftData(data)
+        setMicrosoftStatus(data ? 'connected' : 'disconnected')
+      })
+      .catch((reason: unknown) => {
+        setMicrosoftError(reason instanceof Error ? reason.message : String(reason))
+        setMicrosoftStatus('error')
+      })
+  }, [])
+
   return (
     <div className="page">
       <header className="pageHead">
@@ -16,7 +41,7 @@ export default function Dashboard() {
             The desk is <em>open.</em>
           </h1>
           <p className="pageLede">
-            Notes, mail and the local index are ready. Nothing here has left this machine.
+            Search connected Microsoft data and get cited answers from a model running on this device.
           </p>
           <p className="eventTag">Pfizer &amp; Newpage Solutions Hackathon Challenge</p>
         </div>
@@ -27,38 +52,20 @@ export default function Dashboard() {
         </button>
       </header>
 
-      <section className="ask" aria-label="Ask the desk">
-        <label className="ask__label" htmlFor="ask">
-          Ask the desk
-        </label>
-        <div className="ask__row">
-          <input
-            id="ask"
-            className="ask__input"
-            placeholder="What did I write about the OCR pipeline?"
-            readOnly
-          />
-          <button type="button" className="btn btn--ghost" disabled>
-            Ask
-          </button>
-        </div>
-        <p className="ask__hint">
-          Answers cite the note or message they came from. No citation, no answer.
-        </p>
-      </section>
+      <MicrosoftAssistant />
 
       <section className="statRow" aria-label="This week">
         <article className="stat">
-          <span className="stat__value">128</span>
-          <span className="stat__label">Notes on this device</span>
+          <span className="stat__value">{microsoftData?.pages.length ?? '—'}</span>
+          <span className="stat__label">OneNote pages · recent</span>
         </article>
         <article className="stat">
-          <span className="stat__value">14</span>
-          <span className="stat__label">Pages read by OCR</span>
+          <span className="stat__value">{microsoftData?.events.length ?? '—'}</span>
+          <span className="stat__label">Calendar events · 7 days</span>
         </article>
         <article className="stat">
-          <span className="stat__value">0</span>
-          <span className="stat__label">Requests sent to a server</span>
+          <span className="stat__value">{microsoftData?.messages.length ?? '—'}</span>
+          <span className="stat__label">Inbox messages · recent</span>
         </article>
       </section>
 
@@ -66,25 +73,30 @@ export default function Dashboard() {
         <section className="panel" aria-labelledby="recent">
           <header className="panel__head">
             <h2 id="recent" className="panel__title">
-              Recent notes
+              Microsoft OneNote
             </h2>
-            <span className="panel__meta">All local</span>
+            <span className="panel__meta">Recent pages</span>
           </header>
 
           <ul className="noteList">
-            {notes.slice(0, 4).map((note) => (
-              <li key={note.id}>
-                <button type="button" className="noteRow">
+            {microsoftData?.pages.map((page) => (
+              <li key={page.id}>
+                <div className="noteRow">
                   <span className="noteRow__top">
-                    <span className="noteRow__title">{note.title}</span>
-                    <span className="noteRow__date">{note.updated}</span>
+                    <span className="noteRow__title">{page.title || 'Untitled page'}</span>
                   </span>
-                  <span className="noteRow__body">{note.body}</span>
-                  <span className="tag">{note.tag}</span>
-                </button>
+                  <span className="tag">Microsoft OneNote</span>
+                </div>
               </li>
             ))}
           </ul>
+          {microsoftStatus === 'loading' ? <p className="panel__note">Loading Microsoft data…</p> : null}
+          {microsoftStatus === 'disconnected' ? (
+            <p className="panel__note">Connect your Microsoft account in Settings to load OneNote pages.</p>
+          ) : null}
+          {microsoftData?.pages.length === 0 ? (
+            <p className="panel__note">No Microsoft OneNote pages were returned.</p>
+          ) : null}
         </section>
 
         <div className="stack">
@@ -93,25 +105,73 @@ export default function Dashboard() {
               <h2 id="today" className="panel__title">
                 Today
               </h2>
-              <span className="panel__meta">Calendar</span>
+              <span className="panel__meta">Next 7 days</span>
             </header>
 
             <ul className="agenda">
-              {today.map((item) => (
-                <li key={item.time}>
-                  <span className="agenda__time">{item.time}</span>
-                  <span className="agenda__body">
-                    <strong>{item.title}</strong>
-                    <em>{item.meta}</em>
-                  </span>
-                </li>
-              ))}
+              {microsoftData?.events.map((event) => {
+                const startTime = event.start?.dateTime
+                const time = startTime
+                  ? new Date(startTime).toLocaleTimeString([], {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })
+                  : '—'
+                return (
+                  <li key={event.id}>
+                    <span className="agenda__time">{time}</span>
+                    <span className="agenda__body">
+                      <strong>{event.subject || 'Untitled event'}</strong>
+                      <em>{event.start?.timeZone ?? 'Microsoft Calendar'}</em>
+                    </span>
+                  </li>
+                )
+              })}
             </ul>
 
-            <p className="panel__note">
-              Microsoft calendar is not connected yet. Connect it in Settings when you are ready.
-            </p>
+            {microsoftStatus === 'loading' ? <p className="panel__note">Loading Microsoft data…</p> : null}
+            {microsoftStatus === 'disconnected' ? (
+              <p className="panel__note">Connect your Microsoft account in Settings to load calendar, inbox and OneNote.</p>
+            ) : null}
+            {microsoftStatus === 'browser' ? (
+              <p className="panel__note">Open FrontDesk in the Tauri desktop app to connect Microsoft.</p>
+            ) : null}
+            {microsoftStatus === 'connected' && !microsoftData?.events.length ? (
+              <p className="panel__note">No upcoming events in the next seven days.</p>
+            ) : null}
+            {microsoftStatus === 'error' ? (
+              <p className="connectionError" role="alert">{microsoftError}</p>
+            ) : null}
           </section>
+
+          {microsoftData ? (
+            <section className="panel" aria-labelledby="inbox">
+              <header className="panel__head">
+                <h2 id="inbox" className="panel__title">
+                  Inbox
+                </h2>
+                <span className="panel__meta">{microsoftData.messages.length} recent</span>
+              </header>
+              <ul className="agenda">
+                {microsoftData.messages.map((message) => (
+                  <li key={message.id}>
+                    <span className="agenda__time">Mail</span>
+                    <span className="agenda__body">
+                      <strong>{message.subject || 'No subject'}</strong>
+                      <em>
+                        {message.from?.emailAddress?.name ??
+                          message.from?.emailAddress?.address ??
+                          'Unknown sender'}
+                      </em>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {!microsoftData.messages.length ? (
+                <p className="panel__note">No messages were returned from the inbox.</p>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="panel panel--inset" aria-labelledby="permissions">
             <header className="panel__head">
@@ -122,10 +182,11 @@ export default function Dashboard() {
             </header>
 
             <ul className="checkList">
-              <li className="is-on">Local notes + OCR</li>
-              <li>Microsoft mail</li>
-              <li>Microsoft calendar</li>
-              <li>Local AI model</li>
+              <li>Local notes + OCR</li>
+              <li className={microsoftData ? 'is-on' : ''}>Microsoft mail</li>
+              <li className={microsoftData ? 'is-on' : ''}>Microsoft calendar</li>
+              <li className={microsoftData ? 'is-on' : ''}>Microsoft OneNote</li>
+              <li className="is-on">Local AI model</li>
             </ul>
           </section>
         </div>

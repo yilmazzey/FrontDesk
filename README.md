@@ -8,10 +8,12 @@ The repo is a two-workspace monorepo:
 | Workspace | What it is | Dev URL |
 | --- | --- | --- |
 | `web/` | Public landing page: 3D desk, full-page Embla gallery, notebook, and `/monitor` onboarding. | `http://localhost:5173` |
-| `desktop/` | Future Tauri app: Vite + React shell with Dashboard, Notes, Search and Settings placeholders. | `http://localhost:5174` |
+| `desktop/` | Tauri desktop app with a Vite + React shell and read-only Microsoft Graph integration. | `http://localhost:5174` in browser |
 
-The 3D experience is real. The app screens are deliberately placeholder structure — no accounts,
-Microsoft Graph, OCR or local model yet.
+The 3D experience is real. Desktop notes and OCR are still placeholders.
+Microsoft Graph device-code sign-in and read access run through the native Tauri backend. The
+dashboard assistant and Search screen use Microsoft mail, calendar and OneNote data; answers are
+generated locally with Ollama.
 
 ## Team
 
@@ -28,11 +30,11 @@ Microsoft Graph, OCR or local model yet.
 - **Node.js 20 or newer** — check with `node -v`
 - **npm 10 or newer** — check with `npm -v`
 - **Git**
+- **Rust, MSVC C++ build tools and WebView2** — only needed for the native Tauri app
 
-No `.env` files, API keys or local services are needed to run the current build.
-
-> Rust is only required if you later work on the Tauri package. The desktop app runs as a normal
-> Vite site for now.
+The browser-only Vite shell does not need credentials. Microsoft Graph requires
+the app's client ID in `desktop/.env.local` and the Tauri desktop runtime. Local
+answers also require Ollama and the `qwen2.5:3b` model by default.
 
 ### 2. Clone the repo
 
@@ -61,6 +63,14 @@ npm run dev
 ```bash
 npm run dev:desktop
 # http://localhost:5174
+```
+
+To run the native Tauri app with Microsoft Graph, copy `desktop/.env.example` to
+`desktop/.env.local`, set `VITE_MICROSOFT_CLIENT_ID`, install Ollama and run
+`ollama pull qwen2.5:3b`, then run:
+
+```bash
+npm run tauri -w desktop -- dev
 ```
 
 ### 6. Build before you push
@@ -122,12 +132,12 @@ npm run build:desktop
 | Path | Purpose |
 | --- | --- |
 | `desktop/src/shell/AppShell.tsx` | Sidebar, titlebar, theme switch, ⌘K → Search. |
-| `desktop/src/pages/Dashboard.tsx` | Today, recent notes, permissions, model status. |
+| `desktop/src/pages/Dashboard.tsx` | Microsoft data and locally generated cited answers. |
 | `desktop/src/pages/Notes.tsx` | Note list + placeholder editor. |
-| `desktop/src/pages/Search.tsx` | Local-index search over placeholder notes. |
+| `desktop/src/pages/Search.tsx` | Search across connected Microsoft email, calendars and OneNote. |
 | `desktop/src/pages/Settings.tsx` | Connections, behaviour, storage, about. |
 | `desktop/src/data.ts` | All placeholder content. |
-| `desktop/src-tauri/` | Tauri v2 config + Rust entry skeleton (not runnable yet). |
+| `desktop/src-tauri/` | Tauri v2 shell and native Microsoft Graph device-code commands. |
 
 ## Editing the scene
 
@@ -155,9 +165,9 @@ is always printed on warm paper; the scene and app chrome follow the theme.
 
 - `/monitor` sign-in and permission buttons are disabled.
 - The download page links to a stub, not a signed installer.
-- Desktop notes, search results and settings data are local sample content.
-- Microsoft Graph, OCR and the local model are not wired up.
-- `desktop/src-tauri/` has config and an entry point but no generated icons/lockfile yet.
+- Desktop notes, OCR and some settings values are local sample content.
+- Microsoft Graph data is cached in memory until the app exits. Local-model answers require Ollama
+  and only use retrieved Microsoft excerpts; no local files or cloud AI service are used.
 
 ## Contributing
 
