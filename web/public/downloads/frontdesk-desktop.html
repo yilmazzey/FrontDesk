@@ -160,8 +160,50 @@
       .btn--primary {
         background: var(--paper);
         color: var(--ink-dark);
-        cursor: default;
-        opacity: 0.72;
+        transition:
+          transform 0.18s ease,
+          box-shadow 0.18s ease;
+        box-shadow: 0 10px 30px -16px rgba(255, 180, 92, 0.7);
+      }
+
+      .btn--primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 36px -16px rgba(255, 180, 92, 0.85);
+      }
+
+      .sizes {
+        margin-top: 20px;
+        border-top: 1px solid var(--line);
+      }
+
+      .sizes__row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 6px 18px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 8px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+      }
+
+      .sizes__row a {
+        color: var(--ink-dim);
+        border-bottom: 1px solid transparent;
+      }
+
+      .sizes__row a:hover {
+        color: var(--ink);
+        border-bottom-color: var(--amber);
+      }
+
+      .sizes__row b {
+        font-weight: 400;
+        color: var(--ink-dim);
       }
 
       .btn--ghost {
@@ -291,26 +333,65 @@
       </header>
 
       <main>
-        <p class="eyebrow">Pfizer &amp; Newpage Solutions Hackathon Challenge · Placeholder package</p>
+        <p class="eyebrow">Pfizer &amp; Newpage Solutions Hackathon Challenge · Desktop</p>
         <h1>Take the desk<br /><em>with you.</em></h1>
 
         <p class="lede">
           The desktop app is where notes, OCR, the local model and your Microsoft account live.
-          This page stands in for the real installer while the shell is being built — no binary is
-          served yet, and nothing is uploaded anywhere.
+          The build is small because the window uses the system webview; your files never leave the
+          machine. A language model is optional and downloaded separately.
         </p>
 
         <div class="actions">
-          <span class="btn btn--primary">Download for macOS <span aria-hidden="true">↓</span></span>
-          <a class="btn btn--ghost" href="http://localhost:5174" target="_blank" rel="noreferrer">
-            Preview the desktop shell
+          <a id="primary" class="btn btn--primary" href="https://github.com/yilmazzey/FrontDesk/releases/latest">
+            Download for macOS <span aria-hidden="true">↓</span>
+          </a>
+          <a class="btn btn--ghost" href="https://github.com/yilmazzey/FrontDesk/releases/latest">
+            All releases
             <span aria-hidden="true">→</span>
           </a>
-          <span class="pill">Not a real build</span>
+          <span class="pill">v0.1.0 · unsigned preview</span>
         </div>
 
         <p class="notice">
-          run <code>npm run dev:desktop</code> at the repo root to open the shell locally.
+          The preview is signed ad-hoc, so macOS asks you to confirm the first launch
+          (System Settings → Privacy &amp; Security → Open Anyway). Windows may show a SmartScreen
+          prompt until a code-signing certificate is added.
+        </p>
+
+        <div class="sizes" aria-label="Downloads and sizes">
+          <div class="sizes__row">
+            <a id="link-mac-arm" href="https://github.com/yilmazzey/FrontDesk/releases/latest">macOS · Apple Silicon</a>
+            <b>.dmg · ~4 MB</b>
+          </div>
+          <div class="sizes__row">
+            <a id="link-mac-intel" href="https://github.com/yilmazzey/FrontDesk/releases/latest">macOS · Intel</a>
+            <b>.dmg · ~4 MB</b>
+          </div>
+          <div class="sizes__row">
+            <a id="link-windows" href="https://github.com/yilmazzey/FrontDesk/releases/latest">Windows 10/11 · 64-bit</a>
+            <b>.exe · ~6 MB</b>
+          </div>
+          <div class="sizes__row">
+            <a id="link-linux" href="https://github.com/yilmazzey/FrontDesk/releases/latest">Linux · 64-bit</a>
+            <b>AppImage · ~15 MB · .deb</b>
+          </div>
+          <div class="sizes__row">
+            <span>llama-server (auto-installed)</span>
+            <b>~16 MB · in-app</b>
+          </div>
+          <div class="sizes__row">
+            <span>Local model (optional)</span>
+            <b>GGUF · 2.3 GB</b>
+          </div>
+        </div>
+
+        <p class="notice">
+          Installed, the app is about 14 MB. On first model use it downloads and unpacks
+          <code>llama-server</code> into its own app-data folder — no Homebrew or PATH step. Text
+          PDFs are read in-process; OCR for scans offers a one-click helper install. Add a GGUF
+          model only if you want generative answers, otherwise FrontDesk answers extractively from
+          your files.
         </p>
 
         <section class="grid" aria-label="What ships in the desktop app">
@@ -350,7 +431,7 @@
         <footer>
           <span>© <span id="year">2026</span> FrontDesk</span>
           <span class="div" aria-hidden="true"></span>
-          <span>Placeholder installer · no download yet</span>
+          <span>Installer ~4–15 MB · model optional</span>
           <span class="div" aria-hidden="true"></span>
           <span>Local-first · Microsoft Graph later</span>
         </footer>
@@ -359,6 +440,56 @@
 
     <script>
       document.getElementById('year').textContent = new Date().getFullYear()
+
+      // Asset names match the Tauri bundler output; CI attaches them to the
+      // release for the pushed tag. Swap VERSION when the app version bumps.
+      const VERSION = '0.1.0'
+      const BASE = 'https://github.com/yilmazzey/FrontDesk/releases/latest/download'
+      const ASSETS = {
+        'mac-arm': { file: `FrontDesk_${VERSION}_aarch64.dmg`, label: 'macOS (Apple Silicon)' },
+        'mac-intel': { file: `FrontDesk_${VERSION}_x64.dmg`, label: 'macOS (Intel)' },
+        windows: { file: `FrontDesk_${VERSION}_x64-setup.exe`, label: 'Windows' },
+        linux: { file: `FrontDesk_${VERSION}_amd64.AppImage`, label: 'Linux' },
+      }
+
+      const platform = (navigator.userAgentData && navigator.userAgentData.platform) ||
+        navigator.platform || navigator.userAgent || ''
+      const isWin = /win/i.test(platform)
+      const isLinux = /linux/i.test(platform)
+      const isMac = /mac/i.test(platform)
+
+      // Safari reports "MacIntel" on Apple Silicon too, so default Macs to
+      // arm64 and only switch to Intel when Chromium exposes the real arch.
+      let detected = 'mac-arm'
+      if (isWin) detected = 'windows'
+      else if (isLinux) detected = 'linux'
+
+      const link = (id, asset) => {
+        const a = document.getElementById(id)
+        if (a && asset) a.href = `${BASE}/${asset.file}`
+      }
+      link('link-mac-arm', ASSETS['mac-arm'])
+      link('link-mac-intel', ASSETS['mac-intel'])
+      link('link-windows', ASSETS.windows)
+      link('link-linux', ASSETS.linux)
+
+      const setPrimary = (key) => {
+        const primary = document.getElementById('primary')
+        const asset = ASSETS[key]
+        if (!primary || !asset) return
+        primary.href = `${BASE}/${asset.file}`
+        primary.innerHTML = `Download for ${asset.label} <span aria-hidden="true">↓</span>`
+      }
+      setPrimary(detected)
+
+      if (isMac && navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+        navigator.userAgentData
+          .getHighEntropyValues(['architecture'])
+          .then((values) => {
+            if (values.architecture === 'x86') setPrimary('mac-intel')
+          })
+          .catch(() => {})
+      }
     </script>
   </body>
 </html>

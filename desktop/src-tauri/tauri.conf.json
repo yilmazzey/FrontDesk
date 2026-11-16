@@ -10,13 +10,21 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
+        "label": "main",
         "title": "FrontDesk",
         "width": 1180,
         "height": 760,
         "minWidth": 720,
-        "minHeight": 520
+        "minHeight": 520,
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["hudWindow"],
+          "state": "followsWindowActiveState",
+          "radius": 12
+        }
       }
     ],
     "security": {
@@ -26,12 +34,38 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "FrontDesk Studio",
+    "homepage": "https://frontdesk.studio",
+    "category": "Productivity",
+    "shortDescription": "A calmer place to work — local notes, search and answers.",
+    "longDescription": "FrontDesk is a local-first workspace. Notes, folders and the citation index stay on this machine; the desktop app adds OCR, a local GGUF model and permissioned sources.",
+    "copyright": "© 2026 FrontDesk Studio",
+    "createUpdaterArtifacts": false,
     "icon": [
       "icons/32x32.png",
+      "icons/64x64.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": true
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "compression": "lzma"
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
   }
 }

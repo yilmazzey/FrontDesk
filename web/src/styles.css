@@ -121,6 +121,7 @@ a {
   pointer-events: none;
   z-index: 2;
   background:
+    radial-gradient(80% 62% at 86% 0%, rgba(255, 196, 130, 0.1) 0%, rgba(255, 196, 130, 0) 58%),
     radial-gradient(58% 46% at 60% 26%, rgba(255, 168, 88, 0.1) 0%, rgba(255, 168, 88, 0) 72%),
     linear-gradient(to bottom, rgba(9, 7, 6, 0.72) 0%, rgba(9, 7, 6, 0) 20%, rgba(9, 7, 6, 0) 44%, rgba(9, 7, 6, 0.82) 92%),
     radial-gradient(120% 88% at 58% 38%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.5) 100%);
@@ -1925,7 +1926,7 @@ a {
 .flipbook__cover {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(280px, 0.82fr) 11px minmax(0, 1.6fr);
+  grid-template-columns: minmax(0, 1fr) 11px minmax(0, 1fr);
   width: min(1180px, 100%);
   height: min(800px, 90dvh);
   padding: 11px;
@@ -1994,11 +1995,12 @@ a {
   /* The turning sheet needs to swing out over the left leaf, so this page
      cannot clip. The scrolling paper below handles its own overflow. */
   overflow: visible;
+  touch-action: pan-y;
   background:
     radial-gradient(110% 80% at 100% 0%, rgba(255, 255, 255, 0.6), transparent 54%),
     linear-gradient(200deg, #f8f2e4 0%, #f2e8d5 62%, #ecdfc8 100%);
   box-shadow: inset 20px 0 36px -28px rgba(80, 50, 20, 0.85);
-  z-index: 4;
+  z-index: 6;
   perspective: 2400px;
 }
 
@@ -2338,56 +2340,55 @@ a {
   color: rgba(36, 29, 22, 0.4);
 }
 
-/* ---- the turning sheet ------------------------------------------------- */
+/* ---- the corner-fold sheet --------------------------------------------- */
 
-.turn {
+.flipTurn {
   position: absolute;
   inset: 0;
-  z-index: 9;
-  perspective: 2600px;
+  z-index: 30;
   pointer-events: none;
 }
 
-.turn__sheet {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  transform-origin: left center;
-  background: #f4ebd9;
-  box-shadow:
-    26px 0 60px -26px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(90, 60, 30, 0.08);
-}
-
-.turn--back .turn__sheet {
-  transform-origin: left center;
-}
-
-.turn__face {
+.flipTurn__front,
+.flipTurn__back {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  backface-visibility: hidden;
   background:
     radial-gradient(110% 80% at 100% 0%, rgba(255, 255, 255, 0.55), transparent 55%),
     linear-gradient(200deg, #f8f2e4 0%, #f2e8d5 62%, #ecdfc8 100%);
+  will-change: clip-path, transform;
 }
 
-.turn__face::after {
+.flipTurn__front {
+  z-index: 2;
+}
+
+.flipTurn__shadow {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  /* A fixed shadow: recomputing a drop-shadow every frame was the biggest
+     cost of the old turn. */
+  filter: drop-shadow(0 12px 22px rgba(40, 24, 8, 0.22));
+}
+
+.flipTurn__back {
+  z-index: 1;
+  transform-origin: 0 0;
+}
+
+.flipTurn__front::after,
+.flipTurn__back::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.3;
-  mix-blend-mode: multiply;
+  opacity: 0.12;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.2'/%3E%3C/svg%3E");
 }
 
-.turn__face--back {
-  transform: rotateY(180deg);
-}
-
-.turn__page {
+.flipTurn__page {
   position: absolute;
   inset: 0;
   display: flex;
@@ -2396,7 +2397,7 @@ a {
   padding: clamp(22px, 2.8vw, 42px) clamp(22px, 3.2vw, 50px) 0;
 }
 
-.turn__verso {
+.flipTurn__verso {
   position: absolute;
   inset: 0;
   display: flex;
@@ -2404,13 +2405,14 @@ a {
   align-items: center;
   justify-content: center;
   gap: 20px;
+  transform: scaleX(-1);
   background:
     radial-gradient(90% 70% at 40% 30%, rgba(255, 255, 255, 0.4), transparent 65%),
     linear-gradient(200deg, #efe3cd, #e7d8bd);
   color: rgba(36, 29, 22, 0.4);
 }
 
-.turn__verso p {
+.flipTurn__verso p {
   margin: 0;
   font-family: var(--serif);
   font-style: italic;
@@ -2418,7 +2420,7 @@ a {
   letter-spacing: -0.02em;
 }
 
-.turn__versoTiny {
+.flipTurn__versoTiny {
   position: absolute;
   top: 26px;
   font-family: var(--mono);
@@ -2428,7 +2430,7 @@ a {
   color: rgba(36, 29, 22, 0.3);
 }
 
-.turn__stamp {
+.flipTurn__stamp {
   display: grid;
   place-items: center;
   width: 118px;
@@ -2442,36 +2444,6 @@ a {
   text-transform: uppercase;
   color: rgba(120, 72, 22, 0.36);
   box-shadow: inset 0 0 0 4px rgba(120, 72, 22, 0.05);
-}
-
-.turn__shade {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    to right,
-    rgba(58, 34, 10, 0.36),
-    rgba(58, 34, 10, 0.06) 46%,
-    rgba(255, 255, 255, 0.1) 86%
-  );
-  opacity: 0;
-  animation: turnShade 0.92s ease-in-out;
-}
-
-.turn--back .turn__shade {
-  animation-direction: reverse;
-}
-
-@keyframes turnShade {
-  0% {
-    opacity: 0;
-  }
-  45% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 0;
-  }
 }
 
 /* ---- printed leaf content ---------------------------------------------- */
@@ -3337,6 +3309,19 @@ a {
 
 [data-theme='light'] .stage__scrim {
   background:
+    /* Late-afternoon window light spilling in from the top right. */
+    radial-gradient(
+      62% 54% at 92% -4%,
+      rgba(255, 240, 202, 0.92) 0%,
+      rgba(255, 232, 186, 0.46) 30%,
+      rgba(255, 232, 186, 0) 64%
+    ),
+    linear-gradient(
+      208deg,
+      rgba(255, 231, 187, 0.42) 0%,
+      rgba(255, 231, 187, 0.12) 26%,
+      rgba(255, 231, 187, 0) 54%
+    ),
     radial-gradient(58% 46% at 60% 26%, rgba(255, 226, 176, 0.32) 0%, rgba(255, 226, 176, 0) 72%),
     linear-gradient(
       to bottom,
@@ -3345,7 +3330,7 @@ a {
       rgba(248, 238, 222, 0) 46%,
       rgba(246, 235, 218, 0.72) 94%
     ),
-    radial-gradient(120% 88% at 58% 38%, rgba(120, 90, 50, 0) 44%, rgba(120, 90, 50, 0.16) 100%);
+    radial-gradient(120% 88% at 58% 38%, rgba(120, 90, 50, 0) 44%, rgba(120, 90, 50, 0.18) 100%);
 }
 
 [data-theme='light'] .hero::before {
@@ -3446,6 +3431,36 @@ a {
 .journal__galleryHead .journal__sectionLabel {
   flex: 1;
   margin-bottom: 0;
+}
+
+/* ---- Full-bleed presentation slides ------------------------------------- */
+
+.journal__gallery--slides {
+  justify-content: flex-start;
+  padding-top: clamp(20px, 3.4vh, 40px);
+  padding-bottom: clamp(8px, 1.6vh, 16px);
+}
+
+.journal__galleryStage {
+  position: relative;
+  width: 100%;
+  height: clamp(440px, calc(100dvh - 270px), 960px);
+}
+
+.journal__galleryHint {
+  margin: clamp(10px, 1.6vh, 16px) auto 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgba(36, 29, 22, 0.42);
+}
+
+@media (max-width: 720px) {
+  .journal__galleryStage {
+    height: clamp(320px, calc(100dvh - 240px), 620px);
+  }
 }
 
 .journal__sectionLabel span:last-child {

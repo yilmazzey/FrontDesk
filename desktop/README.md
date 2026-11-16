@@ -1,8 +1,10 @@
 # FrontDesk Desktop
 
-Minimal desktop app for FrontDesk, built for the Pfizer & Newpage Solutions
-Hackathon Challenge. The Vite + React + TypeScript UI can run in a browser; the
-Tauri v2 shell provides the native backend used for Microsoft Graph sign-in.
+Local-first desktop app for the Pfizer & Newpage Solutions Hackathon Challenge.
+It is a Tauri v2 app (Rust core + Vite/React UI) that reads granted sources on
+demand. **Ask** is one assistant: it answers generally, cites local and connected
+Microsoft sources when it uses them, and labels answers that come from general knowledge. A strict
+citation-or-refuse setting is still available.
 See the [root README](../README.md) for the full team setup guide.
 
 ## Run
@@ -11,60 +13,59 @@ From the repo root:
 
 ```bash
 npm install
-npm run dev:desktop   # http://localhost:5174
+npm run dev:tauri     # real desktop window
+npm run dev:desktop   # browser preview only, no file access
 ```
 
-Hash routing is used (`/#/notes`, `/#/settings`) so the same build works inside
-the Tauri webview, where there is no server to rewrite paths.
+## What works
 
-## Microsoft Graph
+- **Access** — grant a folder, revoke it, choose answer style and GGUF model,
+  inspect the metadata-only activity log.
+- **Notes** — read a granted Markdown/text/PDF/scan from its original.
+- **Ask** — one assistant. It prefers your retrieved files, cites them when it
+  uses them, and otherwise answers from general knowledge with a clear label.
+  Strict mode drops uncited claims and returns `insufficient` instead.
+- **Search** — searches the contents of granted files, Outlook mail, calendar
+  events and OneNote pages, with kind filters and no answer box.
+- **Settings** — model folder, adapter, storage, connections.
 
-The Microsoft connection uses the Tauri native backend for device-code sign-in.
-It reads the signed-in profile, recent dashboard data, and—when searching—all
-accessible mail except messages in Deleted Items, calendars and OneNote pages.
-Search data and tokens stay in memory and are cleared when the app exits; sign
-in and load data again after relaunch. Refresh the data after changing Microsoft
-content. The first search may take a while for large accounts.
+PDF text is extracted in-process; image OCR uses `tesseract` and `poppler`.
+Markdown and text need neither.
 
-The Dashboard assistant retrieves relevant excerpts and sends only those
-excerpts to the local Ollama model for a cited answer. The Search screen uses the
-same Microsoft-only data and returns matching excerpts. Neither feature searches
-local files or sends content to a cloud AI service.
+## Models
 
-1. Copy `.env.example` to `.env.local` in `desktop/`.
-2. Set `VITE_MICROSOFT_CLIENT_ID` to the Application (client) ID from your Entra
-   app registration. It is a public identifier, not a client secret.
-3. Ensure the registration allows public client flows and has delegated
-   `User.Read`, `Notes.Read`, `Mail.Read`, `Calendars.Read` and `offline_access`.
-4. Install and start [Ollama](https://ollama.com/), then download the default
-   model with `ollama pull qwen2.5:3b`. Optionally set `VITE_OLLAMA_MODEL` in
-   `desktop/.env.local` to use another installed model.
-5. From the repo root, run `npm run tauri -w desktop -- dev`, then connect in
-   **Settings** and complete the device-code sign-in in your browser.
+Drop `.gguf` files into `../models/`. Select one on Access or Settings, then
+press **Load / warm model**. FrontDesk imports it into Ollama first; if Ollama
+is unavailable, it uses the managed llama.cpp fallback. **Extractive** answers
+instantly with no model.
 
-The browser-only Vite preview cannot authenticate or call Ollama; Microsoft
-requests and local model calls are made by the Tauri backend. No client secret
-is needed.
+## Rust core
 
-## Screens
+```
+src-tauri/src/
+  commands.rs       IPC surface
+  permissions.rs    revocable grants (metadata only)
+  sources/          fixture, local folder, PDF/OCR, Microsoft Graph
+  retrieve/         in-memory chunker + BM25
+  answer.rs         scope → retrieve → generate → verify (chat + grounded)
+  model.rs          GGUF registry + local runtime adapter
+  audit.rs          metadata-only JSONL log
+```
 
-- **Dashboard** — Microsoft data, cited local-model answers, permission summary
-- **Notes** — local note list + placeholder editor
-- **Search** — filters across Microsoft mail, calendar and OneNote
-- **Settings** — connections, behaviour, storage, about
-
-Local notes and OCR remain placeholders. Microsoft Graph search and local-model
-answers are available only in the Tauri desktop app.
+`cargo test --test eval` runs the 25-question honest-answer eval.
 
 ## Tauri
 
-`src-tauri/` contains the native shell and Microsoft Graph commands. From the
-repo root, run:
+`src-tauri/` is runnable now: CLI, `lib`/`main` split, `ping` command,
+capability file, icons and `Cargo.lock` are in place. The frontend is
+hash-routed (`/#/notes`) because the webview has no server-side rewrites.
 
-```bash
-npm run tauri -w desktop -- dev
-```
+## Microsoft Graph
 
-The dev server is fixed to port `5174` in `vite.config.ts`, matching `devUrl`
-in the Tauri config. Native development on Windows requires Rust, the MSVC C++
-build tools and WebView2.
+Copy `desktop/.env.example` to `desktop/.env.local`, set `VITE_MICROSOFT_CLIENT_ID`
+from a public-client Microsoft Entra app with device-code flow enabled, then
+restart the app. The app requests delegated `User.Read`, `Mail.Read`,
+`Calendars.Read`, `Notes.Read` and `offline_access` permissions. Connect from
+**Settings**; mail, calendar and OneNote are read-only and can be individually
+revoked from **Access**. Sign-in tokens remain in memory and require reconnecting
+after an app restart.

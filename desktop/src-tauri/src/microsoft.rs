@@ -8,14 +8,14 @@ use tauri::State;
 
 const DEVICE_CODE_URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode";
 const TOKEN_URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-const GRAPH_URL: &str = "https://graph.microsoft.com/v1.0";
+pub(crate) const GRAPH_URL: &str = "https://graph.microsoft.com/v1.0";
 const OLLAMA_CHAT_URL: &str = "http://127.0.0.1:11434/api/chat";
 const OLLAMA_TAGS_URL: &str = "http://127.0.0.1:11434/api/tags";
 const SCOPES: &str = "offline_access User.Read Notes.Read Mail.Read Calendars.Read";
 
 #[derive(Default)]
 pub struct MicrosoftState {
-    client: Client,
+    pub(crate) client: Client,
     flow: Mutex<Option<DeviceCodeFlow>>,
     tokens: Mutex<Option<AuthTokens>>,
 }
@@ -374,6 +374,10 @@ pub fn cancel_sign_in(state: State<'_, MicrosoftState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn disconnect(state: State<'_, MicrosoftState>) -> Result<(), String> {
+    clear_auth(&state)
+}
+
+pub(crate) fn clear_auth(state: &MicrosoftState) -> Result<(), String> {
     clear_flow(&state)?;
     *state
         .tokens
@@ -682,7 +686,7 @@ pub async fn check_local_model(
     Ok(tags.models.iter().any(|installed| installed.name == model))
 }
 
-async fn get_access_token(state: &MicrosoftState) -> Result<Option<String>, String> {
+pub(crate) async fn get_access_token(state: &MicrosoftState) -> Result<Option<String>, String> {
     let tokens = state
         .tokens
         .lock()
@@ -753,7 +757,7 @@ async fn get_access_token(state: &MicrosoftState) -> Result<Option<String>, Stri
     Ok(Some(access_token))
 }
 
-async fn graph_get<T: DeserializeOwned>(
+pub(crate) async fn graph_get<T: DeserializeOwned>(
     client: &Client,
     token: &str,
     path: &str,
@@ -769,7 +773,7 @@ async fn graph_get<T: DeserializeOwned>(
     parse_graph_response(response).await
 }
 
-async fn graph_get_all<T: DeserializeOwned>(
+pub(crate) async fn graph_get_all<T: DeserializeOwned>(
     client: &Client,
     token: &str,
     first_url: String,
@@ -820,7 +824,9 @@ async fn parse_response<T: DeserializeOwned>(response: Response) -> Result<T, St
         .map_err(|_| format!("Microsoft returned an invalid response ({status})."))
 }
 
-async fn parse_graph_response<T: DeserializeOwned>(response: Response) -> Result<T, String> {
+pub(crate) async fn parse_graph_response<T: DeserializeOwned>(
+    response: Response,
+) -> Result<T, String> {
     let status = response.status();
     let body = response
         .text()
@@ -843,7 +849,7 @@ async fn parse_graph_response<T: DeserializeOwned>(response: Response) -> Result
         .map_err(|_| format!("Microsoft Graph returned an invalid response ({status})."))
 }
 
-async fn parse_graph_text(response: Response) -> Result<String, String> {
+pub(crate) async fn parse_graph_text(response: Response) -> Result<String, String> {
     let status = response.status();
     let body = response
         .text()

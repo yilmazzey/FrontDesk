@@ -7,13 +7,18 @@ The repo is a two-workspace monorepo:
 
 | Workspace | What it is | Dev URL |
 | --- | --- | --- |
-| `web/` | Public landing page: 3D desk, full-page Embla gallery, notebook, and `/monitor` onboarding. | `http://localhost:5173` |
-| `desktop/` | Tauri desktop app with a Vite + React shell and read-only Microsoft Graph integration. | `http://localhost:5174` in browser |
+| `web/` | Public landing page: zoomable 3D desk, full-bleed slide gallery, notebook, and `/monitor` onboarding. | `http://localhost:5173` |
+| `desktop/` | Tauri app with a local Rust core: Access grants, Notes, Ask/Chat, Search, Settings and audit. | `http://localhost:5174` |
 
-The 3D experience is real. Desktop notes and OCR are still placeholders.
-Microsoft Graph device-code sign-in and read access run through the native Tauri backend. The
-dashboard assistant and Search screen use Microsoft mail, calendar and OneNote data; answers are
-generated locally with Ollama.
+The 3D experience is real. The desktop app is now a working local-first MVP: it reads granted
+folders on demand, answers with exact citations, and can run a GGUF model from `models/`. Ask is
+one assistant: it cites your files when it uses them, labels answers that come from general
+knowledge, and keeps replies short. A strict **Strict citations** setting is still available for
+citation-or-refuse answers. Microsoft Graph can also provide read-only Outlook mail, calendar and
+OneNote sources through the same permission and citation pipeline.
+
+> **New to this branch?** Read [`WHATS_NEW.md`](WHATS_NEW.md) for a plain-English summary of what
+> changed on `yilmazzey` compared with the earlier desktop skeleton, plus a one-screen quick start.
 
 ## Team
 
@@ -30,18 +35,40 @@ generated locally with Ollama.
 - **Node.js 20 or newer** — check with `node -v`
 - **npm 10 or newer** — check with `npm -v`
 - **Git**
-- **Rust, MSVC C++ build tools and WebView2** — only needed for the native Tauri app
+- **Rust (stable) + Xcode Command Line Tools** — needed for the real desktop window
+- **Ollama** — preferred local runtime for GGUF models.
+- **llama.cpp** — automatically downloaded as a fallback if Ollama is unavailable (pinned
+  `b12359` release under app-data `runtimes/llama/`). A `llama-server` on PATH or
+  `FRONTDESK_LLAMA_SERVER` can be used as that fallback.
 
-The browser-only Vite shell does not need credentials. Microsoft Graph requires
-the app's client ID in `desktop/.env.local` and the Tauri desktop runtime. Local
-answers also require Ollama and the `qwen2.5:3b` model by default.
+Optional extraction tools:
+
+- PDFs are read **in-process** (pure Rust), so `pdftotext` is no longer required.
+- `tesseract` + `poppler` for OCR of images and scanned pages; the macOS build offers a one-click
+  Homebrew install in **Access → Local runtime**.
+
+Local-only use needs no API keys. Microsoft Graph is optional and requires the
+client ID described below; its mail, calendar and OneNote requests use Microsoft Graph.
+
+macOS setup:
+
+```bash
+xcode-select --install
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+# llama-server is installed as a fallback; OCR helpers are optional: brew install tesseract poppler
+```
 
 ### 2. Clone the repo
 
 ```bash
 git clone https://github.com/yilmazzey/FrontDesk.git
 cd FrontDesk
+git switch -c <your-feature-branch>
 ```
+
+The current desktop app and web experience are on `main`. Create a feature branch before editing
+so your changes stay isolated.
 
 ### 3. Install once from the repo root
 
@@ -58,27 +85,55 @@ npm run dev
 # http://localhost:5173
 ```
 
-### 5. Run the desktop shell (second terminal)
+### 5. Run the desktop app (second terminal)
+
+Two modes, same UI:
 
 ```bash
+# Real desktop window with the Rust core and local file access
+npm run dev:tauri
+
+# Browser preview only (sample sources, no file access)
 npm run dev:desktop
 # http://localhost:5174
 ```
 
-To run the native Tauri app with Microsoft Graph, copy `desktop/.env.example` to
-`desktop/.env.local`, set `VITE_MICROSOFT_CLIENT_ID`, install Ollama and run
-`ollama pull qwen2.5:3b`, then run:
+The browser preview is useful for styling, but **only `dev:tauri` can grant a real folder,
+read files, run OCR and answer from them.**
 
-```bash
-npm run tauri -w desktop -- dev
+### 6. Add a local model (optional)
+
+Drop a `.gguf` file into `models/` at the repo root. The current model is:
+
+```
+models/microsoft_Phi-4-mini-instruct-Q4_K_M.gguf
 ```
 
-### 6. Build before you push
+Then open **Access → Local model**, choose the model, and press **Load / warm model**. FrontDesk
+imports the GGUF into Ollama first. If Ollama is unavailable, it downloads the pinned llama.cpp
+build into the app-data `runtimes/llama/` folder and loads the GGUF directly.
+
+**Access → Local runtime** shows the same status and can install on demand, with download progress.
+Choose **Extractive** to demo the citation
+pipeline instantly with no model at all.
+
+### 7. Connect Microsoft (optional)
+
+Register a Microsoft Entra application as a public client and enable device-code flow. Add the
+delegated Microsoft Graph permissions `User.Read`, `Mail.Read`, `Calendars.Read`, `Notes.Read` and
+`offline_access`. Copy `desktop/.env.example` to `desktop/.env.local` and set
+`VITE_MICROSOFT_CLIENT_ID` to the application ID. Restart the desktop app, then use
+**Settings → Microsoft account → Connect** and follow the device-code prompt. The app grants
+read-only access to Outlook mail, calendar events and OneNote; each source can be revoked from
+**Access**. Sign-in tokens stay in memory, so reconnect after restarting the app.
+
+### 8. Build and test before you push
 
 ```bash
-npm run build          # type-check + build both workspaces
+npm run build                  # type-check + build both workspaces
 npm run build:web
 npm run build:desktop
+cd desktop/src-tauri && cargo test   # evals, OCR and model registry
 ```
 
 ### Troubleshooting
@@ -92,10 +147,20 @@ npm run build:desktop
   The loader waits on the model; give it a moment on the first load.
 - **Windows** — use PowerShell or Git Bash; the npm scripts are cross-platform.
 - **Weird cached UI** — hard-refresh (`Cmd/Ctrl + Shift + R`) after pulling.
+- **`Port 5174 is already in use`** — the browser preview and `dev:tauri` share the port. Stop
+  the other Vite process first (`lsof -ti:5174 | xargs kill`).
+- **Model import fails** — open **Access → Local runtime** and press **Install** for
+  `llama-server`, or start `ollama serve` if you use the fallback. Then press **Load / warm
+  model** again. The GGUF must be a complete file in `models/`.
+- **Scanned PDF or image OCR returns an error** — install the OCR helpers from
+  **Access → Local runtime** (Homebrew on macOS) or run the command shown there. Text PDFs,
+  Markdown and plain text need no external tool.
 
 ---
 
 ## Routes
+
+Web:
 
 - **`/`** — the desk hero. The lamp toggles the scene light; the monitor dollies the camera and
   opens `/monitor`; the notebook opens About us / Pricing / Privacy. Scrolling hands off to the
@@ -103,6 +168,15 @@ npm run build:desktop
 - **`/monitor`** — sign-in, permissions, configuration and a **Download / Open Desktop App**
   button.
 - **`/downloads/frontdesk-desktop.html`** — styled placeholder package page. No binary yet.
+
+Desktop:
+
+- **`/#/`** — Dashboard: live source count, grants, quick ask.
+- **`/#/notes`** — read a granted note from its original on demand.
+- **`/#/chat`** — one assistant: short answers, citations when it uses your files, general knowledge labeled when it does not.
+- **`/#/search`** — searches the contents of files and connected Microsoft sources (no answers).
+- **`/#/access`** — grant/revoke folders, choose answer style and model adapter, inspect metadata-only activity.
+- **`/#/settings`** — connections, model folder, storage, behaviour.
 
 ## Project structure
 
@@ -118,33 +192,50 @@ npm run build:desktop
 | `web/src/scene/CameraRig.tsx` | Damped camera moves, scroll dolly, portrait framing. |
 | `web/src/components/NotebookOverlay.tsx` | Open-book dialog, focus trap, sections. |
 | `web/src/content/NotebookContent.tsx` | About us (team), Pricing, Privacy copy. |
-| `web/src/components/Gallery.tsx` | Full-page Embla gallery. |
+| `web/src/components/Gallery.tsx` | Full-bleed presentation gallery with placeholder slides. |
+| `web/src/components/CircularGallery.tsx` | Vendored React Bits WebGL carousel (typed via `.d.ts`). |
+| `web/src/components/ZoomControl.tsx` | Desk zoom buttons, ⌘/Ctrl + wheel and +/− keys. |
 | `web/src/components/Journal.tsx` | Sticky journal bar, gallery, footer. |
 | `web/src/pages/MonitorPage.tsx` | `/monitor` onboarding placeholder. |
 | `web/src/lib/scroll.ts` | Non-reactive scroll value read by the camera rig. |
 | `web/src/styles.css` | Landing, journal, gallery, monitor and theme CSS. |
 | `web/public/desk.glb` | Optimized model (1.8 MB). |
-| `web/public/downloads/` | Placeholder desktop package page. |
+| `web/public/downloads/` | Desktop download page, with OS-detecting links to release assets. |
 | `web/assets/computer_desk.glb` | Original 50 MB source, kept for re-export. |
 
 ### Desktop
 
 | Path | Purpose |
 | --- | --- |
-| `desktop/src/shell/AppShell.tsx` | Sidebar, titlebar, theme switch, ⌘K → Search. |
-| `desktop/src/pages/Dashboard.tsx` | Microsoft data and locally generated cited answers. |
-| `desktop/src/pages/Notes.tsx` | Note list + placeholder editor. |
-| `desktop/src/pages/Search.tsx` | Search across connected Microsoft email, calendars and OneNote. |
-| `desktop/src/pages/Settings.tsx` | Connections, behaviour, storage, about. |
-| `desktop/src/data.ts` | All placeholder content. |
-| `desktop/src-tauri/` | Tauri v2 shell and native Microsoft Graph device-code commands. |
+| `desktop/src/shell/AppShell.tsx` | Sidebar, titlebar, core status, theme switch, ⌘K → Search. |
+| `desktop/src/pages/Dashboard.tsx` | Live sources, grants, quick ask, model status. |
+| `desktop/src/pages/Notes.tsx` | Read a granted note from its original on demand. |
+| `desktop/src/pages/Chat.tsx` | Answer pipeline: chat/sources switch, citations, basis label, clarification, refusal. |
+| `desktop/src/pages/Search.tsx` | Search contents of granted files and Microsoft sources. |
+| `desktop/src/pages/Access.tsx` | Grant/revoke folders, answer style, model picker, metadata-only audit. |
+| `desktop/src/pages/Settings.tsx` | Connections, models, behaviour, storage, about. |
+| `desktop/src/lib/ipc.ts` | Typed `invoke` wrappers + browser-preview fallback. |
+| `desktop/src/state/access.tsx` | Shared grants, sources, models and app info. |
+| `desktop/src/types/source.ts` | Source/Grant/Excerpt/Citation/Answer contracts. |
+| `desktop/src-tauri/src/commands.rs` | The IPC surface. |
+| `desktop/src-tauri/src/permissions.rs` | Revocable grants, persisted as metadata only. |
+| `desktop/src-tauri/src/sources/` | Fixture, local folder, PDF/OCR and Microsoft Graph connectors. |
+| `desktop/src-tauri/src/retrieve/` | In-memory chunker and BM25. |
+| `desktop/src-tauri/src/answer.rs` | Scope → retrieve → generate → verify pipeline, chat and grounded modes. |
+| `desktop/src-tauri/src/model.rs` | GGUF registry + Ollama-first runtime with llama.cpp fallback. |
+| `desktop/src-tauri/src/runtime.rs` | Self-provisioning for llama-server and OCR helpers. |
+| `desktop/src-tauri/src/audit.rs` | Metadata-only read log. |
+| `desktop/src-tauri/tests/eval.rs` | 25-question honest-answer eval. |
+| `models/` | Drop-in GGUF models (gitignored). |
 
 ## Editing the scene
 
 All tunables live in `web/src/config.ts`.
 
 **Camera** — `framing.desk` / `framing.notebook` / `framing.screen`. Positions are in metres; the
-desk is ~2.1 m wide. Portrait screens automatically pull back and raise the target.
+desk is ~2.1 m wide. The resting desk pose is framed on the monitor and crops the desk off the
+bottom and right. Portrait screens automatically pull back and raise the target. The `zoom` value
+in the store pushes the camera along the view ray (0.78×–2.1×) without touching layout.
 
 **Interactive objects** — `parts` maps an object id to mesh/node names inside `desk.glb`. Click
 targets are generated from the real bounding boxes. The lamp and notebook use `HitBox` in
@@ -154,20 +245,50 @@ targets in `LivingDesk`.
 **Screen plane** — `screenPlane` is measured from the geometry. The monitor node is yawed ~25°, so
 the UI plane has to match its quaternion, or it will float off the glass.
 
-**Gallery** — `Gallery.tsx` uses Embla with `align: 'center'` and `containScroll: false`, so the
-active card is large and the previous/next cards peek in from the sides. Slide size and page-height
-layout live in the gallery block in `styles.css`.
+**Gallery** — `Gallery.tsx` renders the React Bits `CircularGallery` WebGL carousel with 16:9
+presentation slides. Slide content is placeholder data in `gallerySlides.ts`; replace each `image`
+with a real screenshot or asset. Vertical wheel gestures scroll the page, while drag, arrow keys,
+horizontal wheel and Shift + wheel move the gallery.
 
 **Theme** — the toggle writes `data-theme` on `<html>` and persists to `localStorage`. The journal
 is always printed on warm paper; the scene and app chrome follow the theme.
 
-## What is still a placeholder
+## What is real vs. still a placeholder
 
-- `/monitor` sign-in and permission buttons are disabled.
-- The download page links to a stub, not a signed installer.
-- Desktop notes, OCR and some settings values are local sample content.
-- Microsoft Graph data is cached in memory until the app exits. Local-model answers require Ollama
-  and only use retrieved Microsoft excerpts; no local files or cloud AI service are used.
+Real now:
+
+- Tauri v2 desktop window with a Rust core and typed IPC.
+- Revocable folder and Microsoft source grants persisted as metadata only.
+- Live reads of Markdown/text, PDF text layers, and local OCR for images and PDFs with no text layer; nothing mirrored.
+- In-memory BM25 retrieval and a citation verifier that drops uncited claims.
+- One assistant: answers generally, cites your files when it uses them, and labels general-knowledge answers. A strict citation-or-refuse setting remains.
+- Extractive answers with no model, plus a GGUF adapter that prefers Ollama and falls back to llama.cpp.
+- Honest refusal and a one-question clarification loop in strict mode, covered by a 25-case eval.
+- Metadata-only audit log with export/clear.
+
+Still placeholder:
+
+- Microsoft Teams integration.
+- Code-signing certificates and notarisation — the release pipeline is wired, but it needs an Apple
+  Developer ID; `/monitor` sign-in buttons.
+- Persistent history or version diffs — FrontDesk reads the live original instead.
+
+## Non-negotiables in the code
+
+- **Nothing is copied** — `sources/` returns metadata, `answer.rs` reads originals per query,
+  and excerpts live in memory. `grants.json` and `audit.jsonl` contain no content.
+- **Original is the source of truth** — every citation carries the source id, location and
+  timestamp; **Open original** launches the file or Microsoft web item.
+- **Honest by design** — in **strict citations**, `answer.rs` requires a valid citation per
+  sentence and a minimum term coverage; otherwise it returns `insufficient` with no citations.
+  In **assistant** mode, uncited sentences are allowed but the answer is labeled **General
+  knowledge**, and fake citations are stripped.
+- **No fake citations** — the verifier drops any bracket that does not match a retrieved excerpt,
+  in both modes.
+- **User control** — `permissions.rs` is the only gate; revoking a grant removes it from the next
+  query immediately.
+- **Microsoft-friendly** — `sources/m365.rs` is where `$search` + on-demand body fetches will land,
+  behind the same grant/revoke path.
 
 ## Contributing
 
@@ -190,6 +311,65 @@ commits — they are ignored already.
   (Netlify `_redirects`, Vercel rewrites, nginx `try_files`). `vite preview` already does this.
 - **Desktop** — build `desktop/`, then layer Tauri on top. The frontend stays hash-routed
   (`/#/notes`) because the webview has no server-side rewrites.
+
+## Packaging & distribution
+
+FrontDesk is a Tauri v2 app, so the bundled installers are thin: the system webview supplies the
+browser, and Rust + the static frontend are the only payload.
+
+```bash
+npm run package:desktop          # release bundles for the current OS
+npm run package:desktop:debug    # faster, unoptimised bundle
+```
+
+Output lands in `desktop/src-tauri/target/release/bundle/`:
+
+| Platform | Artifact | Measured / expected |
+| --- | --- | --- |
+| macOS Apple Silicon | `FrontDesk_0.1.0_aarch64.dmg` | **4.0 MB** (`.app` 13 MB) |
+| macOS Intel | `FrontDesk_0.1.0_x64.dmg` | ~4 MB |
+| Windows 10/11 | `FrontDesk_0.1.0_x64-setup.exe` (NSIS) | ~6 MB |
+| Linux | `FrontDesk_0.1.0_amd64.AppImage`, `.deb` | ~15 MB / ~6 MB |
+| Local model (optional) | `microsoft_Phi-4-mini-instruct-Q4_K_M.gguf` | 2.3 GB |
+
+The measured macOS build is 12 MB of binary (Rust, plugins, embedded frontend) which compresses to a
+4 MB DMG. Packaging does not require code changes: `tauri.conf.json` already declares the bundle
+metadata, categories, icons and per-platform installer settings.
+
+### Release pipeline
+
+`.github/workflows/release.yml` builds macOS (arm64 + x64), Windows and Linux on a `v*` tag and
+attaches the installers to a **draft** GitHub release. Publish the draft to make the website links
+work (`/releases/latest/download/<asset>`).
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Signing secrets (all optional; without them the bundles are unsigned):
+
+- `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`,
+  `APPLE_PASSWORD`, `APPLE_TEAM_ID` — Developer ID signing + notarisation.
+- Windows code signing is not wired up yet; add `certificateThumbprint`/`signCommand` under
+  `bundle.windows` and the matching secrets when a certificate exists.
+
+### What the installer does *not* include
+
+- **A language model.** The 2.3 GB GGUF stays out of the download on purpose. Settings points at
+  the app-data `models/` folder; Ollama is still a fallback, and the extractive answerer needs
+  neither. A first-run model downloader is the natural next step.
+- **`llama-server`, `pdftotext`, `tesseract`.** These stay out of the installer but the app
+  provisions them on demand:
+  - `llama-server` is downloaded from the pinned llama.cpp release (`b12359`) into
+    `<app-data>/runtimes/llama/b12359/`, with progress events and automatic PATH-free resolution.
+  - Text PDFs use the in-process Rust extractor; `pdftotext` is only a fallback.
+  - Tesseract/Poppler install through Homebrew on macOS, winget (Tesseract) on Windows, and a
+    copy-pasteable package-manager command on Linux where elevation is required.
+  - `FRONTDESK_LLAMA_SERVER` still overrides everything, which is useful for a custom build.
+
+`web/public/downloads/frontdesk-desktop.html` detects the visitor's OS/architecture, links the
+matching release asset, and lists sizes. Bump `VERSION` in that page with each app version.
 
 ## Model credit
 

@@ -1,71 +1,100 @@
-import { useEffect, useState } from 'react'
-import { MicrosoftAssistant } from '../components/MicrosoftAssistant'
-import {
-  getMicrosoftDashboardData,
-  isDesktopApp,
-  type MicrosoftDashboardData,
-} from '../services/microsoft'
+import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAccess } from '../state/access'
+
+function when(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
+}
+
+function time(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
 
 export default function Dashboard() {
-  const [microsoftData, setMicrosoftData] = useState<MicrosoftDashboardData | null>(null)
-  const [microsoftStatus, setMicrosoftStatus] = useState<
-    'loading' | 'connected' | 'disconnected' | 'browser' | 'error'
-  >('loading')
-  const [microsoftError, setMicrosoftError] = useState('')
+  const navigate = useNavigate()
+  const { grants, sources, models, info, loading } = useAccess()
+  const [question, setQuestion] = useState('')
+  const now = new Date()
+  const calendarEvents = sources
+    .filter((source) => source.kind === 'calendar')
+    .filter((source) => !Number.isNaN(new Date(source.modified).getTime()))
+    .sort((a, b) => a.modified.localeCompare(b.modified))
+  const todayEvents = calendarEvents.filter(
+    (source) => new Date(source.modified).toDateString() === now.toDateString(),
+  )
+  const upcomingEvents = calendarEvents.filter((source) => new Date(source.modified) >= now)
+  const agenda = todayEvents.length ? todayEvents.slice(0, 4) : upcomingEvents.slice(0, 4)
+  const hasCalendarGrant = grants.some((grant) => grant.kind === 'calendar')
 
-  useEffect(() => {
-    if (!isDesktopApp()) {
-      setMicrosoftStatus('browser')
-      return
-    }
+  function onAsk(event: FormEvent) {
+    event.preventDefault()
+    if (!question.trim()) return
+    navigate('/chat', { state: { question: question.trim() } })
+  }
 
-    const start = new Date()
-    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000)
-    getMicrosoftDashboardData(start.toISOString(), end.toISOString())
-      .then((data) => {
-        setMicrosoftData(data)
-        setMicrosoftStatus(data ? 'connected' : 'disconnected')
-      })
-      .catch((reason: unknown) => {
-        setMicrosoftError(reason instanceof Error ? reason.message : String(reason))
-        setMicrosoftStatus('error')
-      })
-  }, [])
+  const adapter = info?.selectedModel
+    ? models.find((model) => model.id === info.selectedModel)?.name ?? info.selectedModel
+    : 'Extractive (no model)'
 
   return (
     <div className="page">
       <header className="pageHead">
         <div>
-          <p className="eyebrow">Friday, 13 November</p>
+          <p className="eyebrow">
+            {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
           <h1 className="pageTitle">
             The desk is <em>open.</em>
           </h1>
           <p className="pageLede">
-            Search connected Microsoft data and get cited answers from a model running on this device.
+            Local files stay here; connected Microsoft sources are read from your account on demand.
           </p>
           <p className="eventTag">Pfizer &amp; Newpage Solutions Hackathon Challenge</p>
         </div>
 
-        <button type="button" className="btn btn--primary">
-          New note
-          <span aria-hidden="true">+</span>
+        <button type="button" className="btn btn--primary" onClick={() => navigate('/access')}>
+          Manage access
+          <span aria-hidden="true">→</span>
         </button>
       </header>
 
-      <MicrosoftAssistant />
+      <form className="ask" aria-label="Ask the desk" onSubmit={onAsk}>
+        <label className="ask__label" htmlFor="ask">
+          Ask the desk
+        </label>
+        <div className="ask__row">
+          <input
+            id="ask"
+            className="ask__input"
+            placeholder="What did I write about the OCR pipeline?"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+          />
+          <button type="submit" className="btn btn--ghost" disabled={!question.trim()}>
+            Ask
+          </button>
+        </div>
+        <p className="ask__hint">
+          Answers cite your sources when relevant; general knowledge is labeled.
+        </p>
+      </form>
 
       <section className="statRow" aria-label="This week">
         <article className="stat">
-          <span className="stat__value">{microsoftData?.pages.length ?? '—'}</span>
-          <span className="stat__label">OneNote pages · recent</span>
+          <span className="stat__value">{loading ? '—' : sources.length}</span>
+          <span className="stat__label">Sources in scope</span>
         </article>
         <article className="stat">
-          <span className="stat__value">{microsoftData?.events.length ?? '—'}</span>
-          <span className="stat__label">Calendar events · 7 days</span>
+          <span className="stat__value">{grants.length}</span>
+          <span className="stat__label">Active grants</span>
         </article>
         <article className="stat">
-          <span className="stat__value">{microsoftData?.messages.length ?? '—'}</span>
-          <span className="stat__label">Inbox messages · recent</span>
+          <span className="stat__value">0</span>
+          <span className="stat__label">AI requests to the cloud</span>
         </article>
       </section>
 
@@ -73,121 +102,85 @@ export default function Dashboard() {
         <section className="panel" aria-labelledby="recent">
           <header className="panel__head">
             <h2 id="recent" className="panel__title">
-              Microsoft OneNote
+              In scope
             </h2>
-            <span className="panel__meta">Recent pages</span>
+            <span className="panel__meta">Live from the source</span>
           </header>
 
-          <ul className="noteList">
-            {microsoftData?.pages.map((page) => (
-              <li key={page.id}>
-                <div className="noteRow">
-                  <span className="noteRow__top">
-                    <span className="noteRow__title">{page.title || 'Untitled page'}</span>
-                  </span>
-                  <span className="tag">Microsoft OneNote</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {microsoftStatus === 'loading' ? <p className="panel__note">Loading Microsoft data…</p> : null}
-          {microsoftStatus === 'disconnected' ? (
-            <p className="panel__note">Connect your Microsoft account in Settings to load OneNote pages.</p>
-          ) : null}
-          {microsoftData?.pages.length === 0 ? (
-            <p className="panel__note">No Microsoft OneNote pages were returned.</p>
-          ) : null}
+          {sources.length ? (
+            <ul className="noteList">
+              {sources.slice(0, 4).map((source) => (
+                <li key={source.id}>
+                  <button
+                    type="button"
+                    className="noteRow"
+                    onClick={() => navigate('/notes')}
+                  >
+                    <span className="noteRow__top">
+                      <span className="noteRow__title">{source.title}</span>
+                      <span className="noteRow__date">{when(source.modified)}</span>
+                    </span>
+                    <span className="noteRow__body">{source.location}</span>
+                    <span className="tag">{source.kind}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="panel__note">
+              Nothing is allowed yet. Open <strong>Manage access</strong> to grant a folder.
+            </p>
+          )}
         </section>
 
         <div className="stack">
           <section className="panel" aria-labelledby="today">
             <header className="panel__head">
               <h2 id="today" className="panel__title">
-                Today
+                {todayEvents.length ? 'Today' : 'Upcoming'}
               </h2>
-              <span className="panel__meta">Next 7 days</span>
+              <span className="panel__meta">Calendar</span>
             </header>
 
-            <ul className="agenda">
-              {microsoftData?.events.map((event) => {
-                const startTime = event.start?.dateTime
-                const time = startTime
-                  ? new Date(startTime).toLocaleTimeString([], {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })
-                  : '—'
-                return (
-                  <li key={event.id}>
-                    <span className="agenda__time">{time}</span>
-                    <span className="agenda__body">
-                      <strong>{event.subject || 'Untitled event'}</strong>
-                      <em>{event.start?.timeZone ?? 'Microsoft Calendar'}</em>
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-
-            {microsoftStatus === 'loading' ? <p className="panel__note">Loading Microsoft data…</p> : null}
-            {microsoftStatus === 'disconnected' ? (
-              <p className="panel__note">Connect your Microsoft account in Settings to load calendar, inbox and OneNote.</p>
-            ) : null}
-            {microsoftStatus === 'browser' ? (
-              <p className="panel__note">Open FrontDesk in the Tauri desktop app to connect Microsoft.</p>
-            ) : null}
-            {microsoftStatus === 'connected' && !microsoftData?.events.length ? (
-              <p className="panel__note">No upcoming events in the next seven days.</p>
-            ) : null}
-            {microsoftStatus === 'error' ? (
-              <p className="connectionError" role="alert">{microsoftError}</p>
-            ) : null}
-          </section>
-
-          {microsoftData ? (
-            <section className="panel" aria-labelledby="inbox">
-              <header className="panel__head">
-                <h2 id="inbox" className="panel__title">
-                  Inbox
-                </h2>
-                <span className="panel__meta">{microsoftData.messages.length} recent</span>
-              </header>
+            {agenda.length ? (
               <ul className="agenda">
-                {microsoftData.messages.map((message) => (
-                  <li key={message.id}>
-                    <span className="agenda__time">Mail</span>
+                {agenda.map((item) => (
+                  <li key={item.id}>
+                    <span className="agenda__time">{time(item.modified)}</span>
                     <span className="agenda__body">
-                      <strong>{message.subject || 'No subject'}</strong>
-                      <em>
-                        {message.from?.emailAddress?.name ??
-                          message.from?.emailAddress?.address ??
-                          'Unknown sender'}
-                      </em>
+                      <strong>{item.title}</strong>
+                      <em>Microsoft Calendar</em>
                     </span>
                   </li>
                 ))}
               </ul>
-              {!microsoftData.messages.length ? (
-                <p className="panel__note">No messages were returned from the inbox.</p>
-              ) : null}
-            </section>
-          ) : null}
+            ) : (
+              <p className="panel__note">
+                {hasCalendarGrant
+                  ? 'No events were found in the current calendar window.'
+                  : 'Connect a Microsoft account in Settings to see calendar events here.'}
+              </p>
+            )}
+          </section>
 
           <section className="panel panel--inset" aria-labelledby="permissions">
             <header className="panel__head">
               <h2 id="permissions" className="panel__title">
                 Permissions
               </h2>
-              <span className="panel__meta">On this machine</span>
+              <span className="panel__meta">Revocable</span>
             </header>
 
             <ul className="checkList">
-              <li>Local notes + OCR</li>
-              <li className={microsoftData ? 'is-on' : ''}>Microsoft mail</li>
-              <li className={microsoftData ? 'is-on' : ''}>Microsoft calendar</li>
-              <li className={microsoftData ? 'is-on' : ''}>Microsoft OneNote</li>
-              <li className="is-on">Local AI model</li>
+              {grants.map((grant) => (
+                <li key={grant.id} className="is-on">
+                  {grant.title}
+                </li>
+              ))}
+              {!grants.length ? <li>No sources granted</li> : null}
             </ul>
+
+            <p className="panel__note">Model · {adapter}</p>
           </section>
         </div>
       </div>

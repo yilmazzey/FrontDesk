@@ -1,15 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  beginMicrosoftSignIn,
-  cancelMicrosoftSignIn,
-  checkLocalModel,
-  disconnectMicrosoft,
-  getMicrosoftProfile,
-  isDesktopApp,
-  pollMicrosoftSignIn,
-  type DeviceCodePrompt,
-  type MicrosoftProfile,
-} from '../services/microsoft'
+import { useEffect, useState } from 'react'
+import RuntimePanel from '../components/RuntimePanel'
+import { api } from '../lib/ipc'
+import { useAccess } from '../state/access'
+import type { DeviceCodePrompt, MicrosoftProfile } from '../types/source'
 
 const switches = [
   ['Local notes + OCR', 'Read and index documents on this machine', true],
@@ -17,114 +10,131 @@ const switches = [
   ['Start FrontDesk at login', 'Keep the desk ready in the background', true],
 ] as const
 
-export default function Settings() {
-  const [toggles, setToggles] = useState(() => switches.map(([, , on]) => on))
-  const [profile, setProfile] = useState<MicrosoftProfile | null>(null)
-  const [connectionChecked, setConnectionChecked] = useState(false)
-  const [prompt, setPrompt] = useState<DeviceCodePrompt | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [modelStatus, setModelStatus] = useState<
-    'unchecked' | 'checking' | 'ready' | 'missing' | 'offline'
-  >('unchecked')
-  const [modelError, setModelError] = useState('')
-  const pollTimer = useRef<number | undefined>(undefined)
-  const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID?.trim() ?? ''
-  const model = import.meta.env.VITE_OLLAMA_MODEL?.trim() || 'qwen2.5:3b'
-  const desktopApp = isDesktopApp()
+function bytes(value: number): string {
+  if (value > 1024 ** 3) return `${(value / 1024 ** 3).toFixed(1)} GB`
+  if (value > 1024 ** 2) return `${(value / 1024 ** 2).toFixed(0)} MB`
+  return `${Math.max(1, Math.round(value / 1024))} KB`
+}
 
-  const clearPollTimer = () => {
-    if (pollTimer.current !== undefined) {
-      window.clearTimeout(pollTimer.current)
-      pollTimer.current = undefined
-    }
-  }
+export default function Settings() {
+  const { info, models, sources, refresh, selectModel, selectMode, warmModel } = useAccess()
+  const [toggles, setToggles] = useState(() => switches.map(([, , on]) => on))
+  const [notice, setNotice] = useState<string | null>(null)
+  const [microsoftProfile, setMicrosoftProfile] = useState<MicrosoftProfile | null>(null)
+  const [deviceCode, setDeviceCode] = useState<DeviceCodePrompt | null>(null)
+  const [microsoftBusy, setMicrosoftBusy] = useState(false)
+
+  const selected = info?.selectedModel ?? 'extractive'
 
   useEffect(() => {
-    if (!desktopApp) {
-      setConnectionChecked(true)
-      return
-    }
-
-    getMicrosoftProfile()
-      .then(setProfile)
-      .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : String(reason)),
-      )
-      .finally(() => setConnectionChecked(true))
-
-    return clearPollTimer
-  }, [desktopApp])
-
-  const pollForSignIn = useCallback(async () => {
-    try {
-      const result = await pollMicrosoftSignIn()
-      if (result.status === 'connected') {
-        const signedInProfile = await getMicrosoftProfile()
-        setProfile(signedInProfile)
-        setPrompt(null)
-        setBusy(false)
-        return
-      }
-
-      pollTimer.current = window.setTimeout(
-        () => void pollForSignIn(),
-        result.intervalSeconds * 1000,
-      )
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
-      setPrompt(null)
-      setBusy(false)
+    let active = true
+    api.getMicrosoftProfile()
+      .then((profile) => {
+        if (active) setMicrosoftProfile(profile)
+      })
+      .catch((cause) => {
+        if (active) setNotice(cause instanceof Error ? cause.message : String(cause))
+      })
+    return () => {
+      active = false
     }
   }, [])
 
-  const connect = async () => {
-    setError('')
-    setBusy(true)
+  useEffect(() => {
+    if (!deviceCode) return
+    let active = true
+    let timer: ReturnType<typeof setTimeout>
+
+    const poll = async () => {
+      try {
+        const result = await api.pollMicrosoftSignIn()
+        if (!active) return
+        if (result.status === 'connected') {
+          await api.grantMicrosoftSources()
+          await refresh()
+          setMicrosoftProfile(await api.getMicrosoftProfile())
+          setDeviceCode(null)
+          setMicrosoftBusy(false)
+          setNotice('Microsoft account connected. Mail, calendar and OneNote are available.')
+          return
+        }
+        timer = setTimeout(poll, Math.max(1, result.intervalSeconds) * 1000)
+      } catch (cause) {
+        if (!active) return
+        setDeviceCode(null)
+        setMicrosoftBusy(false)
+        setNotice(cause instanceof Error ? cause.message : String(cause))
+        try {
+          await api.cancelMicrosoftSignIn()
+        } catch (cancelCause) {
+          setNotice(
+            `${cause instanceof Error ? cause.message : String(cause)} Sign-in cleanup failed: ${
+              cancelCause instanceof Error ? cancelCause.message : String(cancelCause)
+            }`,
+          )
+        }
+      }
+    }
+
+    timer = setTimeout(poll, Math.max(1, deviceCode.intervalSeconds) * 1000)
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [deviceCode, refresh])
+
+  async function connectMicrosoft() {
+    const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID?.trim()
+    if (!clientId) {
+      setNotice('Set VITE_MICROSOFT_CLIENT_ID in desktop/.env.local, then restart the app.')
+      return
+    }
+    setMicrosoftBusy(true)
+    setNotice(null)
     try {
-      const nextPrompt = await beginMicrosoftSignIn(clientId)
-      setPrompt(nextPrompt)
-      pollTimer.current = window.setTimeout(
-        () => void pollForSignIn(),
-        nextPrompt.intervalSeconds * 1000,
-      )
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
-      setBusy(false)
+      setDeviceCode(await api.beginMicrosoftSignIn(clientId))
+    } catch (cause) {
+      setMicrosoftBusy(false)
+      setNotice(cause instanceof Error ? cause.message : String(cause))
     }
   }
 
-  const cancel = async () => {
-    clearPollTimer()
-    setPrompt(null)
-    setBusy(false)
+  async function disconnectMicrosoft() {
+    setMicrosoftBusy(true)
+    setNotice(null)
     try {
-      await cancelMicrosoftSignIn()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      await api.disconnectMicrosoft()
+      setMicrosoftProfile(null)
+      await refresh()
+      setNotice('Microsoft account disconnected and its source grants were revoked.')
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setMicrosoftBusy(false)
     }
   }
 
-  const disconnect = async () => {
-    setError('')
+  async function cancelMicrosoftSignIn() {
     try {
-      await disconnectMicrosoft()
-      setProfile(null)
-      setPrompt(null)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason))
+      await api.cancelMicrosoftSignIn()
+      setDeviceCode(null)
+      setMicrosoftBusy(false)
+      setNotice('Microsoft sign-in cancelled.')
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
     }
   }
 
-  const checkModel = async () => {
-    setModelStatus('checking')
-    setModelError('')
+  async function loadModel() {
+    if (selected === 'extractive') {
+      setNotice('The extractive adapter needs no download.')
+      return
+    }
+    setNotice('Importing the GGUF into the local runtime…')
     try {
-      const installed = await checkLocalModel(model)
-      setModelStatus(installed ? 'ready' : 'missing')
-    } catch (reason) {
-      setModelError(reason instanceof Error ? reason.message : String(reason))
-      setModelStatus('offline')
+      setNotice(await warmModel(selected))
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
     }
   }
 
@@ -138,6 +148,8 @@ export default function Settings() {
           </h1>
         </div>
       </header>
+
+      {notice ? <p className="notice">{notice}</p> : null}
 
       <div className="settingsGrid">
         <section className="panel" aria-labelledby="connections">
@@ -155,82 +167,123 @@ export default function Settings() {
             <span className="connectRow__body">
               <strong>Microsoft account</strong>
               <em>
-                {profile
-                  ? `Connected · ${profile.mail ?? profile.userPrincipalName ?? profile.displayName}`
-                  : connectionChecked
-                    ? desktopApp
-                      ? 'Mail, calendar and OneNote · not connected'
-                      : 'Connect from the Tauri desktop app'
-                    : 'Checking connection…'}
+                {microsoftProfile
+                  ? `Connected as ${
+                      microsoftProfile.displayName ||
+                      microsoftProfile.mail ||
+                      microsoftProfile.userPrincipalName ||
+                      'Microsoft account'
+                    }`
+                  : 'Read-only access to mail, calendar and OneNote'}
               </em>
             </span>
             <button
               type="button"
               className="btn btn--ghost btn--sm"
-              disabled={!desktopApp || !clientId || busy || !connectionChecked}
-              onClick={profile ? () => void disconnect() : () => void connect()}
+              disabled={microsoftBusy}
+              onClick={() =>
+                void (microsoftProfile ? disconnectMicrosoft() : connectMicrosoft())
+              }
             >
-              {profile ? 'Disconnect' : busy ? 'Waiting…' : 'Connect'}
+              {microsoftBusy ? 'Connecting…' : microsoftProfile ? 'Disconnect' : 'Connect'}
             </button>
           </div>
-
-          {!clientId && desktopApp ? (
+          {deviceCode ? (
             <p className="panel__note">
-              Set <code>VITE_MICROSOFT_CLIENT_ID</code> in <code>desktop/.env.local</code> to enable
-              sign-in.
+              {deviceCode.message}{' '}
+              <a href={deviceCode.verificationUri} target="_blank" rel="noreferrer">
+                Open Microsoft sign-in
+              </a>
+              . Code: <strong>{deviceCode.userCode}</strong>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => void cancelMicrosoftSignIn()}
+              >
+                Cancel
+              </button>
             </p>
           ) : null}
-          {prompt ? (
-            <div className="authPrompt">
-              <p>{prompt.message}</p>
-              <p>
-                Open this URL in your browser and enter the code:
-              </p>
-              <code>{prompt.verificationUri}</code>
-              <strong className="authPrompt__code">{prompt.userCode}</strong>
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => void cancel()}>
-                Cancel sign-in
-              </button>
-            </div>
-          ) : null}
-          {error ? <p className="connectionError" role="alert">{error}</p> : null}
 
           <div className="connectRow">
             <span className="connectRow__mark" aria-hidden="true">
               AI
             </span>
             <span className="connectRow__body">
-              <strong>Ollama local model</strong>
-              <em>
-                {modelStatus === 'ready'
-                  ? `${model} is ready · local only`
-                  : modelStatus === 'missing'
-                    ? `${model} is not installed`
-                    : modelStatus === 'offline'
-                      ? 'Ollama is not running'
-                      : 'Local answers · Microsoft excerpts stay on this device'}
-              </em>
+              <strong>Local model</strong>
+              <em>{selected === 'extractive' ? 'Extractive adapter · no model' : selected}</em>
             </span>
             <button
               type="button"
               className="btn btn--ghost btn--sm"
-              disabled={!desktopApp || modelStatus === 'checking'}
-              onClick={() => void checkModel()}
+              disabled={selected === 'extractive'}
+              onClick={() => void loadModel()}
             >
-              {modelStatus === 'checking' ? 'Checking…' : 'Check model'}
+              Load
             </button>
           </div>
-          {modelStatus === 'missing' ? (
-            <p className="panel__note">
-              Install Ollama, then run <code>ollama pull {model}</code> and check again.
-            </p>
-          ) : null}
-          {modelError ? <p className="connectionError" role="alert">{modelError}</p> : null}
 
           <p className="panel__note">
             Each connection has its own permission. Revoke one without touching the others.
           </p>
         </section>
+
+        <section className="panel" aria-labelledby="models">
+          <header className="panel__head">
+            <h2 id="models" className="panel__title">
+              Models
+            </h2>
+            <span className="panel__meta">GGUF folder</span>
+          </header>
+
+          <label className="fieldLabel" htmlFor="settingsMode">
+            Answer style
+          </label>
+          <select
+            id="settingsMode"
+            className="select"
+            value={info?.answerMode ?? 'chat'}
+            onChange={(event) =>
+              void selectMode(event.target.value === 'grounded' ? 'grounded' : 'chat')
+            }
+          >
+            <option value="chat">Assistant — answer freely, cite files when used</option>
+            <option value="grounded">Strict citations — refuse when not in files</option>
+          </select>
+
+          <p className="panel__note">
+            Assistant is the default. Strict citations is the same assistant with the general
+            knowledge door closed: every claim must point at your files.
+          </p>
+
+          <label className="fieldLabel" htmlFor="settingsModel">
+            Answer adapter
+          </label>
+          <select
+            id="settingsModel"
+            className="select"
+            value={selected}
+            onChange={(event) =>
+              void selectModel(event.target.value === 'extractive' ? null : event.target.value)
+            }
+          >
+            <option value="extractive">Extractive — instant, citation-bound</option>
+            {models.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name} · {bytes(model.sizeBytes)}
+              </option>
+            ))}
+          </select>
+
+          <p className="panel__note monoWrap">{info?.modelsDir ?? '—'}</p>
+
+          <p className="panel__note">
+            Add or remove a <code>.gguf</code> file in this folder to plug a model in or out. The
+            model stays a file on this machine; the adapter can change without touching the UI.
+          </p>
+        </section>
+
+        <RuntimePanel />
 
         <section className="panel" aria-labelledby="behaviour">
           <header className="panel__head">
@@ -274,22 +327,30 @@ export default function Settings() {
 
           <dl className="kv">
             <div>
-              <dt>Workspace</dt>
-              <dd>~/Documents/FrontDesk</dd>
+              <dt>Sources in scope</dt>
+              <dd>{sources.length} items</dd>
             </div>
             <div>
-              <dt>Notes</dt>
-              <dd>128 files · 4.2 MB</dd>
+              <dt>App data</dt>
+              <dd className="monoWrap">{info?.dataDir ?? '—'}</dd>
             </div>
             <div>
-              <dt>Scans and OCR text</dt>
-              <dd>36 files · 18.6 MB</dd>
+              <dt>Notes stored by FrontDesk</dt>
+              <dd>0 — originals stay where they are</dd>
             </div>
             <div>
-              <dt>Backups</dt>
-              <dd>Off — connect a folder to enable</dd>
+              <dt>Model files</dt>
+              <dd>{models.length} GGUF</dd>
             </div>
           </dl>
+
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => void api.clearAudit()}
+          >
+            Clear activity log
+          </button>
         </section>
 
         <section className="panel panel--inset" aria-labelledby="about">
@@ -297,13 +358,13 @@ export default function Settings() {
             <h2 id="about" className="panel__title">
               About
             </h2>
-            <span className="panel__meta">v0.1.0 skeleton</span>
+            <span className="panel__meta">v0.2.0 local core</span>
           </header>
 
           <p className="panel__note">
-            FrontDesk is built for the Pfizer &amp; Newpage Solutions Hackathon Challenge. This is
-            the desktop shell: notes and OCR are placeholders. Microsoft data search and local-model
-            answers run on this device. Your local files are not included in Microsoft search.
+            FrontDesk is built for the Pfizer &amp; Newpage Solutions Hackathon Challenge. The
+            desktop app reads granted sources on demand, keeps excerpts in memory, and ties every
+            answer to a source. Your files stay where they are.
           </p>
 
           <p className="panel__note">

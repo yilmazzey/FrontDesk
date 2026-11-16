@@ -70,7 +70,8 @@ export default function MonitorPage() {
         </div>
 
         <p className="monitorPage__notice">
-          Placeholder build — the installer link points at the desktop package stub for now.
+          Installers are built for macOS, Windows and Linux from the release pipeline. The download
+          page picks the right one for this machine.
         </p>
 
         <section className="monitorSteps" aria-label="Set up the desktop app">
