@@ -41,6 +41,7 @@ export function AppShell() {
       setCore('browser')
       return
     }
+    document.documentElement.dataset.runtime = 'tauri'
     api
       .ping()
       .then(() => setCore('online'))

@@ -1,5 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
+import { AnimatePresence, animate, motion, useReducedMotion } from 'framer-motion'
 import { useUI, type NotebookSection } from '../store'
 import { AboutSection, PricingSection, PrivacySection } from '../content/NotebookContent'
 
@@ -33,7 +41,101 @@ function SectionView({ section }: { section: NotebookSection }) {
   return <AboutSection />
 }
 
-type Turn = { from: NotebookSection; to: NotebookSection; direction: 1 | -1 }
+/* ------------------------------------------------------------------ */
+/* Corner-fold geometry                                                */
+/* ------------------------------------------------------------------ */
+
+interface Pt {
+  x: number
+  y: number
+}
+
+/** A page being folded: which way, which corner, and where that corner is. */
+interface Turn {
+  dir: 1 | -1
+  from: NotebookSection
+  to: NotebookSection
+  /** The corner's resting point, in right-leaf pixels. */
+  corner: Pt
+  /** Where the corner is now. */
+  at: Pt
+}
+
+const sub = (a: Pt, b: Pt): Pt => ({ x: a.x - b.x, y: a.y - b.y })
+const dot = (a: Pt, b: Pt) => a.x * b.x + a.y * b.y
+const length = (a: Pt) => Math.hypot(a.x, a.y)
+const lerp = (a: Pt, b: Pt, t: number): Pt => ({
+  x: a.x + (b.x - a.x) * t,
+  y: a.y + (b.y - a.y) * t,
+})
+
+/** The part of a polygon on one side of a line through `m` with normal `n`. */
+function clipPolygon(poly: Pt[], m: Pt, n: Pt, keepNegative: boolean): Pt[] {
+  const side = (p: Pt) => {
+    const d = dot(sub(p, m), n)
+    return keepNegative ? -d : d
+  }
+  const out: Pt[] = []
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]
+    const b = poly[(i + 1) % poly.length]
+    const da = side(a)
+    const db = side(b)
+    if (da >= 0) out.push(a)
+    if (da >= 0 !== db >= 0) out.push(lerp(a, b, da / (da - db)))
+  }
+  return out
+}
+
+const polygon = (points: Pt[]) =>
+  points.length
+    ? `polygon(${points.map((p) => `${p.x.toFixed(2)}px ${p.y.toFixed(2)}px`).join(', ')})`
+    : 'polygon(0 0)'
+
+/**
+ * Where the page and its mirrored back go for a corner at `at`. The fold is
+ * the line halfway between the corner's rest and its current point.
+ */
+function foldStyles(turn: Turn, w: number, h: number) {
+  const page = [
+    { x: 0, y: 0 },
+    { x: w, y: 0 },
+    { x: w, y: h },
+    { x: 0, y: h },
+  ]
+  const d = sub(turn.at, turn.corner)
+  const l = length(d)
+  if (l < 0.5) return null
+
+  const n = { x: d.x / l, y: d.y / l }
+  const m = lerp(turn.corner, turn.at, 0.5)
+  const front = clipPolygon(page, m, n, false)
+  const flap = clipPolygon(page, m, n, true)
+
+  // Reflection across the fold: X -> A X + b.
+  const a = 1 - 2 * n.x * n.x
+  const b = -2 * n.x * n.y
+  const c = 1 - 2 * n.y * n.y
+  const k = 2 * dot(m, n)
+
+  return {
+    front: { clipPath: polygon(front) } satisfies CSSProperties,
+    flap: {
+      clipPath: polygon(flap),
+      transform: `matrix(${a}, ${b}, ${b}, ${c}, ${k * n.x}, ${k * n.y})`,
+    } satisfies CSSProperties,
+    progress: Math.min(1, l / (2 * w)),
+  }
+}
+
+/** Corner the pointer has to be within (px) for the page to lift on hover. */
+const PEEK_ZONE = 70
+/** How far a hovered corner lifts toward the pointer, at most (px). */
+const PEEK_MAX = 38
+/** Pointer travel that turns a press into a drag (px). */
+const DRAG_SLOP = 4
+const TURN = { duration: 0.64, ease: [0.32, 0.72, 0, 1] as const }
+const SETTLE = { duration: 0.34, ease: [0.23, 1, 0.32, 1] as const }
 
 export function NotebookOverlay() {
   const mode = useUI((s) => s.mode)
@@ -44,24 +146,47 @@ export function NotebookOverlay() {
   const reduce = useReducedMotion()
 
   const [current, setCurrent] = useState<NotebookSection>(section)
+  const currentRef = useRef(current)
+  currentRef.current = current
   const [turn, setTurn] = useState<Turn | null>(null)
+  const [size, setSize] = useState({ w: 0, h: 0 })
+  const turnRef = useRef<Turn | null>(null)
+  const sizeRef = useRef({ w: 0, h: 0 })
+  const pressRef = useRef<{ start: Pt; dragging: boolean } | null>(null)
+  const animRef = useRef<ReturnType<typeof animate> | null>(null)
+  const playingRef = useRef(false)
   const opened = useRef(false)
 
   const panelRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const pageRef = useRef<HTMLDivElement>(null)
+  const leafRef = useRef<HTMLElement>(null)
+  const goRef = useRef<(target: NotebookSection) => void>(() => {})
+
+  const setTurnNow = useCallback((next: Turn | null) => {
+    turnRef.current = next
+    setTurn(next)
+  }, [])
+
+  const stop = useCallback(() => {
+    animRef.current?.stop()
+    animRef.current = null
+    playingRef.current = false
+  }, [])
 
   useEffect(() => {
     if (!open) {
       opened.current = false
-      setTurn(null)
+      stop()
+      pressRef.current = null
+      setTurnNow(null)
       return
     }
     if (!opened.current) {
       opened.current = true
       setCurrent(section)
     }
-  }, [open, section])
+  }, [open, section, setTurnNow, stop])
 
   useEffect(() => {
     if (!open) return
@@ -71,6 +196,14 @@ export function NotebookOverlay() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeNotebook()
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        const tag = (event.target as HTMLElement | null)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+        event.preventDefault()
+        const step = event.key === 'ArrowRight' ? 1 : -1
+        const target = ORDER[ORDER.indexOf(currentRef.current) + step]
+        if (target) goRef.current(target)
+      }
       if (event.key !== 'Tab' || !panelRef.current) return
 
       const focusable = panelRef.current.querySelectorAll<HTMLElement>(
@@ -104,40 +237,221 @@ export function NotebookOverlay() {
     pageRef.current?.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })
   }, [current, reduce])
 
-  const go = (target: NotebookSection) => {
-    if (turn || target === current) return
-    if (reduce) {
-      setCurrent(target)
-      setSection(target)
-      return
+  useLayoutEffect(() => {
+    const leaf = leafRef.current
+    if (!leaf || !open) return
+
+    const measure = () => {
+      const next = { w: leaf.clientWidth, h: leaf.clientHeight }
+      sizeRef.current = next
+      setSize((was) => (was.w === next.w && was.h === next.h ? was : next))
     }
-    setTurn({
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(leaf)
+    return () => observer.disconnect()
+  }, [open])
+
+  useEffect(() => () => stop(), [stop])
+
+  const indexOf = (id: NotebookSection) => ORDER.indexOf(id)
+
+  const commit = useCallback(
+    (to: NotebookSection) => {
+      setTurnNow(null)
+      setCurrent(to)
+      setSection(to)
+    },
+    [setSection, setTurnNow],
+  )
+
+  const run = useCallback(
+    (fromTurn: Turn, to: Pt, complete: boolean) => {
+      stop()
+      playingRef.current = true
+      const { h } = sizeRef.current
+      const start = fromTurn.at
+      const lift = complete && fromTurn.dir === 1 ? h * 0.14 * (fromTurn.corner.y === 0 ? 1 : -1) : 0
+      const config = complete ? TURN : SETTLE
+
+      animRef.current = animate(0, 1, {
+        ...config,
+        onUpdate: (t) => {
+          const p = lerp(start, to, t)
+          setTurnNow({
+            ...fromTurn,
+            at: { x: p.x, y: p.y + Math.sin(Math.PI * t) * lift },
+          })
+        },
+        onComplete: () => {
+          animRef.current = null
+          playingRef.current = false
+          if (complete) {
+            commit(fromTurn.to)
+          } else {
+            setTurnNow(null)
+          }
+        },
+      })
+    },
+    [commit, setTurnNow, stop],
+  )
+
+  const flipTo = useCallback(
+    (target: NotebookSection) => {
+      if (playingRef.current || turnRef.current || target === current) return
+      const direction: 1 | -1 = indexOf(target) > indexOf(current) ? 1 : -1
+      if (reduce || !sizeRef.current.w) {
+        commit(target)
+        return
+      }
+
+      const { w, h } = sizeRef.current
+      const corner = { x: w, y: h }
+      const startAt = direction === 1 ? { ...corner } : { x: 0, y: h }
+      const endAt = direction === 1 ? { x: -w, y: h } : { ...corner }
+      const fromTurn: Turn = { dir: direction, from: current, to: target, corner, at: startAt }
+      setTurnNow(fromTurn)
+      run(fromTurn, endAt, true)
+    },
+    [commit, current, reduce, run, setTurnNow],
+  )
+
+  const go = useCallback(
+    (direction: 1 | -1) => {
+      const target = ORDER[indexOf(current) + direction]
+      if (target) flipTo(target)
+    },
+    [current, flipTo],
+  )
+
+  useEffect(() => {
+    goRef.current = flipTo
+  }, [flipTo])
+
+  const local = (event: ReactPointerEvent): Pt => {
+    const rect = leafRef.current?.getBoundingClientRect()
+    return rect
+      ? { x: event.clientX - rect.left, y: event.clientY - rect.top }
+      : { x: 0, y: 0 }
+  }
+
+  const cornerFor = (y: number): Pt => {
+    const { w, h } = sizeRef.current
+    return { x: w, y: y < h / 2 ? 0 : h }
+  }
+
+  const canTurn = (direction: 1 | -1) => {
+    const index = indexOf(current) + direction
+    return index >= 0 && index < ORDER.length
+  }
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || playingRef.current) return
+    if (!canTurn(1) || pressRef.current) return
+    const p = local(event)
+    const corner = cornerFor(p.y)
+    if (length(sub(p, corner)) > PEEK_ZONE) return
+
+    // Hover peek already lifted the corner; pick the sheet up from there
+    // instead of ignoring the press.
+    const active = turnRef.current
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // Synthetic events and some stylus drivers have no capturable pointer.
+    }
+    pressRef.current = { start: p, dragging: false }
+    setTurnNow({
+      dir: 1,
       from: current,
-      to: target,
-      direction: ORDER.indexOf(target) > ORDER.indexOf(current) ? 1 : -1,
+      to: ORDER[indexOf(current) + 1],
+      corner,
+      at: active?.dir === 1 ? active.at : corner,
     })
   }
 
-  const commit = () => {
-    if (!turn) return
-    setCurrent(turn.to)
-    setSection(turn.to)
-    setTurn(null)
+  const onPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const p = local(event)
+    const press = pressRef.current
+    const active = turnRef.current
+    const { w, h } = sizeRef.current
+
+    if (press && active) {
+      if (!press.dragging && length(sub(p, press.start)) < DRAG_SLOP) return
+      press.dragging = true
+      setTurnNow({
+        ...active,
+        at: {
+          x: Math.max(-w, Math.min(w, p.x)),
+          y: Math.max(0, Math.min(h, p.y)),
+        },
+      })
+      return
+    }
+    if (press || playingRef.current || reduce || !w) return
+    if (event.pointerType !== 'mouse') return
+
+    // A corner near the pointer lifts a little, inviting the turn.
+    if (!canTurn(1)) return
+    const corner = cornerFor(p.y)
+    const toward = sub(p, corner)
+    const dist = length(toward)
+    if (dist >= PEEK_ZONE) {
+      if (active) run(active, active.corner, false)
+      return
+    }
+
+    stop()
+    const lift = Math.min(PEEK_MAX, Math.max(1, dist) * 0.6 + 14)
+    const unit = dist < 1 ? { x: -1, y: 0 } : { x: toward.x / dist, y: toward.y / dist }
+    setTurnNow({
+      dir: 1,
+      from: current,
+      to: ORDER[indexOf(current) + 1],
+      corner,
+      at: { x: corner.x + unit.x * lift, y: corner.y + unit.y * lift },
+    })
   }
 
-  // For a forward turn the old leaf lifts away, revealing the new one. For a
-  // backward turn the new leaf comes in from the left and lands on the old.
-  const visible = turn
-    ? turn.direction === 1
-      ? turn.to
-      : turn.from
-    : current
+  const onPointerUp = () => {
+    const press = pressRef.current
+    const active = turnRef.current
+    pressRef.current = null
+    if (!press || !active) return
+
+    const { w } = sizeRef.current
+    const crossed = active.dir === 1 ? active.at.x < 0 : active.at.x > 0
+    const complete = press.dragging ? crossed : true
+    const restingCorner =
+      active.dir === 1
+        ? { x: -w, y: active.corner.y }
+        : { x: w, y: active.corner.y }
+    run(active, complete ? restingCorner : active.corner, complete)
+  }
+
+  const onPointerLeave = () => {
+    const active = turnRef.current
+    if (!pressRef.current && active && !playingRef.current) {
+      run(active, active.corner, false)
+    }
+  }
 
   const step = (direction: 1 | -1) => {
-    const index = ORDER.indexOf(current) + direction
-    if (index < 0 || index >= ORDER.length) return
-    go(ORDER[index])
+    if (playingRef.current || turnRef.current) return
+    go(direction)
   }
+
+  /* ----- what the book shows ----- */
+
+  const fold = turn && size.w ? foldStyles(turn, size.w, size.h) : null
+  const underSection = turn ? (turn.dir === 1 ? turn.to : turn.from) : current
+  // Only reveal the next page once the sheet is actually folded, so pressing
+  // a corner without dragging does not flash the following page.
+  const displayed = fold ? underSection : current
+  const frontSection = turn ? (turn.dir === 1 ? turn.from : turn.to) : current
+  const atStart = indexOf(current) === 0
+  const atEnd = indexOf(current) === ORDER.length - 1
 
   return (
     <AnimatePresence>
@@ -147,7 +461,7 @@ export function NotebookOverlay() {
           className="flipbook"
           role="dialog"
           aria-modal="true"
-          aria-label={`The notebook — ${SECTION_TITLES[current]}`}
+          aria-label={`The notebook — ${SECTION_TITLES[displayed]}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: reduce ? 0 : 0.22 } }}
@@ -197,7 +511,7 @@ export function NotebookOverlay() {
                 The <em>notebook</em>
               </h2>
               <p className="flipbook__intro">
-                Three pages, no fine print. Turn a leaf and it opens on the right.
+                Three pages, no fine print. Lift a corner and turn the leaf.
               </p>
 
               <nav className="toc" aria-label="Notebook sections">
@@ -205,9 +519,11 @@ export function NotebookOverlay() {
                   <button
                     key={item.id}
                     type="button"
-                    className={`toc__row${current === item.id ? ' is-on' : ''}`}
-                    aria-current={current === item.id ? 'page' : undefined}
-                    onClick={() => go(item.id)}
+                    className={`toc__row${displayed === item.id ? ' is-on' : ''}`}
+                    aria-current={displayed === item.id ? 'page' : undefined}
+                    onClick={() => {
+                      if (item.id !== current) flipTo(item.id)
+                    }}
                   >
                     <span className="toc__index">{item.index}</span>
                     <span className="toc__text">
@@ -236,16 +552,26 @@ export function NotebookOverlay() {
             <div className="flipbook__gutter" aria-hidden="true" />
 
             {/* ---------------- right leaf: the page ---------------- */}
-            <section className="flipbook__page flipbook__page--right">
+            <section
+              ref={leafRef}
+              className="flipbook__page flipbook__page--right"
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+              onPointerLeave={onPointerLeave}
+            >
               <div className="flipbook__paper" ref={pageRef}>
                 <nav className="flipbook__tabs" aria-label="Notebook sections">
                   {SECTIONS.map((item) => (
                     <button
                       key={item.id}
                       type="button"
-                      className={current === item.id ? 'is-on' : ''}
-                      aria-current={current === item.id ? 'page' : undefined}
-                      onClick={() => go(item.id)}
+                      className={displayed === item.id ? 'is-on' : ''}
+                      aria-current={displayed === item.id ? 'page' : undefined}
+                      onClick={() => {
+                        if (item.id !== current) flipTo(item.id)
+                      }}
                     >
                       {item.title}
                     </button>
@@ -253,72 +579,61 @@ export function NotebookOverlay() {
                 </nav>
 
                 <header className="flipbook__folio">
-                  <span>{SECTION_TITLES[visible]}</span>
-                  <span>{PAGE_OF[visible]}</span>
+                  <span>{SECTION_TITLES[displayed]}</span>
+                  <span>{PAGE_OF[displayed]}</span>
                 </header>
 
-                <SectionView section={visible} />
+                <SectionView section={displayed} />
 
                 <footer className="flipbook__foot">
                   <button
                     type="button"
                     className="flipbook__turnBtn"
                     onClick={() => step(-1)}
-                    disabled={ORDER.indexOf(current) === 0 || Boolean(turn)}
+                    disabled={atStart || Boolean(turn)}
                   >
                     <span aria-hidden="true">←</span> Previous
                   </button>
-                  <span className="flipbook__pageNo">p. {PAGE_OF[visible]}</span>
+                  <span className="flipbook__pageNo">p. {PAGE_OF[displayed]}</span>
                   <button
                     type="button"
                     className="flipbook__turnBtn"
                     onClick={() => step(1)}
-                    disabled={ORDER.indexOf(current) === ORDER.length - 1 || Boolean(turn)}
+                    disabled={atEnd || Boolean(turn)}
                   >
                     Next <span aria-hidden="true">→</span>
                   </button>
                 </footer>
               </div>
 
-              {turn && (
-                <div
-                  className={`turn turn--${turn.direction === 1 ? 'forward' : 'back'}`}
-                  aria-hidden="true"
-                >
-                  <motion.div
-                    className="turn__sheet"
-                    initial={{ rotateY: turn.direction === 1 ? 0 : -180 }}
-                    animate={{ rotateY: turn.direction === 1 ? -180 : 0 }}
-                    transition={{ duration: 0.92, ease: [0.22, 0.61, 0.24, 1] }}
-                    onAnimationComplete={commit}
+              {turn && fold && (
+                <div className="flipTurn" aria-hidden="true">
+                  <div
+                    className="flipTurn__shadow"
+                    style={{
+                      filter: `drop-shadow(0 ${2 + fold.progress * 6}px ${
+                        6 + fold.progress * 10
+                      }px rgb(0 0 0 / ${0.12 + (1 - fold.progress) * 0.1}))`,
+                    }}
                   >
-                    <div className="turn__face turn__face--front">
-                      <div className="turn__page">
-                        <header className="flipbook__folio">
-                          <span>{SECTION_TITLES[turn.direction === 1 ? turn.from : turn.to]}</span>
-                          <span>{PAGE_OF[turn.direction === 1 ? turn.from : turn.to]}</span>
-                        </header>
-                        <SectionView section={turn.direction === 1 ? turn.from : turn.to} />
-                        <footer className="flipbook__foot">
-                          <span />
-                          <span className="flipbook__pageNo">
-                            p. {PAGE_OF[turn.direction === 1 ? turn.from : turn.to]}
-                          </span>
-                          <span />
-                        </footer>
-                      </div>
-                    </div>
-
-                    <div className="turn__face turn__face--back">
-                      <div className="turn__verso">
-                        <span className="turn__versoTiny">verso · FrontDesk</span>
+                    <div className="flipTurn__back" style={fold.flap}>
+                      <div className="flipTurn__verso">
+                        <span className="flipTurn__versoTiny">verso · FrontDesk</span>
                         <p>Keep the desk quiet.</p>
-                        <span className="turn__stamp">NO. 01</span>
+                        <span className="flipTurn__stamp">NO. 01</span>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="turn__shade" />
-                  </motion.div>
+                  <div className="flipTurn__front" style={fold.front}>
+                    <div className="flipTurn__page">
+                      <header className="flipbook__folio">
+                        <span>{SECTION_TITLES[frontSection]}</span>
+                        <span>{PAGE_OF[frontSection]}</span>
+                      </header>
+                      <SectionView section={frontSection} />
+                    </div>
+                  </div>
                 </div>
               )}
             </section>
