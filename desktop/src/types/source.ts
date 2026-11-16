@@ -80,3 +80,33 @@ export type AuditEntry = {
   sourceId?: string | null
   scope?: string | null
 }
+
+export type ToolStatus = {
+  key: string
+  label: string
+  installed: boolean
+  detail: string | null
+}
+
+export type RuntimeStatus = {
+  llamaInstalled: boolean
+  llamaVersion: string | null
+  llamaPath: string | null
+  llamaTag: string
+  llamaAsset: string | null
+  llamaSizeMb: number
+  tools: ToolStatus[]
+  platform: string
+  canAutoInstallOcr: boolean
+  ocrHint: string
+}
+
+export type RuntimeProgress = {
+  kind: string
+  phase: 'download' | 'extract' | 'install' | 'done' | string
+  message: string
+  downloaded: number
+  total: number
+}
+
+export type RuntimeKind = 'llama' | 'ocr' | 'all'

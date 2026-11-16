@@ -5,6 +5,7 @@ pub mod contracts;
 pub mod model;
 mod permissions;
 mod retrieve;
+mod runtime;
 mod settings;
 pub mod sources;
 mod state;
@@ -23,6 +24,7 @@ pub fn run() {
             let models_dir = resolve_models_dir(&data_dir);
             std::fs::create_dir_all(&models_dir)?;
 
+            runtime::init(&data_dir);
             app.manage(state::AppState::new(data_dir, models_dir));
             Ok(())
         })
@@ -43,6 +45,8 @@ pub fn run() {
             commands::list_audit,
             commands::clear_audit,
             commands::open_original,
+            commands::runtime_status,
+            commands::install_runtime,
         ])
         .run(tauri::generate_context!())
         .expect("error while running FrontDesk");

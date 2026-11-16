@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import RuntimePanel from '../components/RuntimePanel'
 import { api } from '../lib/ipc'
 import { useAccess } from '../state/access'
 
@@ -146,6 +147,8 @@ export default function Settings() {
             model stays a file on this machine; the adapter can change without touching the UI.
           </p>
         </section>
+
+        <RuntimePanel />
 
         <section className="panel" aria-labelledby="behaviour">
           <header className="panel__head">

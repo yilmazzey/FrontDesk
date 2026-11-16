@@ -7,6 +7,9 @@ import type {
   Citation,
   Excerpt,
   ModelRef,
+  RuntimeKind,
+  RuntimeProgress,
+  RuntimeStatus,
   SourceGrant,
   SourceRef,
 } from '../types/source'
@@ -241,6 +244,22 @@ export const api = {
   warmModel: async (id: string): Promise<string> => {
     if (inTauri()) return call<string>('warm_model', { id })
     throw new Error('Model loading needs the desktop app.')
+  },
+
+  runtimeStatus: async (): Promise<RuntimeStatus | null> =>
+    inTauri() ? call<RuntimeStatus>('runtime_status') : null,
+
+  installRuntime: async (kind: RuntimeKind): Promise<RuntimeStatus> => {
+    if (inTauri()) return call<RuntimeStatus>('install_runtime', { kind })
+    throw new Error('Runtime installation needs the desktop app.')
+  },
+
+  onRuntimeProgress: async (
+    handler: (progress: RuntimeProgress) => void,
+  ): Promise<() => void> => {
+    if (!inTauri()) return () => {}
+    const { listen } = await import('@tauri-apps/api/event')
+    return listen<RuntimeProgress>('runtime-progress', (event) => handler(event.payload))
   },
 
   appInfo: async (): Promise<AppInfo> =>

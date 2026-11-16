@@ -36,13 +36,16 @@ yet.
 - **npm 10 or newer** — check with `npm -v`
 - **Git**
 - **Rust (stable) + Xcode Command Line Tools** — needed for the real desktop window
-- **llama.cpp** — preferred runtime for GGUF answers (`llama-server` on PATH)
-- **Ollama** — optional fallback if you already have it
+- **llama.cpp** — downloaded automatically by the app on first model use (pinned `b12359`
+  release, stored under app-data `runtimes/llama/`). A `llama-server` on PATH or
+  `FRONTDESK_LLAMA_SERVER` still takes precedence.
+- **Ollama** — optional last-resort fallback if llama.cpp cannot be downloaded
 
 Optional extraction tools:
 
-- `pdftotext` (Poppler) for the text layer of PDFs
-- `tesseract` for OCR of images and scanned pages
+- PDFs are read **in-process** (pure Rust), so `pdftotext` is no longer required.
+- `tesseract` + `poppler` for OCR of images and scanned pages; the macOS build offers a one-click
+  Homebrew install in **Access → Local runtime**.
 
 No `.env` files or API keys are needed. Everything runs locally.
 
@@ -52,7 +55,7 @@ macOS setup:
 xcode-select --install
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$HOME/.cargo/env"
-brew install ollama tesseract poppler   # optional, for models and extraction
+# llama-server is installed by the app; OCR helpers are optional: brew install tesseract poppler
 ```
 
 ### 2. Clone the repo
@@ -105,14 +108,13 @@ models/microsoft_Phi-4-mini-instruct-Q4_K_M.gguf
 ```
 
 Then open **Access → Local model**, choose the model, and press **Load / warm model**. FrontDesk
-starts `llama-server` with the GGUF directly — no import or Modelfile step:
+checks for `llama-server`, and if it is missing downloads the pinned llama.cpp build into the
+app-data `runtimes/llama/` folder, extracts it, and starts it with the GGUF directly — no Homebrew,
+import, or Modelfile step.
 
-```bash
-brew install llama.cpp
-```
-
-If `llama-server` is not installed, FrontDesk falls back to a local Ollama install. Choose
-**Extractive** to demo the citation pipeline instantly with no model at all.
+**Access → Local runtime** shows the same status and can install on demand, with download progress.
+Ollama is only used if the llama.cpp download fails. Choose **Extractive** to demo the citation
+pipeline instantly with no model at all.
 
 ### 7. Build and test before you push
 
@@ -136,11 +138,12 @@ cd desktop/src-tauri && cargo test   # evals, OCR and model registry
 - **Weird cached UI** — hard-refresh (`Cmd/Ctrl + Shift + R`) after pulling.
 - **`Port 5174 is already in use`** — the browser preview and `dev:tauri` share the port. Stop
   the other Vite process first (`lsof -ti:5174 | xargs kill`).
-- **Model import fails** — install llama.cpp so `llama-server` is on PATH (`brew install
-  llama.cpp`), or start `ollama serve` if you use the fallback. Then press **Load / warm model**
-  again. The GGUF must be a complete file in `models/`.
-- **PDF or OCR returns an error** — install `pdftotext` and `tesseract` (`brew install poppler
-  tesseract`). Markdown and text files need neither.
+- **Model import fails** — open **Access → Local runtime** and press **Install** for
+  `llama-server`, or start `ollama serve` if you use the fallback. Then press **Load / warm
+  model** again. The GGUF must be a complete file in `models/`.
+- **Scanned PDF or image OCR returns an error** — install the OCR helpers from
+  **Access → Local runtime** (Homebrew on macOS) or run the command shown there. Text PDFs,
+  Markdown and plain text need no external tool.
 
 ---
 
@@ -209,6 +212,7 @@ Desktop:
 | `desktop/src-tauri/src/retrieve/` | In-memory chunker and BM25. |
 | `desktop/src-tauri/src/answer.rs` | Scope → retrieve → generate → verify pipeline, chat and grounded modes. |
 | `desktop/src-tauri/src/model.rs` | GGUF registry + llama.cpp runtime (Ollama fallback). |
+| `desktop/src-tauri/src/runtime.rs` | Self-provisioning for llama-server and OCR helpers. |
 | `desktop/src-tauri/src/audit.rs` | Metadata-only read log. |
 | `desktop/src-tauri/tests/eval.rs` | 25-question honest-answer eval. |
 | `models/` | Drop-in GGUF models (gitignored). |
@@ -247,7 +251,7 @@ Real now:
 - Live reads of Markdown/text, PDF text layers, and local OCR for images and PDFs with no text layer; nothing mirrored.
 - In-memory BM25 retrieval and a citation verifier that drops uncited claims.
 - One assistant: answers generally, cites your files when it uses them, and labels general-knowledge answers. A strict citation-or-refuse setting remains.
-- Extractive answers with no model, plus a GGUF adapter that prefers llama.cpp's `llama-server` and falls back to Ollama.
+- Extractive answers with no model, plus a GGUF adapter that provisions and prefers llama.cpp's `llama-server` and falls back to Ollama only when provisioning fails.
 - Honest refusal and a one-question clarification loop in strict mode, covered by a 25-case eval.
 - Metadata-only audit log with export/clear.
 
@@ -345,10 +349,14 @@ Signing secrets (all optional; without them the bundles are unsigned):
 - **A language model.** The 2.3 GB GGUF stays out of the download on purpose. Settings points at
   the app-data `models/` folder; Ollama is still a fallback, and the extractive answerer needs
   neither. A first-run model downloader is the natural next step.
-- **`llama-server`, `pdftotext`, `tesseract`.** These are read from `PATH` (or
-  `FRONTDESK_LLAMA_SERVER`). Shipping them means Tauri sidecars (`bundle.externalBin`) plus their
-  dylibs and `tessdata`; until then, document the Homebrew/apt requirement or treat OCR and GGUF as
-  optional capabilities.
+- **`llama-server`, `pdftotext`, `tesseract`.** These stay out of the installer but the app
+  provisions them on demand:
+  - `llama-server` is downloaded from the pinned llama.cpp release (`b12359`) into
+    `<app-data>/runtimes/llama/b12359/`, with progress events and automatic PATH-free resolution.
+  - Text PDFs use the in-process Rust extractor; `pdftotext` is only a fallback.
+  - Tesseract/Poppler install through Homebrew on macOS, winget (Tesseract) on Windows, and a
+    copy-pasteable package-manager command on Linux where elevation is required.
+  - `FRONTDESK_LLAMA_SERVER` still overrides everything, which is useful for a custom build.
 
 `web/public/downloads/frontdesk-desktop.html` detects the visitor's OS/architecture, links the
 matching release asset, and lists sizes. Bump `VERSION` in that page with each app version.

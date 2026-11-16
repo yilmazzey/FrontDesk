@@ -2,6 +2,7 @@ use std::fs;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread::sleep;
 use std::time::Duration;
@@ -88,6 +89,7 @@ pub fn path_for(models_dir: &Path, id: &str) -> Option<PathBuf> {
 /// into the server process; for the Ollama fallback it imports the model.
 pub fn warm(models_dir: &Path, id: &str) -> Result<String, String> {
     let path = path_for(models_dir, id).ok_or_else(|| format!("Model not found: {id}"))?;
+    ensure_preferred_runtime();
     if llama_available() {
         ensure_llama(&path)?;
         return Ok(format!("{} is ready (llama.cpp)", prettify(&id)));
@@ -100,6 +102,7 @@ pub fn warm(models_dir: &Path, id: &str) -> Result<String, String> {
 pub fn generate(models_dir: &Path, id: &str, system: &str, user: &str) -> Result<String, String> {
     let path = path_for(models_dir, id).ok_or_else(|| format!("Model not found: {id}"))?;
 
+    ensure_preferred_runtime();
     if llama_available() {
         let base = ensure_llama(&path)?;
         return generate_llama(&base, system, user);
@@ -150,9 +153,29 @@ fn prettify(stem: &str) -> String {
 }
 
 fn llama_binary() -> PathBuf {
-    std::env::var_os("FRONTDESK_LLAMA_SERVER")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("llama-server"))
+    if let Some(value) = std::env::var_os("FRONTDESK_LLAMA_SERVER") {
+        return PathBuf::from(value);
+    }
+    // Prefer the copy FrontDesk provisioned itself; PATH is the last resort so
+    // a Homebrew/llama.cpp install still works without downloading anything.
+    crate::runtime::llama_server().unwrap_or_else(|| PathBuf::from("llama-server"))
+}
+
+/// llama.cpp is the preferred runtime. If it is not installed yet, fetch it in
+/// the background of the first warm/generate call so users are not pushed onto
+/// the Ollama fallback. A failed download simply leaves the old fallback path.
+static RUNTIME_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+
+fn ensure_preferred_runtime() {
+    if llama_available() {
+        return;
+    }
+    // Only try once per process: a failed download should not make every
+    // question retry it. The Access/Settings panel can trigger it explicitly.
+    if RUNTIME_ATTEMPTED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let _ = crate::runtime::install_quiet("llama");
 }
 
 /// True when `llama-server` (or FRONTDESK_LLAMA_SERVER) can be executed.
@@ -314,8 +337,8 @@ fn ensure_server() -> Result<(), String> {
         .spawn()
         .map_err(|e| {
             format!(
-                "No local runtime found. Install llama.cpp (`brew install llama.cpp`) so \
-                 `llama-server` is on PATH, or install Ollama. Then retry. ({e})"
+                "No local runtime found. Open Access → Local runtime and install llama-server, \
+                 or install Ollama. Then retry. ({e})"
             )
         })?;
 

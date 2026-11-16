@@ -8,6 +8,7 @@ use crate::answer;
 use crate::audit::AuditEntry;
 use crate::contracts::{Answer, AppInfo, Excerpt, ModelRef, SourceGrant, SourceRef};
 use crate::model;
+use crate::runtime;
 use crate::sources;
 use crate::state::AppState;
 
@@ -170,6 +171,24 @@ pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo, String> {
         selected_model: settings.selected_model,
         answer_mode: settings.answer_mode,
     })
+}
+
+#[tauri::command]
+pub fn runtime_status() -> runtime::RuntimeStatus {
+    runtime::status()
+}
+
+/// Download and install a helper runtime (`llama`, `ocr`, or `all`). The
+/// command blocks on a worker thread and streams `runtime-progress` events so
+/// the UI can show download and extraction progress.
+#[tauri::command]
+pub async fn install_runtime(
+    app: tauri::AppHandle,
+    kind: String,
+) -> Result<runtime::RuntimeStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || runtime::install(&app, &kind))
+        .await
+        .map_err(|e| format!("The runtime installer stopped unexpectedly: {e}"))?
 }
 
 #[tauri::command]

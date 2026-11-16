@@ -21,3 +21,7 @@ hex = "0.4"
 walkdir = "2"
 chrono = "0.4"
 ureq = { version = "2", features = ["json"] }
+flate2 = "1"
+tar = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+pdf-extract = "0.7"

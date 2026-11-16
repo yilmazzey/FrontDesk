@@ -377,15 +377,21 @@
             <b>AppImage · ~15 MB · .deb</b>
           </div>
           <div class="sizes__row">
+            <span>llama-server (auto-installed)</span>
+            <b>~16 MB · in-app</b>
+          </div>
+          <div class="sizes__row">
             <span>Local model (optional)</span>
             <b>GGUF · 2.3 GB</b>
           </div>
         </div>
 
         <p class="notice">
-          Installed, the app is about 13 MB. Add a GGUF model only if you want local answers:
-          drop it into the model folder from Settings, or connect an existing Ollama install. With
-          neither, FrontDesk still answers extractively from your files.
+          Installed, the app is about 14 MB. On first model use it downloads and unpacks
+          <code>llama-server</code> into its own app-data folder — no Homebrew or PATH step. Text
+          PDFs are read in-process; OCR for scans offers a one-click helper install. Add a GGUF
+          model only if you want generative answers, otherwise FrontDesk answers extractively from
+          your files.
         </p>
 
         <section class="grid" aria-label="What ships in the desktop app">

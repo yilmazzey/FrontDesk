@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import RuntimePanel from '../components/RuntimePanel'
 import { api, inTauri } from '../lib/ipc'
 import { useAccess } from '../state/access'
 import type { AuditEntry } from '../types/source'
@@ -269,6 +270,8 @@ export default function Access() {
             </div>
           </dl>
         </section>
+
+        <RuntimePanel />
 
         <section className="panel panel--inset" aria-labelledby="sources">
           <header className="panel__head">
