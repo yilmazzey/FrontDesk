@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import DashboardAskDock from '../components/DashboardAskDock'
 import DailyAgenda from '../components/DailyAgenda'
 import TeamPanel from '../components/TeamPanel'
@@ -6,6 +7,8 @@ import { useAccess } from '../state/access'
 
 export default function Dashboard() {
   const { grants, sources, loading } = useAccess()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [askOpen, setAskOpen] = useState(false)
   const [askSeed, setAskSeed] = useState('')
   const now = new Date()
@@ -15,6 +18,14 @@ export default function Dashboard() {
     setAskSeed(question)
     setAskOpen(true)
   }
+
+  useEffect(() => {
+    const state = location.state as { askOpen?: boolean; question?: string } | null
+    if (!state?.askOpen) return
+    setAskSeed(state.question ?? '')
+    setAskOpen(true)
+    navigate('/', { replace: true, state: null })
+  }, [location.state, navigate])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -30,20 +41,10 @@ export default function Dashboard() {
 
   return (
     <div className="page">
-      <header className="pageHead">
-        <div>
-          <p className="eyebrow">
-            {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
-          <h1 className="pageTitle">
-            Your day, <em>in one place.</em>
-          </h1>
-          <p className="pageLede">
-            A manager&apos;s second brain: the meetings ahead, the people in them, and everything
-            you already know.
-          </p>
-          <p className="eventTag">Pfizer &amp; Newpage Solutions Hackathon Challenge</p>
-        </div>
+      <header className="pageHead pageHead--dashboard">
+        <p className="eyebrow">
+          {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
 
         <button
           type="button"

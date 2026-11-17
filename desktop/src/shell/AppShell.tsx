@@ -29,12 +29,19 @@ export function AppShell() {
     () => (localStorage.getItem('frontdesk.theme') as 'dark' | 'light') || 'dark',
   )
   const [core, setCore] = useState<'checking' | 'online' | 'browser'>('checking')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('frontdesk.sidebar') === 'collapsed',
+  )
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     document.documentElement.style.colorScheme = theme
     localStorage.setItem('frontdesk.theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    localStorage.setItem('frontdesk.sidebar', sidebarCollapsed ? 'collapsed' : 'open')
+  }, [sidebarCollapsed])
 
   useEffect(() => {
     if (!inTauri()) {
@@ -55,13 +62,15 @@ export function AppShell() {
     let cancelled = false
     let unlisten: Array<() => void> = []
     void import('@tauri-apps/api/event').then(async ({ listen }) => {
-      const offChat = await listen('frontdesk-open-chat', () => navigate('/chat'))
+      const offAsk = await listen('frontdesk-open-ask', () =>
+        navigate('/', { state: { askOpen: true, at: Date.now() } }),
+      )
       const offHome = await listen('frontdesk-open-home', () => navigate('/'))
       if (cancelled) {
-        offChat()
+        offAsk()
         offHome()
       } else {
-        unlisten = [offChat, offHome]
+        unlisten = [offAsk, offHome]
       }
     })
     return () => {
@@ -87,12 +96,24 @@ export function AppShell() {
     : 'Extractive'
 
   return (
-    <div className="app">
+    <div className={`app${sidebarCollapsed ? ' app--rail' : ''}`}>
       <aside className="sidebar">
         <div className="sidebar__brand">
           <span className="sidebar__dot" aria-hidden="true" />
           <span className="sidebar__word">FrontDesk</span>
           <span className="sidebar__tag">desktop</span>
+          <button
+            type="button"
+            className="sidebar__collapse"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d={sidebarCollapsed ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+            </svg>
+          </button>
         </div>
 
         <nav className="sidebar__nav" aria-label="Primary">
@@ -101,12 +122,13 @@ export function AppShell() {
               key={item.to}
               to={item.to}
               end={item.end}
+              title={item.label}
               className={({ isActive }) => `navItem${isActive ? ' is-active' : ''}`}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d={item.glyph} />
               </svg>
-              {item.label}
+              <span className="navItem__label">{item.label}</span>
             </NavLink>
           ))}
         </nav>
@@ -137,7 +159,7 @@ export function AppShell() {
             <span className={`themeSwitch__track${theme === 'light' ? ' is-on' : ''}`}>
               <span className="themeSwitch__knob" />
             </span>
-            {theme === 'light' ? 'Daylight' : 'Lamplight'}
+            <span className="themeSwitch__text">{theme === 'light' ? 'Daylight' : 'Lamplight'}</span>
           </button>
         </div>
       </aside>

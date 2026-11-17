@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/ipc'
 import type { Answer } from '../types/source'
@@ -21,14 +21,22 @@ export default function DashboardAskDock({ open, initialQuestion = '', onClose }
   const [question, setQuestion] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
+    const onPointerDown = (event: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(event.target as Node)) onClose()
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onPointerDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onPointerDown)
+    }
   }, [open, onClose])
 
   const ask = useCallback(async (value: string) => {
@@ -48,23 +56,8 @@ export default function DashboardAskDock({ open, initialQuestion = '', onClose }
   if (!open) return null
 
   return (
-    <div
-      className="askDock"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Ask FrontDesk"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
-    >
-      <div className="askDock__panel">
-        <div className="askDock__head">
-          <span className="askDock__eyebrow">Ask FrontDesk</span>
-          <button type="button" className="askDock__close" onClick={onClose}>
-            Esc
-          </button>
-        </div>
-
+    <div className="askDock" role="dialog" aria-label="Ask FrontDesk">
+      <div className="askDock__panel" ref={panelRef}>
         <PromptInput
           initialValue={initialQuestion}
           placeholder="Ask about your notes, mail, calendar or OneNote…"

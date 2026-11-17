@@ -25,7 +25,7 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         // On Linux the left click opens the menu; elsewhere it opens the chat.
         .show_menu_on_left_click(cfg!(target_os = "linux"))
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "ask" => open_route(app, "frontdesk-open-chat"),
+            "ask" => open_route(app, "frontdesk-open-ask"),
             "open" => open_route(app, "frontdesk-open-home"),
             "quit" => app.exit(0),
             _ => {}
@@ -37,7 +37,7 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
                 ..
             } = event
             {
-                open_route(tray.app_handle(), "frontdesk-open-chat");
+                open_route(tray.app_handle(), "frontdesk-open-ask");
             }
         });
 
