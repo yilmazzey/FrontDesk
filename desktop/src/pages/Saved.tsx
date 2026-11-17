@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import MagicBento from '../components/MagicBento'
 import { api } from '../lib/ipc'
 import { useSaved } from '../state/saved'
 
@@ -22,26 +21,22 @@ export default function Saved() {
 
   const cards = useMemo(
     () =>
-      items.map((item) => ({
-        id: item.id,
-        colSpan: 1,
-        content: (
-          <article className="savedCard">
-            <div className="savedCard__head">
-              <span className="tag">{LABEL[item.classification] ?? 'Reference'}</span>
-              <span className="savedCard__meta">{when(item.savedAt)}</span>
-            </div>
-            <h3>{item.title}</h3>
-            <p>{item.body.replace(/\s+/g, ' ').slice(0, 180)}</p>
-            <div className="savedCard__foot">
-              <span>{item.sources.length} sources</span>
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => void api.openSaved(item.path)}>
-                Open file
-              </button>
-            </div>
-          </article>
-        ),
-      })),
+      items.map((item) => (
+        <article key={item.id} className="panel savedCard">
+          <div className="savedCard__head">
+            <span className="tag">{LABEL[item.classification] ?? 'Reference'}</span>
+            <span className="savedCard__meta">{when(item.savedAt)}</span>
+          </div>
+          <h3>{item.title}</h3>
+          <p>{item.body.replace(/\s+/g, ' ').slice(0, 180)}</p>
+          <div className="savedCard__foot">
+            <span>{item.sources.length} sources</span>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => void api.openSaved(item.path)}>
+              Open file
+            </button>
+          </div>
+        </article>
+      )),
     [items],
   )
 
@@ -61,7 +56,7 @@ export default function Saved() {
       </header>
 
       {cards.length ? (
-        <MagicBento columns={3} rowHeight={190} gap={14} radius={18} items={cards} />
+        <div className="savedGrid">{cards}</div>
       ) : (
         <div className="empty">
           <p className="empty__title">Nothing saved yet.</p>

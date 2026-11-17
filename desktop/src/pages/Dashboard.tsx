@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import DashboardAskDock from '../components/DashboardAskDock'
 import DailyAgenda from '../components/DailyAgenda'
-import MagicBento from '../components/MagicBento'
 import TeamPanel from '../components/TeamPanel'
 import TimelinePreview from '../components/TimelinePreview'
 import { useAccess } from '../state/access'
@@ -61,46 +60,24 @@ export default function Dashboard() {
         </button>
       </header>
 
-      <MagicBento
-        columns={4}
-        rowHeight={230}
-        gap={14}
-        radius={18}
-        items={[
-          {
-            id: 'agenda',
-            colSpan: 2,
-            rowSpan: 2,
-            content: (
-              <DailyAgenda
-                sources={sources}
-                loading={loading}
-                calendarConnected={calendarConnected}
-                onAsk={openAsk}
-              />
-            ),
-          },
-          {
-            id: 'team',
-            colSpan: 2,
-            rowSpan: 2,
-            content: (
-              <TeamPanel
-                sources={sources}
-                loading={loading}
-                calendarConnected={calendarConnected}
-                onAsk={openAsk}
-              />
-            ),
-          },
-          {
-            id: 'timeline',
-            colSpan: 4,
-            rowSpan: 1,
-            content: <TimelinePreview sources={sources} />,
-          },
-        ]}
-      />
+      <div className="dashboardGrid">
+        <DailyAgenda
+          sources={sources}
+          loading={loading}
+          calendarConnected={calendarConnected}
+          onAsk={openAsk}
+        />
+        <TeamPanel
+          sources={sources}
+          loading={loading}
+          calendarConnected={calendarConnected}
+          onAsk={openAsk}
+        />
+      </div>
+
+      <div className="dashboardWide">
+        <TimelinePreview sources={sources} />
+      </div>
 
       <DashboardAskDock
         open={askOpen}
