@@ -44,26 +44,22 @@
   --panel-2: #efe4d0;
 }
 
-/* --------------------------------------------------------------------------
-   Glass mode — set on the root only when the Tauri shell is running. The
-   native window carries the macOS vibrancy material; these translucent
-   surfaces let it show through without washing out the browser preview.
-   -------------------------------------------------------------------------- */
+/* Keep the Tauri shell opaque so the native window background cannot show through. */
 
 [data-runtime='tauri'] {
-  --bg: rgba(18, 16, 14, 0.58);
-  --bg-deep: rgba(12, 10, 9, 0.42);
-  --panel: rgba(23, 20, 15, 0.56);
-  --panel-2: rgba(28, 24, 18, 0.46);
+  --bg: #12100e;
+  --bg-deep: #0c0a09;
+  --panel: #17140f;
+  --panel-2: #1c1812;
   --line: rgba(244, 236, 225, 0.14);
   --line-strong: rgba(244, 236, 225, 0.24);
 }
 
 [data-runtime='tauri'][data-theme='light'] {
-  --bg: rgba(233, 221, 201, 0.74);
-  --bg-deep: rgba(225, 211, 188, 0.56);
-  --panel: rgba(244, 235, 218, 0.64);
-  --panel-2: rgba(239, 228, 208, 0.54);
+  --bg: #e9ddc9;
+  --bg-deep: #e1d3bc;
+  --panel: #f4ebda;
+  --panel-2: #efe4d0;
   --line: rgba(36, 29, 22, 0.14);
   --line-strong: rgba(36, 29, 22, 0.24);
 }

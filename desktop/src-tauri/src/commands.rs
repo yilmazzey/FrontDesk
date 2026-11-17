@@ -239,7 +239,7 @@ pub async fn search_sources(
                 Some(source.id.clone()),
                 Some(source.location.clone()),
             );
-            Ok(
+            Ok::<Option<SourceRef>, String>(
                 if matches_terms(
                     terms_ref,
                     &format!(
@@ -253,7 +253,7 @@ pub async fn search_sources(
                 },
             )
         })
-        .buffer_unordered(8)
+        .buffer_unordered(2)
         .try_collect::<Vec<_>>()
         .await?;
     matches.extend(graph_matches.into_iter().flatten());
@@ -291,9 +291,9 @@ pub async fn ask(
                 }
                 _ => String::new(),
             };
-            Ok((source, format!("{metadata}\n\n{text}")))
+            Ok::<(SourceRef, String), String>((source, format!("{metadata}\n\n{text}")))
         })
-        .buffer_unordered(8)
+        .buffer_unordered(2)
         .try_collect::<Vec<_>>()
         .await?;
     let result = answer::ask_with_external(

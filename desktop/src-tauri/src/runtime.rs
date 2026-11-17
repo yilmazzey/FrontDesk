@@ -326,11 +326,10 @@ fn install_llama(app: Option<&AppHandle>) -> Result<(), String> {
     }
     let _ = fs::remove_file(&archive);
 
-    let binary = find_binary(&target, LLAMA_EXE)
-        .ok_or_else(|| "The archive did not contain llama-server.".to_string())?;
-
     #[cfg(unix)]
     {
+        let binary = find_binary(&target, LLAMA_EXE)
+            .ok_or_else(|| "The archive did not contain llama-server.".to_string())?;
         use std::os::unix::fs::PermissionsExt;
         let _ = fs::set_permissions(&binary, fs::Permissions::from_mode(0o755));
         // The shared libraries sit beside the binary; make them executable too.
@@ -345,6 +344,9 @@ fn install_llama(app: Option<&AppHandle>) -> Result<(), String> {
             }
         }
     }
+    #[cfg(not(unix))]
+    find_binary(&target, LLAMA_EXE)
+        .ok_or_else(|| "The archive did not contain llama-server.".to_string())?;
 
     emit(
         app,

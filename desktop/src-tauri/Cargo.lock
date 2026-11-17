@@ -994,6 +994,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tokio",
  "ureq",
  "walkdir",
  "zip",

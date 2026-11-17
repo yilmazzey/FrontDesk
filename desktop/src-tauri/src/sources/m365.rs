@@ -130,7 +130,7 @@ pub async fn list_graph(
                     ("$orderby", "receivedDateTime desc"),
                 ];
                 let messages: GraphCollection<MailMessage> =
-                    microsoft::graph_get(&state.client, &token, "/me/messages", &query).await?;
+                    microsoft::graph_get(state, &token, "/me/messages", &query).await?;
                 sources.extend(
                     messages
                         .value
@@ -170,8 +170,7 @@ pub async fn list_graph(
                     ("$orderby", "lastModifiedDateTime desc"),
                 ];
                 let pages: GraphCollection<OneNotePage> =
-                    microsoft::graph_get(&state.client, &token, "/me/onenote/pages", &query)
-                        .await?;
+                    microsoft::graph_get(state, &token, "/me/onenote/pages", &query).await?;
                 sources.extend(pages.value.into_iter().map(|page| {
                     let location = page
                         .links
@@ -217,13 +216,12 @@ pub async fn read_graph_source(
                 let url = graph_item_url(&["me", "messages", &id])?;
                 let mut query = url;
                 query.query_pairs_mut().append_pair("$select", "body");
-                let response = state
-                    .client
-                    .get(query)
-                    .bearer_auth(&token)
-                    .send()
-                    .await
-                    .map_err(|error| format!("Could not retrieve the Outlook message: {error}"))?;
+                let response = microsoft::graph_send(
+                    state,
+                    state.client.get(query).bearer_auth(&token),
+                    "Could not retrieve the Outlook message",
+                )
+                .await?;
                 parse_body_response(response).await?
             }
             "calendar" => {
@@ -245,13 +243,12 @@ pub async fn read_graph_source(
                 let url = graph_item_url(&["me", "calendars", &calendar_id, "events", &event_id])?;
                 let mut query = url;
                 query.query_pairs_mut().append_pair("$select", "body");
-                let response = state
-                    .client
-                    .get(query)
-                    .bearer_auth(&token)
-                    .send()
-                    .await
-                    .map_err(|error| format!("Could not retrieve the calendar event: {error}"))?;
+                let response = microsoft::graph_send(
+                    state,
+                    state.client.get(query).bearer_auth(&token),
+                    "Could not retrieve the calendar event",
+                )
+                .await?;
                 parse_body_response(response).await?
             }
             "onenote" => {
@@ -263,13 +260,12 @@ pub async fn read_graph_source(
                         .ok_or_else(|| "The Microsoft source identifier is invalid.".to_string())?,
                 )?;
                 let url = graph_item_url(&["me", "onenote", "pages", &id, "content"])?;
-                let response = state
-                    .client
-                    .get(url)
-                    .bearer_auth(&token)
-                    .send()
-                    .await
-                    .map_err(|error| format!("Could not retrieve the OneNote page: {error}"))?;
+                let response = microsoft::graph_send(
+                    state,
+                    state.client.get(url).bearer_auth(&token),
+                    "Could not retrieve the OneNote page",
+                )
+                .await?;
                 (microsoft::parse_graph_text(response).await?, true)
             }
             _ => return Err("That Microsoft source type is not supported.".into()),
@@ -289,7 +285,7 @@ async fn list_calendars(
 ) -> Result<Vec<SourceRef>, String> {
     let query = [("$top", "20"), ("$select", "id,name")];
     let calendars: GraphCollection<Calendar> =
-        microsoft::graph_get(&state.client, token, "/me/calendars", &query).await?;
+        microsoft::graph_get(state, token, "/me/calendars", &query).await?;
     let mut sources = Vec::new();
     let start = (Utc::now() - Duration::days(30))
         .format("%Y-%m-%dT%H:%M:%SZ")
@@ -313,12 +309,15 @@ async fn list_calendars(
         sources.extend(events.value.into_iter().map(|event| {
             let title = event
                 .subject
+                .clone()
                 .unwrap_or_else(|| "Untitled calendar event".into());
             let title = format!("{title} — {calendar_name}");
             let modified = event
                 .start
-                .and_then(|start| start.date_time)
-                .unwrap_or_default();
+                .as_ref()
+                .and_then(|start| start.date_time.as_deref())
+                .unwrap_or_default()
+                .to_owned();
             make_calendar_source(grant, calendar.id.clone(), event, title, modified)
         }));
     }
@@ -367,7 +366,7 @@ fn make_source(
 
 async fn list_deleted_items_id(state: &MicrosoftState, token: &str) -> Result<String, String> {
     let folder: MailFolder =
-        microsoft::graph_get(&state.client, token, "/me/mailFolders/deleteditems", &[]).await?;
+        microsoft::graph_get(state, token, "/me/mailFolders/deleteditems", &[]).await?;
     Ok(folder.id)
 }
 
@@ -389,13 +388,12 @@ async fn get_url<T: DeserializeOwned>(
     token: &str,
     url: Url,
 ) -> Result<T, String> {
-    let response = state
-        .client
-        .get(url)
-        .bearer_auth(token)
-        .send()
-        .await
-        .map_err(|error| format!("Could not retrieve Microsoft Graph data: {error}"))?;
+    let response = microsoft::graph_send(
+        state,
+        state.client.get(url).bearer_auth(token),
+        "Could not retrieve Microsoft Graph data",
+    )
+    .await?;
     parse_response(response).await
 }
 

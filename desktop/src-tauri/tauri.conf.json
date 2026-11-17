@@ -19,7 +19,7 @@
         "height": 760,
         "minWidth": 720,
         "minHeight": 520,
-        "transparent": true,
+        "transparent": false,
         "windowEffects": {
           "effects": ["hudWindow"],
           "state": "followsWindowActiveState",
