@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import DashboardAskDock from '../components/DashboardAskDock'
 import DailyAgenda from '../components/DailyAgenda'
 import TeamPanel from '../components/TeamPanel'
+import TimelinePreview from '../components/TimelinePreview'
 import { useAccess } from '../state/access'
 
 export default function Dashboard() {
@@ -73,6 +74,8 @@ export default function Dashboard() {
           onAsk={openAsk}
         />
       </div>
+
+      <TimelinePreview sources={sources} />
 
       <DashboardAskDock
         open={askOpen}

@@ -6,6 +6,7 @@ import { useAccess } from '../state/access'
 const nav = [
   { to: '/', label: 'Dashboard', end: true, glyph: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
   { to: '/notes', label: 'Notes', end: false, glyph: 'M5 3.8h9.5L19 8.2v12H5v-16ZM14.2 3.9v4.5H19M8.2 12.4h7.4M8.2 16h5.2' },
+  { to: '/timeline', label: 'Timeline', end: false, glyph: 'M12 4.2a7.8 7.8 0 1 0 0 15.6 7.8 7.8 0 0 0 0-15.6ZM12 8v4.4l3 1.8' },
   { to: '/chat', label: 'Ask', end: false, glyph: 'M4.5 5.5h15v10h-9l-4 3v-3h-2v-10ZM8.5 9.5h7M8.5 12.5h4.5' },
   { to: '/search', label: 'Search', end: false, glyph: 'M11 4.2a6.8 6.8 0 1 0 0 13.6 6.8 6.8 0 0 0 0-13.6ZM16 16l4 4' },
   { to: '/access', label: 'Access', end: false, glyph: 'M12 4.2 19 7v5.2c0 4.1-2.8 6.6-7 7.6-4.2-1-7-3.5-7-7.6V7l7-2.8ZM9.2 11.8l2 2 3.6-3.8' },
@@ -15,6 +16,7 @@ const nav = [
 const titles: Record<string, string> = {
   '/': 'Dashboard',
   '/notes': 'Notes',
+  '/timeline': 'Timeline',
   '/chat': 'Ask',
   '/search': 'Search',
   '/access': 'Access',
