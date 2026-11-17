@@ -10,6 +10,7 @@ mod runtime;
 mod settings;
 pub mod sources;
 mod state;
+mod tray;
 
 use std::path::{Path, PathBuf};
 
@@ -28,7 +29,16 @@ pub fn run() {
             runtime::init(&data_dir);
             app.manage(state::AppState::new(data_dir, models_dir));
             app.manage(microsoft::MicrosoftState::default());
+            tray::setup(app)?;
             Ok(())
+        })
+        // Closing the window keeps FrontDesk in the tray, like Ollama/Outlook.
+        // Quit explicitly from the tray menu.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::ping,

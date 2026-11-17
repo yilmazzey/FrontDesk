@@ -48,6 +48,28 @@ export function AppShell() {
       .catch(() => setCore('browser'))
   }, [])
 
+  // The menu-bar/tray icon asks the frontend to switch routes. The backend
+  // shows and focuses the window first, then emits one of these events.
+  useEffect(() => {
+    if (!inTauri()) return
+    let cancelled = false
+    let unlisten: Array<() => void> = []
+    void import('@tauri-apps/api/event').then(async ({ listen }) => {
+      const offChat = await listen('frontdesk-open-chat', () => navigate('/chat'))
+      const offHome = await listen('frontdesk-open-home', () => navigate('/'))
+      if (cancelled) {
+        offChat()
+        offHome()
+      } else {
+        unlisten = [offChat, offHome]
+      }
+    })
+    return () => {
+      cancelled = true
+      unlisten.forEach((off) => off())
+    }
+  }, [navigate])
+
   // ⌘K / Ctrl-K jumps to search, the way a desktop app should.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

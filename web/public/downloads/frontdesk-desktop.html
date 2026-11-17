@@ -346,6 +346,13 @@
           <a id="primary" class="btn btn--primary" href="https://github.com/yilmazzey/FrontDesk/releases/latest">
             Download for macOS <span aria-hidden="true">↓</span>
           </a>
+          <a
+            id="linux-download"
+            class="btn btn--ghost"
+            href="https://github.com/yilmazzey/FrontDesk/releases/latest"
+          >
+            Linux AppImage <span aria-hidden="true">↓</span>
+          </a>
           <a class="btn btn--ghost" href="https://github.com/yilmazzey/FrontDesk/releases/latest">
             All releases
             <span aria-hidden="true">→</span>
@@ -373,8 +380,12 @@
             <b>.exe · ~6 MB</b>
           </div>
           <div class="sizes__row">
-            <a id="link-linux" href="https://github.com/yilmazzey/FrontDesk/releases/latest">Linux · 64-bit</a>
-            <b>AppImage · ~15 MB · .deb</b>
+            <a id="link-linux" href="https://github.com/yilmazzey/FrontDesk/releases/latest">Linux · 64-bit AppImage</a>
+            <b>~15 MB · no install</b>
+          </div>
+          <div class="sizes__row">
+            <a id="link-linux-deb" href="https://github.com/yilmazzey/FrontDesk/releases/latest">Linux · Debian / Ubuntu</a>
+            <b>.deb · ~6 MB</b>
           </div>
           <div class="sizes__row">
             <span>llama-server (auto-installed)</span>
@@ -433,7 +444,7 @@
           <span class="div" aria-hidden="true"></span>
           <span>Installer ~4–15 MB · model optional</span>
           <span class="div" aria-hidden="true"></span>
-          <span>Local-first · Microsoft Graph later</span>
+          <span>Local-first · Microsoft Graph optional</span>
         </footer>
       </main>
     </div>
@@ -472,6 +483,7 @@
       link('link-mac-intel', ASSETS['mac-intel'])
       link('link-windows', ASSETS.windows)
       link('link-linux', ASSETS.linux)
+      link('linux-download', ASSETS.linux)
 
       const setPrimary = (key) => {
         const primary = document.getElementById('primary')

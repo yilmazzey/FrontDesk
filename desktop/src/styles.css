@@ -44,22 +44,25 @@
   --panel-2: #efe4d0;
 }
 
-/* Keep the Tauri shell opaque so the native window background cannot show through. */
-
+/* --------------------------------------------------------------------------
+   Glass mode — set on the root only when the Tauri shell is running. The
+   native window carries the macOS vibrancy material; these translucent
+   surfaces let it show through without washing out the browser preview.
+   -------------------------------------------------------------------------- */
 [data-runtime='tauri'] {
-  --bg: #12100e;
-  --bg-deep: #0c0a09;
-  --panel: #17140f;
-  --panel-2: #1c1812;
+  --bg: rgba(18, 16, 14, 0.58);
+  --bg-deep: rgba(12, 10, 9, 0.42);
+  --panel: rgba(23, 20, 15, 0.56);
+  --panel-2: rgba(28, 24, 18, 0.46);
   --line: rgba(244, 236, 225, 0.14);
   --line-strong: rgba(244, 236, 225, 0.24);
 }
 
 [data-runtime='tauri'][data-theme='light'] {
-  --bg: #e9ddc9;
-  --bg-deep: #e1d3bc;
-  --panel: #f4ebda;
-  --panel-2: #efe4d0;
+  --bg: rgba(233, 221, 201, 0.74);
+  --bg-deep: rgba(225, 211, 188, 0.56);
+  --panel: rgba(244, 235, 218, 0.64);
+  --panel-2: rgba(239, 228, 208, 0.54);
   --line: rgba(36, 29, 22, 0.14);
   --line-strong: rgba(36, 29, 22, 0.24);
 }
@@ -661,50 +664,6 @@ input {
   color: var(--ink-faint);
 }
 
-.noteSearch__summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  font-family: var(--mono);
-  font-size: 8px;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
-}
-
-.noteSearchResults {
-  display: grid;
-  gap: 10px;
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.noteSearchResult {
-  display: grid;
-  gap: 6px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--panel-2);
-}
-
-.noteSearchResult strong {
-  font-family: var(--serif);
-  font-size: 14px;
-  font-weight: 400;
-}
-
-.noteSearchResult p {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--ink-dim);
-}
-
 .statRow {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1255,40 +1214,6 @@ input {
 
 .connectRow .btn {
   margin-left: auto;
-}
-
-.authPrompt {
-  display: grid;
-  justify-items: start;
-  gap: 8px;
-  margin: 14px 0;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--panel-2);
-  font-size: 11.5px;
-  color: var(--ink-dim);
-}
-
-.authPrompt p {
-  margin: 0;
-}
-
-.authPrompt a {
-  color: var(--amber-soft);
-}
-
-.authPrompt__code {
-  font-family: var(--mono);
-  font-size: 18px;
-  letter-spacing: 0.18em;
-  color: var(--ink);
-}
-
-.connectionError {
-  margin: 12px 0;
-  font-size: 11.5px;
-  color: #ff9a88;
 }
 
 .switchList li {

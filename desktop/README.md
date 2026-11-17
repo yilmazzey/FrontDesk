@@ -54,6 +54,14 @@ src-tauri/src/
 
 `cargo test --test eval` runs the 25-question honest-answer eval.
 
+## Tray
+
+The app adds a small menu-bar icon on macOS and a system-tray icon on Windows
+and Linux. **Ask FrontDesk** opens the chat; **Open FrontDesk** shows the
+dashboard; **Quit FrontDesk** exits. Closing the window hides it to the tray
+instead of quitting. Linux tray click events are not exposed by AppIndicator,
+so the menu is the entry point there.
+
 ## Tauri
 
 `src-tauri/` is runnable now: CLI, `lib`/`main` split, `ping` command,
