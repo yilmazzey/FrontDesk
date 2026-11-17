@@ -91,10 +91,6 @@ export function TopBar() {
 }
 
 export function Hero() {
-  const openNotebook = useUI((s) => s.openNotebook)
-  const setSection = useUI((s) => s.setSection)
-  const enterApp = useUI((s) => s.enterApp)
-
   return (
     <section className="hero" aria-label="Introduction">
       <p className="hero__event">
@@ -112,28 +108,6 @@ export function Hero() {
         <br />
         <em>Nothing</em> in the way.
       </h1>
-
-      <p className="hero__sub">
-        Light the lamp, open the tool, read the notebook. The whole page is a desk — go ahead and
-        touch it.
-      </p>
-
-      <div className="hero__actions">
-        <button type="button" className="btn btn--primary" onClick={enterApp}>
-          Open the app
-          <Arrow />
-        </button>
-        <button
-          type="button"
-          className="btn btn--ghost"
-          onClick={() => {
-            setSection('about')
-            openNotebook()
-          }}
-        >
-          Read the notebook
-        </button>
-      </div>
     </section>
   )
 }
