@@ -206,15 +206,12 @@ fn ocr_pdf(path: &Path) -> Result<String, String> {
 }
 
 fn run_tool(program: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new(program)
-        .args(args)
-        .output()
-        .map_err(|e| {
-            format!(
-                "{program} is not available: {e}. Install the OCR helpers from \
+    let output = Command::new(program).args(args).output().map_err(|e| {
+        format!(
+            "{program} is not available: {e}. Install the OCR helpers from \
                  Access → Local runtime, or run the package-manager command shown there."
-            )
-        })?;
+        )
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

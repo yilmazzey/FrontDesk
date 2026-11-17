@@ -35,9 +35,9 @@ Markdown and text need neither.
 ## Models
 
 Drop `.gguf` files into `../models/`. Select one on Access or Settings, then
-press **Load / warm model**. FrontDesk imports it into Ollama first; if Ollama
-is unavailable, it uses the managed llama.cpp fallback. **Extractive** answers
-instantly with no model.
+press **Load / warm model**. FrontDesk uses llama.cpp's `llama-server` first,
+provisioning it automatically if needed; Ollama is the fallback. **Extractive**
+answers instantly with no model.
 
 ## Rust core
 

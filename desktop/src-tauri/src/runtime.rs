@@ -291,7 +291,14 @@ fn install_inner(app: Option<&AppHandle>, kind: &str) -> Result<RuntimeStatus, S
 
 fn install_llama(app: Option<&AppHandle>) -> Result<(), String> {
     if llama_server().is_some() {
-        emit(app, "llama", "done", "llama-server is already installed.", 0, 0);
+        emit(
+            app,
+            "llama",
+            "done",
+            "llama-server is already installed.",
+            0,
+            0,
+        );
         return Ok(());
     }
 
@@ -304,7 +311,8 @@ fn install_llama(app: Option<&AppHandle>) -> Result<(), String> {
     })?;
 
     let target = llama_root().ok_or_else(|| "The runtime folder is not ready.".to_string())?;
-    fs::create_dir_all(&target).map_err(|e| format!("Could not create {}: {e}", target.display()))?;
+    fs::create_dir_all(&target)
+        .map_err(|e| format!("Could not create {}: {e}", target.display()))?;
 
     let archive = target.join(&asset);
     let url = download_url(&asset);
@@ -404,13 +412,14 @@ fn download(app: Option<&AppHandle>, kind: &str, url: &str, dest: &Path) -> Resu
         }
     }
 
-    file.flush().map_err(|e| format!("Could not save the download: {e}"))?;
+    file.flush()
+        .map_err(|e| format!("Could not save the download: {e}"))?;
     Ok(())
 }
 
 fn extract_tar_gz(archive: &Path, dest: &Path) -> Result<(), String> {
-    let file =
-        fs::File::open(archive).map_err(|e| format!("Could not open {}: {e}", archive.display()))?;
+    let file = fs::File::open(archive)
+        .map_err(|e| format!("Could not open {}: {e}", archive.display()))?;
     let decoder = flate2::read::GzDecoder::new(file);
     let mut tar = tar::Archive::new(decoder);
     tar.unpack(dest)
@@ -418,8 +427,8 @@ fn extract_tar_gz(archive: &Path, dest: &Path) -> Result<(), String> {
 }
 
 fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
-    let file =
-        fs::File::open(archive).map_err(|e| format!("Could not open {}: {e}", archive.display()))?;
+    let file = fs::File::open(archive)
+        .map_err(|e| format!("Could not open {}: {e}", archive.display()))?;
     let mut zip = zip::ZipArchive::new(file)
         .map_err(|e| format!("Could not read the llama.cpp archive: {e}"))?;
     for index in 0..zip.len() {
@@ -449,7 +458,14 @@ fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
 fn install_ocr(app: Option<&AppHandle>) -> Result<(), String> {
     let before = status();
     if before.tools.iter().all(|tool| tool.installed) {
-        emit(app, "ocr", "done", "OCR helpers are already installed.", 0, 0);
+        emit(
+            app,
+            "ocr",
+            "done",
+            "OCR helpers are already installed.",
+            0,
+            0,
+        );
         return Ok(());
     }
 
@@ -489,7 +505,14 @@ fn install_ocr(app: Option<&AppHandle>) -> Result<(), String> {
 
     if cfg!(target_os = "windows") {
         if which("winget").is_some() {
-            emit(app, "ocr", "install", "Installing Tesseract with winget…", 0, 0);
+            emit(
+                app,
+                "ocr",
+                "install",
+                "Installing Tesseract with winget…",
+                0,
+                0,
+            );
             let output = Command::new("winget")
                 .args([
                     "install",

@@ -11,8 +11,9 @@ use serde_json::{json, Value};
 
 use crate::contracts::ModelRef;
 
-/// Ollama is preferred so existing local model setups keep working. If it is
-/// unavailable, FrontDesk can use its managed llama.cpp runtime instead.
+/// llama.cpp's OpenAI-compatible server is the preferred runtime: it loads the
+/// GGUF file directly, so there is no import/Modelfile step and no Ollama
+/// dependency. Ollama stays as a fallback for machines that already have it.
 const OLLAMA: &str = "http://127.0.0.1:11434";
 
 struct LlamaServer {
@@ -84,55 +85,40 @@ pub fn path_for(models_dir: &Path, id: &str) -> Option<PathBuf> {
     }
 }
 
-/// Warm a model without asking a question. Ollama imports the GGUF; llama.cpp
-/// loads it directly when Ollama is unavailable.
+/// Warm a model without asking a question. For llama.cpp this loads the GGUF
+/// into the server process; for the Ollama fallback it imports the model.
 pub fn warm(models_dir: &Path, id: &str) -> Result<String, String> {
     let path = path_for(models_dir, id).ok_or_else(|| format!("Model not found: {id}"))?;
-    match ensure_server() {
-        Ok(()) => {
-            let name = ensure_model(&path)?;
-            Ok(format!("{name} is ready (Ollama)"))
-        }
-        Err(ollama_error) => {
-            ensure_llama_fallback();
-            if llama_available() {
-                ensure_llama(&path)?;
-                Ok(format!("{} is ready (llama.cpp)", prettify(id)))
-            } else {
-                Err(ollama_error)
-            }
-        }
+    ensure_preferred_runtime();
+    if llama_available() {
+        ensure_llama(&path)?;
+        return Ok(format!("{} is ready (llama.cpp)", prettify(&id)));
     }
+    ensure_server()?;
+    let name = ensure_model(&path)?;
+    Ok(format!("{name} is ready"))
 }
 
 pub fn generate(models_dir: &Path, id: &str, system: &str, user: &str) -> Result<String, String> {
     let path = path_for(models_dir, id).ok_or_else(|| format!("Model not found: {id}"))?;
 
-    match ensure_server() {
-        Ok(()) => {
-            let name = ensure_model(&path)?;
-            generate_ollama(&name, system, user)
-        }
-        Err(ollama_error) => {
-            ensure_llama_fallback();
-            if llama_available() {
-                let base = ensure_llama(&path)?;
-                generate_llama(&base, system, user)
-            } else {
-                Err(ollama_error)
-            }
-        }
+    ensure_preferred_runtime();
+    if llama_available() {
+        let base = ensure_llama(&path)?;
+        return generate_llama(&base, system, user);
     }
-}
 
-fn generate_ollama(model: &str, system: &str, user: &str) -> Result<String, String> {
+    // Fallback: an existing Ollama install.
+    ensure_server()?;
+    let name = ensure_model(&path)?;
+
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(3))
         .timeout_read(Duration::from_secs(300))
         .build();
 
     let body = json!({
-        "model": model,
+        "model": name,
         "messages": [
             { "role": "system", "content": system },
             { "role": "user", "content": user }
@@ -175,17 +161,18 @@ fn llama_binary() -> PathBuf {
     crate::runtime::llama_server().unwrap_or_else(|| PathBuf::from("llama-server"))
 }
 
-/// llama.cpp is only provisioned after Ollama cannot start. A failed download
-/// leaves the original Ollama error available to the caller.
-static LLAMA_FALLBACK_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+/// llama.cpp is the preferred runtime. If it is not installed yet, fetch it in
+/// the background of the first warm/generate call so users are not pushed onto
+/// the Ollama fallback. A failed download simply leaves the old fallback path.
+static RUNTIME_ATTEMPTED: AtomicBool = AtomicBool::new(false);
 
-fn ensure_llama_fallback() {
+fn ensure_preferred_runtime() {
     if llama_available() {
         return;
     }
     // Only try once per process: a failed download should not make every
     // question retry it. The Access/Settings panel can trigger it explicitly.
-    if LLAMA_FALLBACK_ATTEMPTED.swap(true, Ordering::Relaxed) {
+    if RUNTIME_ATTEMPTED.swap(true, Ordering::Relaxed) {
         return;
     }
     let _ = crate::runtime::install_quiet("llama");
@@ -310,7 +297,7 @@ fn generate_llama(base: &str, system: &str, user: &str) -> Result<String, String
         .ok_or_else(|| "llama.cpp returned an empty answer.".to_string())
 }
 
-// ---- Ollama runtime -------------------------------------------------------
+// ---- Ollama fallback -------------------------------------------------------
 
 fn sanitize(stem: &str) -> String {
     let mut name: String = stem

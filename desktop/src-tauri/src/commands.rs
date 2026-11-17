@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-use futures_util::stream::{self, StreamExt, TryStreamExt};
+use futures_util::stream::{self, StreamExt};
 use reqwest::Url;
 use tauri::State;
 
@@ -146,7 +146,12 @@ pub async fn list_sources(
 ) -> Result<Vec<SourceRef>, String> {
     let grants = state.permissions.lock().unwrap().list();
     let mut all = sources::list_all(&grants);
-    all.extend(m365::list_graph(&microsoft_state, &grants).await?);
+    // Live connectors must never hide local sources. If Microsoft is offline
+    // or the token expired, the local desk keeps working.
+    match m365::list_graph(&microsoft_state, &grants).await {
+        Ok(graph) => all.extend(graph),
+        Err(error) => eprintln!("Microsoft sources unavailable: {error}"),
+    }
     all.sort_by(|a, b| b.modified.cmp(&a.modified));
     Ok(all)
 }
@@ -158,12 +163,18 @@ pub async fn read_source(
     id: String,
 ) -> Result<Excerpt, String> {
     let grants = state.permissions.lock().unwrap().list();
-    let mut all = sources::list_all(&grants);
-    all.extend(m365::list_graph(&microsoft_state, &grants).await?);
-    let source = all
+    // Look for a local source first so reading a file never depends on Graph.
+    let local = sources::list_all(&grants)
         .into_iter()
-        .find(|source| source.id == id)
-        .ok_or_else(|| "That source is no longer in your allowed set.".to_string())?;
+        .find(|source| source.id == id);
+    let source = match local {
+        Some(source) => source,
+        None => m365::list_graph(&microsoft_state, &grants)
+            .await?
+            .into_iter()
+            .find(|source| source.id == id)
+            .ok_or_else(|| "That source is no longer in your allowed set.".to_string())?,
+    };
 
     let text = if matches!(source.kind.as_str(), "mail" | "calendar" | "onenote") {
         m365::read_graph_source(&microsoft_state, &source).await?
@@ -204,7 +215,10 @@ pub async fn search_sources(
 
     let grants = state.permissions.lock().unwrap().list();
     let mut all_sources = sources::list_all(&grants);
-    all_sources.extend(m365::list_graph(&microsoft_state, &grants).await?);
+    match m365::list_graph(&microsoft_state, &grants).await {
+        Ok(graph) => all_sources.extend(graph),
+        Err(error) => eprintln!("Microsoft search unavailable: {error}"),
+    }
     let (graph_sources, local_sources): (Vec<_>, Vec<_>) = all_sources
         .into_iter()
         .partition(|source| matches!(source.kind.as_str(), "mail" | "calendar" | "onenote"));
@@ -233,30 +247,35 @@ pub async fn search_sources(
     let audit = &state.audit;
     let graph_matches = stream::iter(graph_sources)
         .map(|source| async move {
-            let text = m365::read_graph_source(microsoft_state_ref, &source).await?;
+            let text = match m365::read_graph_source(microsoft_state_ref, &source).await {
+                Ok(text) => text,
+                Err(error) => {
+                    eprintln!("Skipping Microsoft source {}: {error}", source.id);
+                    return None;
+                }
+            };
             audit.lock().unwrap().append(
                 "read",
                 Some(source.id.clone()),
                 Some(source.location.clone()),
             );
-            Ok::<Option<SourceRef>, String>(
-                if matches_terms(
-                    terms_ref,
-                    &format!(
-                        "{} {} {} {}",
-                        source.title, source.location, source.kind, text
-                    ),
-                ) {
-                    Some(source)
-                } else {
-                    None
-                },
-            )
+            if matches_terms(
+                terms_ref,
+                &format!(
+                    "{} {} {} {}",
+                    source.title, source.location, source.kind, text
+                ),
+            ) {
+                Some(source)
+            } else {
+                None
+            }
         })
         .buffer_unordered(2)
-        .try_collect::<Vec<_>>()
-        .await?;
-    matches.extend(graph_matches.into_iter().flatten());
+        .filter_map(|item| async move { item })
+        .collect::<Vec<_>>()
+        .await;
+    matches.extend(graph_matches);
     matches.sort_by(|a, b| b.modified.cmp(&a.modified));
     state.audit.lock().unwrap().append("search", None, None);
     Ok(matches)
@@ -270,11 +289,23 @@ pub async fn ask(
 ) -> Result<Answer, String> {
     let grants = state.permissions.lock().unwrap().list();
     let settings = state.settings.lock().unwrap().get();
-    let graph_sources = m365::list_graph(&microsoft_state, &grants).await?;
+    let graph_sources = match m365::list_graph(&microsoft_state, &grants).await {
+        Ok(sources) => sources,
+        Err(error) => {
+            eprintln!("Microsoft sources unavailable, answering locally: {error}");
+            Vec::new()
+        }
+    };
     let microsoft_state_ref = &microsoft_state;
     let graph_documents = stream::iter(graph_sources)
         .map(|source| async move {
-            let text = m365::read_graph_source(microsoft_state_ref, &source).await?;
+            let text = match m365::read_graph_source(microsoft_state_ref, &source).await {
+                Ok(text) => text,
+                Err(error) => {
+                    eprintln!("Skipping Microsoft source {}: {error}", source.id);
+                    return None;
+                }
+            };
             let metadata = match source.kind.as_str() {
                 "mail" => format!("Email: {}\nReceived: {}", source.title, source.modified),
                 "calendar" => {
@@ -291,11 +322,12 @@ pub async fn ask(
                 }
                 _ => String::new(),
             };
-            Ok::<(SourceRef, String), String>((source, format!("{metadata}\n\n{text}")))
+            Some((source, format!("{metadata}\n\n{text}")))
         })
         .buffer_unordered(2)
-        .try_collect::<Vec<_>>()
-        .await?;
+        .filter_map(|item| async move { item })
+        .collect::<Vec<_>>()
+        .await;
     let result = answer::ask_with_external(
         &question,
         &grants,

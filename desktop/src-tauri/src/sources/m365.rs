@@ -287,10 +287,10 @@ async fn list_calendars(
     let calendars: GraphCollection<Calendar> =
         microsoft::graph_get(state, token, "/me/calendars", &query).await?;
     let mut sources = Vec::new();
-    let start = (Utc::now() - Duration::days(30))
+    let start = (Utc::now() - Duration::days(90))
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
-    let end = (Utc::now() + Duration::days(180))
+    let end = (Utc::now() + Duration::days(30))
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
 
@@ -303,8 +303,23 @@ async fn list_calendars(
             .append_pair("endDateTime", &end)
             .append_pair("$top", EVENT_PAGE_SIZE)
             .append_pair("$select", "id,subject,start,webLink")
-            .append_pair("$orderby", "start/dateTime desc");
-        let events: GraphCollection<CalendarEvent> = get_url(state, token, query).await?;
+            // Ascending keeps the next meeting inside the page instead of
+            // returning the farthest-future events first.
+            .append_pair("$orderby", "start/dateTime");
+        // Ask Graph for UTC so the ISO value can be parsed consistently by
+        // the desktop UI regardless of the mailbox timezone.
+        let response = microsoft::graph_send(
+            state,
+            state
+                .client
+                .get(query)
+                .bearer_auth(token)
+                .header("Prefer", "outlook.timezone=\"UTC\""),
+            "Could not retrieve Microsoft Graph calendar data",
+        )
+        .await?;
+        let events: GraphCollection<CalendarEvent> =
+            microsoft::parse_graph_response(response).await?;
         let calendar_name = calendar.name.unwrap_or_else(|| "Calendar".into());
         sources.extend(events.value.into_iter().map(|event| {
             let title = event
@@ -316,13 +331,23 @@ async fn list_calendars(
                 .start
                 .as_ref()
                 .and_then(|start| start.date_time.as_deref())
-                .unwrap_or_default()
-                .to_owned();
+                .map(utc_stamp)
+                .unwrap_or_default();
             make_calendar_source(grant, calendar.id.clone(), event, title, modified)
         }));
     }
 
     Ok(sources)
+}
+
+/// Graph returns calendar values without an offset when a `Prefer` timezone is
+/// supplied. Treat them as UTC so `new Date(...)` in the UI is unambiguous.
+fn utc_stamp(value: &str) -> String {
+    if value.ends_with('Z') || value.contains('+') {
+        value.to_string()
+    } else {
+        format!("{value}Z")
+    }
 }
 
 fn make_calendar_source(
@@ -381,20 +406,6 @@ async fn parse_body_response(response: Response) -> Result<(String, bool), Strin
 
 async fn parse_response<T: DeserializeOwned>(response: Response) -> Result<T, String> {
     microsoft::parse_graph_response(response).await
-}
-
-async fn get_url<T: DeserializeOwned>(
-    state: &MicrosoftState,
-    token: &str,
-    url: Url,
-) -> Result<T, String> {
-    let response = microsoft::graph_send(
-        state,
-        state.client.get(url).bearer_auth(token),
-        "Could not retrieve Microsoft Graph data",
-    )
-    .await?;
-    parse_response(response).await
 }
 
 fn graph_item_url(segments: &[&str]) -> Result<Url, String> {
