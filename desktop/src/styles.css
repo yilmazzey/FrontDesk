@@ -3052,11 +3052,17 @@ input {
   scrollbar-width: thin;
 }
 
+.magicBento__content .panel,
+.magicBento__content .panel__head,
+.magicBento__content .panel__note,
+.magicBento__content .timelinePreview {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .magicBento__content .panel {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+  padding: 0 !important;
+  border: 0 !important;
 }
 
 .magicBento__content .panel__head {
