@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import RuntimePanel from '../components/RuntimePanel'
 import { api } from '../lib/ipc'
 import { useAccess } from '../state/access'
-import type { DeviceCodePrompt, MicrosoftProfile } from '../types/source'
+import type { DeviceCodePrompt, IndexStatus, MicrosoftProfile } from '../types/source'
 
 const switches = [
   ['Local notes + OCR', 'Read and index documents on this machine', true],
@@ -23,8 +23,26 @@ export default function Settings() {
   const [microsoftProfile, setMicrosoftProfile] = useState<MicrosoftProfile | null>(null)
   const [deviceCode, setDeviceCode] = useState<DeviceCodePrompt | null>(null)
   const [microsoftBusy, setMicrosoftBusy] = useState(false)
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null)
+  const [indexBusy, setIndexBusy] = useState(false)
+  const [indexNotice, setIndexNotice] = useState<string | null>(null)
 
   const selected = info?.selectedModel ?? 'extractive'
+
+  useEffect(() => {
+    let active = true
+    api
+      .indexStatus()
+      .then((status) => {
+        if (active) setIndexStatus(status)
+      })
+      .catch(() => {
+        if (active) setIndexStatus(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -122,6 +140,32 @@ export default function Settings() {
       setNotice('Microsoft sign-in cancelled.')
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
+
+  async function buildIndex() {
+    setIndexBusy(true)
+    setIndexNotice('Building the local semantic index. The first run downloads the embedding model once.')
+    try {
+      setIndexStatus(await api.buildIndex())
+      setIndexNotice('Semantic index updated. No note text was stored.')
+    } catch (cause) {
+      setIndexNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setIndexBusy(false)
+    }
+  }
+
+  async function clearIndex() {
+    setIndexBusy(true)
+    setIndexNotice(null)
+    try {
+      setIndexStatus(await api.clearIndex())
+      setIndexNotice('Semantic index cleared. Your notes were not touched.')
+    } catch (cause) {
+      setIndexNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setIndexBusy(false)
     }
   }
 
@@ -284,6 +328,60 @@ export default function Settings() {
         </section>
 
         <RuntimePanel />
+
+        <section className="panel" aria-labelledby="semantic-index">
+          <header className="panel__head">
+            <h2 id="semantic-index" className="panel__title">
+              Semantic index
+            </h2>
+            <span className="panel__meta">Metadata + vectors only</span>
+          </header>
+
+          <p className="panel__note">
+            Local keyword and embedding candidate selection. The index stores source metadata and
+            derived vectors only: no note text, excerpts, questions or answers.
+          </p>
+
+          <dl className="kv kv--tight">
+            <div>
+              <dt>Sources indexed</dt>
+              <dd>
+                {indexStatus
+                  ? `${indexStatus.indexedSources} / ${indexStatus.sources}`
+                  : 'Desktop app only'}
+              </dd>
+            </div>
+            <div>
+              <dt>Chunks</dt>
+              <dd>{indexStatus?.chunks ?? 0}</dd>
+            </div>
+            <div>
+              <dt>Embedding model</dt>
+              <dd className="monoWrap">{indexStatus?.model ?? 'all-MiniLM-L6-v2'}</dd>
+            </div>
+          </dl>
+
+          {indexNotice ? <p className="panel__note">{indexNotice}</p> : null}
+
+          <div className="modelActions">
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={indexBusy || !indexStatus}
+              onClick={() => void buildIndex()}
+            >
+              {indexBusy ? 'Building…' : 'Build / rebuild index'}
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={indexBusy || !indexStatus || !indexStatus.chunks}
+              onClick={() => void clearIndex()}
+            >
+              Clear index
+            </button>
+          </div>
+        </section>
 
         <section className="panel" aria-labelledby="behaviour">
           <header className="panel__head">

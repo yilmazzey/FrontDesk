@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import DashboardAskDock from '../components/DashboardAskDock'
 import DailyAgenda from '../components/DailyAgenda'
+import MagicBento from '../components/MagicBento'
 import TeamPanel from '../components/TeamPanel'
 import TimelinePreview from '../components/TimelinePreview'
 import { useAccess } from '../state/access'
@@ -41,7 +42,7 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="page">
+    <div className={`page${askOpen ? ' page--ask-open' : ''}`}>
       <header className="pageHead pageHead--dashboard">
         <p className="eyebrow">
           {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -60,22 +61,46 @@ export default function Dashboard() {
         </button>
       </header>
 
-      <div className="dashboardGrid">
-        <DailyAgenda
-          sources={sources}
-          loading={loading}
-          calendarConnected={calendarConnected}
-          onAsk={openAsk}
-        />
-        <TeamPanel
-          sources={sources}
-          loading={loading}
-          calendarConnected={calendarConnected}
-          onAsk={openAsk}
-        />
-      </div>
-
-      <TimelinePreview sources={sources} />
+      <MagicBento
+        columns={4}
+        rowHeight={230}
+        gap={14}
+        radius={18}
+        items={[
+          {
+            id: 'agenda',
+            colSpan: 2,
+            rowSpan: 2,
+            content: (
+              <DailyAgenda
+                sources={sources}
+                loading={loading}
+                calendarConnected={calendarConnected}
+                onAsk={openAsk}
+              />
+            ),
+          },
+          {
+            id: 'team',
+            colSpan: 2,
+            rowSpan: 2,
+            content: (
+              <TeamPanel
+                sources={sources}
+                loading={loading}
+                calendarConnected={calendarConnected}
+                onAsk={openAsk}
+              />
+            ),
+          },
+          {
+            id: 'timeline',
+            colSpan: 4,
+            rowSpan: 1,
+            content: <TimelinePreview sources={sources} />,
+          },
+        ]}
+      />
 
       <DashboardAskDock
         open={askOpen}

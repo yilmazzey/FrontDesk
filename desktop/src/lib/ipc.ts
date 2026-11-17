@@ -8,11 +8,13 @@ import type {
   DeviceCodePoll,
   DeviceCodePrompt,
   Excerpt,
+  IndexStatus,
   ModelRef,
   MicrosoftProfile,
   RuntimeKind,
   RuntimeProgress,
   RuntimeStatus,
+  SavedClassification,
   SourceGrant,
   SourceRef,
 } from '../types/source'
@@ -290,6 +292,19 @@ export const api = {
     throw new Error('Model loading needs the desktop app.')
   },
 
+  indexStatus: async (): Promise<IndexStatus | null> =>
+    inTauri() ? call<IndexStatus>('index_status') : null,
+
+  buildIndex: async (): Promise<IndexStatus> => {
+    if (inTauri()) return call<IndexStatus>('build_index')
+    throw new Error('The semantic index needs the desktop app.')
+  },
+
+  clearIndex: async (): Promise<IndexStatus> => {
+    if (inTauri()) return call<IndexStatus>('clear_index')
+    throw new Error('The semantic index needs the desktop app.')
+  },
+
   runtimeStatus: async (): Promise<RuntimeStatus | null> =>
     inTauri() ? call<RuntimeStatus>('runtime_status') : null,
 
@@ -304,6 +319,12 @@ export const api = {
     if (!inTauri()) return () => {}
     const { listen } = await import('@tauri-apps/api/event')
     return listen<RuntimeProgress>('runtime-progress', (event) => handler(event.payload))
+  },
+
+  onAskStage: async (handler: (stage: string) => void): Promise<() => void> => {
+    if (!inTauri()) return () => {}
+    const { listen } = await import('@tauri-apps/api/event')
+    return listen<{ stage: string }>('ask-stage', (event) => handler(event.payload.stage))
   },
 
   appInfo: async (): Promise<AppInfo> =>
@@ -325,5 +346,20 @@ export const api = {
 
   openOriginal: async (id: string): Promise<void> => {
     if (inTauri()) await call<void>('open_original', { id })
+  },
+
+  saveAnswer: async (args: {
+    folder: string
+    classification: SavedClassification
+    title: string
+    body: string
+    sources: string[]
+  }): Promise<string> => {
+    if (inTauri()) return call<string>('save_answer', args)
+    throw new Error('Saving an answer needs the desktop app.')
+  },
+
+  openSaved: async (path: string): Promise<void> => {
+    if (inTauri()) await call<void>('open_saved', { path })
   },
 }

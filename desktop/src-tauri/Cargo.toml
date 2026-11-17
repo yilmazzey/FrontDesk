@@ -28,3 +28,5 @@ flate2 = "1"
 tar = "0.4"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 pdf-extract = "0.7"
+rusqlite = { version = "0.43.0", features = ["bundled"] }
+fastembed = { version = "7.7.1", default-features = false, features = ["ort-download-binaries-rustls-tls", "hf-hub-rustls-tls"] }

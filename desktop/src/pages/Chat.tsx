@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation } from 'react-router-dom'
+import AskStageRail, { useAskStages } from '../components/AskStageRail'
+import SaveAnswerDialog from '../components/SaveAnswerDialog'
 import { api } from '../lib/ipc'
 import { useAccess } from '../state/access'
 import type { Answer } from '../types/source'
@@ -30,12 +32,15 @@ export default function Chat() {
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const { active, done, start, finish } = useAskStages()
   const autoAsked = useRef(false)
   const mode = info?.answerMode ?? 'chat'
 
   const ask = useCallback(async (value: string) => {
     const trimmed = value.trim()
     if (!trimmed) return
+    start()
     setBusy(true)
     setError(null)
     setQuestion(trimmed)
@@ -44,9 +49,10 @@ export default function Chat() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
+      finish()
       setBusy(false)
     }
-  }, [])
+  }, [finish, start])
 
   useEffect(() => {
     if (initial && !autoAsked.current) {
@@ -116,7 +122,10 @@ export default function Chat() {
 
       {error ? <p className="notice notice--bad">{error}</p> : null}
       {busy ? (
-        <p className="notice">Reading the allowed sources and thinking on this machine…</p>
+        <div className="askProgress">
+          <AskStageRail active={active} done={done} />
+          <p className="notice">Reading the allowed sources and thinking on this machine…</p>
+        </div>
       ) : null}
 
       {answer ? (
@@ -188,7 +197,23 @@ export default function Chat() {
               </ul>
             </div>
           ) : null}
+
+          <div className="modelActions">
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setSaveOpen(true)}>
+              Save answer
+            </button>
+          </div>
         </section>
+      ) : null}
+
+      {answer ? (
+        <SaveAnswerDialog
+          open={saveOpen}
+          title={question}
+          body={answer.text}
+          sources={answer.citations.map((citation) => citation.title)}
+          onClose={() => setSaveOpen(false)}
+        />
       ) : null}
     </div>
   )

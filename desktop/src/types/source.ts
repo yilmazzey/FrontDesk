@@ -113,6 +113,25 @@ export type RuntimeProgress = {
 
 export type RuntimeKind = 'llama' | 'ocr' | 'all'
 
+export type IndexStatus = {
+  sources: number
+  indexedSources: number
+  chunks: number
+  model: string
+}
+
+export type SavedClassification = 'briefing' | 'roadmap' | 'todo' | 'decision' | 'reference'
+
+export type SavedItem = {
+  id: string
+  path: string
+  title: string
+  classification: SavedClassification
+  savedAt: string
+  body: string
+  sources: string[]
+}
+
 export type MicrosoftProfile = {
   displayName: string | null
   mail: string | null

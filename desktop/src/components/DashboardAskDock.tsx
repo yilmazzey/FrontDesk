@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AskStageRail, { useAskStages } from './AskStageRail'
+import SaveAnswerDialog from './SaveAnswerDialog'
 import { api } from '../lib/ipc'
 import type { Answer } from '../types/source'
 import PromptInput from './ui/PromptInput'
@@ -21,14 +23,17 @@ export default function DashboardAskDock({ open, initialQuestion = '', onClose }
   const [question, setQuestion] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const { active, done, start, finish } = useAskStages()
   const panelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && !saveOpen) onClose()
     }
     const onPointerDown = (event: MouseEvent) => {
+      if (saveOpen) return
       if (panelRef.current && !panelRef.current.contains(event.target as Node)) onClose()
     }
     window.addEventListener('keydown', onKey)
@@ -37,9 +42,10 @@ export default function DashboardAskDock({ open, initialQuestion = '', onClose }
       window.removeEventListener('keydown', onKey)
       document.removeEventListener('mousedown', onPointerDown)
     }
-  }, [open, onClose])
+  }, [open, onClose, saveOpen])
 
   const ask = useCallback(async (value: string) => {
+    start()
     setQuestion(value)
     setBusy(true)
     setError(null)
@@ -49,9 +55,10 @@ export default function DashboardAskDock({ open, initialQuestion = '', onClose }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
+      finish()
       setBusy(false)
     }
-  }, [])
+  }, [finish, start])
 
   if (!open) return null
 
@@ -66,7 +73,12 @@ export default function DashboardAskDock({ open, initialQuestion = '', onClose }
           className="promptInput--wide"
         />
 
-        {busy ? <p className="askDock__status">Reading the allowed sources…</p> : null}
+        {busy ? (
+          <div className="askDock__progress">
+            <AskStageRail active={active} done={done} />
+            <p className="askDock__status">Reading the allowed sources…</p>
+          </div>
+        ) : null}
         {error ? <p className="askDock__error">{error}</p> : null}
 
         {answer ? (
@@ -104,6 +116,9 @@ export default function DashboardAskDock({ open, initialQuestion = '', onClose }
             ) : null}
 
             <div className="askDock__actions">
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setSaveOpen(true)}>
+                Save answer
+              </button>
               <button
                 type="button"
                 className="btn btn--ghost btn--sm"
@@ -121,6 +136,16 @@ export default function DashboardAskDock({ open, initialQuestion = '', onClose }
           </div>
         ) : null}
       </div>
+
+      {answer ? (
+        <SaveAnswerDialog
+          open={saveOpen}
+          title={question}
+          body={answer.text}
+          sources={answer.citations.map((citation) => citation.title)}
+          onClose={() => setSaveOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

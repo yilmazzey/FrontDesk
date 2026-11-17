@@ -46,8 +46,9 @@ fn title(path: &Path) -> String {
         .replace(['_', '-'], " ")
 }
 
-/// Scan a granted folder. Reads bytes only to fingerprint the file; it never
-/// writes or caches a copy.
+/// Scan a granted folder using metadata only. File bodies are read later, only
+/// when a candidate is actually opened or answered from. It never writes or
+/// caches a copy.
 pub fn scan(grant: &SourceGrant) -> Vec<SourceRef> {
     let root = PathBuf::from(&grant.scope);
     if !root.exists() {
@@ -90,7 +91,6 @@ fn one_file(path: &Path, grant: &SourceGrant) -> Option<SourceRef> {
     if meta.len() > MAX_BYTES {
         return None;
     }
-    let bytes = fs::read(path).ok()?;
     let location = path.to_string_lossy().to_string();
     let extension = path
         .extension()
@@ -109,7 +109,8 @@ fn one_file(path: &Path, grant: &SourceGrant) -> Option<SourceRef> {
         title: title(path),
         location,
         modified: modified(path),
-        hash: super::sha256_hex(&bytes),
+        // A cheap version key: no file body is read just to list a folder.
+        hash: super::sha256_hex(format!("{}:{}", meta.len(), modified(path)).as_bytes()),
         people: Vec::new(),
     })
 }

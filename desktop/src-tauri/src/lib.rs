@@ -2,6 +2,8 @@ pub mod answer;
 mod audit;
 mod commands;
 pub mod contracts;
+mod embedding;
+mod index;
 mod microsoft;
 pub mod model;
 mod permissions;
@@ -52,6 +54,11 @@ pub fn run() {
             commands::read_source,
             commands::search_sources,
             commands::ask,
+            commands::index_status,
+            commands::build_index,
+            commands::clear_index,
+            commands::save_answer,
+            commands::open_saved,
             commands::list_models,
             commands::select_model,
             commands::select_mode,
