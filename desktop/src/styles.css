@@ -3052,11 +3052,28 @@ input {
   scrollbar-width: thin;
 }
 
+.magicBento__card {
+  background: rgba(23, 20, 15, 0.46);
+}
+
+[data-theme='light'] .magicBento__card {
+  background: rgba(244, 235, 218, 0.68);
+}
+
+.magicBento__content,
 .magicBento__content .panel,
+.magicBento__content .panel--inset,
+.magicBento__content .panel--agenda,
+.magicBento__content .panel--team,
 .magicBento__content .panel__head,
 .magicBento__content .panel__note,
-.magicBento__content .timelinePreview {
+.magicBento__content .timelinePreview,
+.magicBento__content .timelinePreview__list,
+.magicBento__content .timelinePreview__row,
+.magicBento__content .agendaList,
+.magicBento__content .teamList {
   background: transparent !important;
+  background-color: transparent !important;
   box-shadow: none !important;
 }
 
