@@ -13,6 +13,10 @@ pub struct SourceRef {
     pub location: String,
     pub modified: String,
     pub hash: String,
+    /// Display names from live calendar attendees. Metadata only, in memory,
+    /// never persisted and never part of a citation body.
+    #[serde(default)]
+    pub people: Vec<String>,
 }
 
 /// A revocable permission. `scope` is a folder path, fixture marker, or

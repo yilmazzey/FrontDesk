@@ -59,12 +59,26 @@ struct CalendarEvent {
     subject: Option<String>,
     start: Option<EventStart>,
     web_link: Option<String>,
+    attendees: Option<Vec<Attendee>>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EventStart {
     date_time: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Attendee {
+    email_address: Option<AttendeeEmail>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttendeeEmail {
+    name: Option<String>,
+    address: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -158,6 +172,7 @@ pub async fn list_graph(
                                 message.web_link.unwrap_or_else(|| "Outlook".into()),
                                 message.received_date_time.unwrap_or_default(),
                                 &message.id,
+                                Vec::new(),
                             )
                         }),
                 );
@@ -185,6 +200,7 @@ pub async fn list_graph(
                         location,
                         page.last_modified_date_time.unwrap_or_default(),
                         &page.id,
+                        Vec::new(),
                     )
                 }));
             }
@@ -302,7 +318,7 @@ async fn list_calendars(
             .append_pair("startDateTime", &start)
             .append_pair("endDateTime", &end)
             .append_pair("$top", EVENT_PAGE_SIZE)
-            .append_pair("$select", "id,subject,start,webLink")
+            .append_pair("$select", "id,subject,start,webLink,attendees")
             // Ascending keeps the next meeting inside the page instead of
             // returning the farthest-future events first.
             .append_pair("$orderby", "start/dateTime");
@@ -357,6 +373,15 @@ fn make_calendar_source(
     title: String,
     modified: String,
 ) -> SourceRef {
+    let people = event
+        .attendees
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|attendee| attendee.email_address)
+        .filter_map(|email| email.name.or(email.address))
+        .map(|name| name.trim().to_string())
+        .filter(|name| !name.is_empty())
+        .collect::<Vec<_>>();
     let location = event
         .web_link
         .unwrap_or_else(|| "Microsoft Calendar".into());
@@ -365,7 +390,9 @@ fn make_calendar_source(
         encode_id(&calendar_id),
         encode_id(&event.id)
     );
-    make_source(grant, "calendar", id, title, location, modified, &event.id)
+    make_source(
+        grant, "calendar", id, title, location, modified, &event.id, people,
+    )
 }
 
 fn make_source(
@@ -376,6 +403,7 @@ fn make_source(
     location: String,
     modified: String,
     graph_id: &str,
+    people: Vec<String>,
 ) -> SourceRef {
     let hash_input = format!("{graph_id}:{title}:{modified}");
     SourceRef {
@@ -386,6 +414,7 @@ fn make_source(
         location,
         modified,
         hash: crate::sources::sha256_hex(hash_input.as_bytes()),
+        people,
     }
 }
 

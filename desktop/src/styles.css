@@ -2067,3 +2067,481 @@ input {
 [data-theme='light'] .answer__status--error {
   color: #8a2f1c;
 }
+
+/* --------------------------------------------------------------------------
+   Dashboard — day + team + the Spotlight-style ask dock
+   -------------------------------------------------------------------------- */
+
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .dashboardGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.askDockTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.askDockTrigger:hover {
+  color: var(--ink);
+  border-color: var(--amber);
+  background: rgba(255, 180, 92, 0.08);
+  transform: translateY(-1px);
+}
+
+.askDockTrigger svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.askDock {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 11vh 16px 16px;
+  background: rgba(8, 7, 6, 0.42);
+  backdrop-filter: blur(10px) saturate(1.1);
+  animation: askDockIn 180ms ease-out both;
+}
+
+.askDock__panel {
+  width: min(760px, 100%);
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 22px;
+  background: rgba(23, 20, 15, 0.86);
+  box-shadow:
+    0 30px 80px -30px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  animation: askDockPanelIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+[data-theme='light'] .askDock__panel {
+  background: rgba(247, 241, 228, 0.92);
+}
+
+.askDock__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 8px 10px;
+}
+
+.askDock__eyebrow {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.askDock__close {
+  border: 0;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+
+.askDock__close:hover {
+  color: var(--ink);
+}
+
+.askDock__status,
+.askDock__error {
+  margin: 12px 8px 0;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+.askDock__error {
+  color: #ff9a88;
+}
+
+.askDock__answer {
+  max-height: 46vh;
+  margin-top: 14px;
+  padding: 14px 8px 2px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.askDock__answerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.askDock__answerText {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.askDock__citations {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.askDock__citations li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 8px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+.askDock__citations strong {
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.askDock__citations span:last-child {
+  grid-column: 2;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
+.askDock__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin: 14px 0 4px;
+}
+
+.promptInput {
+  width: 100%;
+}
+
+.promptInput__shell {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-height: 50px;
+  padding: 6px 6px 6px 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--prompt-bg);
+  backdrop-filter: blur(20px) saturate(1.15);
+  transition:
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    transform 200ms ease;
+}
+
+.promptInput__shell:focus-within {
+  border-color: rgba(255, 180, 92, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(255, 180, 92, 0.18),
+    0 18px 50px -24px rgba(255, 180, 92, 0.42);
+  transform: translateY(-1px);
+}
+
+.promptInput__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    circle 150px at var(--prompt-x) var(--prompt-y),
+    rgba(255, 180, 92, 0.18),
+    rgba(236, 72, 153, 0.05) 38%,
+    transparent 68%
+  );
+  opacity: 0.8;
+  transition: opacity 240ms ease;
+}
+
+.promptInput__shell:focus-within .promptInput__glow {
+  opacity: 1;
+}
+
+.promptInput__shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  transform: translateX(-110%);
+  animation: promptShimmer 4.5s ease-in-out infinite;
+}
+
+.promptInput__ripple {
+  position: absolute;
+  width: 42px;
+  height: 42px;
+  margin: -21px;
+  pointer-events: none;
+  border: 1px solid rgba(255, 180, 92, 0.42);
+  border-radius: 999px;
+  animation: promptRipple 600ms ease-out forwards;
+}
+
+.promptInput__textarea {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  min-height: 34px;
+  max-height: 110px;
+  padding: 6px 2px;
+  overflow-y: auto;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 22px;
+  letter-spacing: -0.01em;
+  resize: none;
+}
+
+.promptInput__textarea::placeholder {
+  color: var(--ink-faint);
+}
+
+.promptInput__send {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink-dark);
+  cursor: pointer;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.promptInput__send:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.promptInput__send:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+.promptInput__send svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.agendaList,
+.teamList {
+  display: grid;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agendaList__row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.agendaList__row:first-child,
+.teamList__row:first-child {
+  border-top: 0;
+}
+
+.agendaList__when {
+  display: grid;
+  gap: 2px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.agendaList__when strong {
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+
+.agendaList__when em {
+  font-style: normal;
+  color: var(--amber-soft);
+}
+
+.agendaList__body,
+.teamList__body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.agendaList__body strong,
+.teamList__body strong {
+  overflow: hidden;
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agendaList__body em,
+.teamList__body em {
+  overflow: hidden;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teamList__row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.teamList__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: rgba(255, 180, 92, 0.08);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--amber-soft);
+}
+
+.panel__note--quiet {
+  margin-top: 14px;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
+@keyframes askDockIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes askDockPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes promptRipple {
+  to {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+@keyframes promptShimmer {
+  0%,
+  65% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(110%);
+  }
+}
+
+@media (max-width: 640px) {
+  .askDock {
+    padding-top: 6vh;
+  }
+
+  .agendaList__row {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .agendaList__row .btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .askDock,
+  .askDock__panel {
+    animation: none;
+  }
+
+  .promptInput__shimmer {
+    animation: none;
+  }
+}

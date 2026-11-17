@@ -19,6 +19,9 @@ npm run dev:desktop   # browser preview only, no file access
 
 ## What works
 
+- **Dashboard** — daily agenda from the live calendar, a team list derived from
+  live attendees, and a ⌘J / top-right Ask overlay. The team list is metadata
+  only and is never persisted.
 - **Access** — grant a folder, revoke it, choose answer style and GGUF model,
   inspect the metadata-only activity log.
 - **Notes** — read a granted Markdown/text/PDF/scan from its original.

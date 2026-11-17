@@ -68,6 +68,7 @@ fn scanned_pdf_without_text_layer_is_ocrd() {
         location: path.to_string_lossy().to_string(),
         modified: "2026-11-14T00:00:00Z".into(),
         hash: "0".into(),
+        people: Vec::new(),
     })
     .expect("scanned PDF should OCR");
 

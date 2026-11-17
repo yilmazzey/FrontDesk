@@ -110,6 +110,7 @@ fn one_file(path: &Path, grant: &SourceGrant) -> Option<SourceRef> {
         location,
         modified: modified(path),
         hash: super::sha256_hex(&bytes),
+        people: Vec::new(),
     })
 }
 

@@ -8,6 +8,8 @@ export type SourceRef = {
   location: string
   modified: string
   hash: string
+  /** Live calendar attendees only; metadata, never persisted. */
+  people?: string[]
 }
 
 export type SourceGrant = {

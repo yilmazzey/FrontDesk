@@ -33,6 +33,7 @@ pub fn list(grant: &SourceGrant) -> Vec<SourceRef> {
             location: format!("fixture://{id}"),
             modified: now(),
             hash: super::sha256_hex(body.as_bytes()),
+            people: Vec::new(),
         })
         .collect()
 }
