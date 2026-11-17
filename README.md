@@ -122,7 +122,8 @@ pipeline instantly with no model at all.
 
 Register a Microsoft Entra application as a public client and enable device-code flow. Add the
 delegated Microsoft Graph permissions `User.Read`, `Mail.Read`, `Calendars.Read`, `Notes.Read` and
-`offline_access`. Copy `desktop/.env.example` to `desktop/.env.local` and set
+`offline_access`. See [MICROSOFT_DEMO_SETUP.md](MICROSOFT_DEMO_SETUP.md) for the step-by-step
+account and app-registration checklist. Copy `desktop/.env.example` to `desktop/.env.local` and set
 `VITE_MICROSOFT_CLIENT_ID` to the application ID. Restart the desktop app, then use
 **Settings → Microsoft account → Connect** and follow the device-code prompt. The app grants
 read-only access to Outlook mail, calendar events and OneNote; each source can be revoked from
