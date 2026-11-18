@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capability for the FrontDesk main window",
-  "windows": ["main"],
+  "windows": ["main", "tray"],
   "permissions": ["core:default", "dialog:default"]
 }

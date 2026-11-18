@@ -63,12 +63,19 @@ export function AppShell() {
       const offAsk = await listen('frontdesk-open-ask', () =>
         navigate('/', { state: { focusAsk: true, at: Date.now() } }),
       )
+      const offQuestion = await listen<string>('frontdesk-open-question', (event) => {
+        const question = typeof event.payload === 'string' ? event.payload.trim() : ''
+        navigate('/', {
+          state: { focusAsk: true, question: question || undefined, at: Date.now() },
+        })
+      })
       const offHome = await listen('frontdesk-open-home', () => navigate('/'))
       if (cancelled) {
         offAsk()
+        offQuestion()
         offHome()
       } else {
-        unlisten = [offAsk, offHome]
+        unlisten = [offAsk, offQuestion, offHome]
       }
     })
     return () => {

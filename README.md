@@ -10,6 +10,7 @@ FrontDesk is a Tauri desktop app with a Rust core and a separate web landing pag
 - **Search** — content search with matched excerpts, people and dates; every result row opens the original.
 - **Saved** — rehydrates Markdown answers from your chosen folder, with category filters and Finder reveal.
 - **Sources** — local folders, PDFs and scans, Outlook mail, Microsoft Calendar and OneNote.
+- **Menu-bar popover** — click the tray icon to see the next three calendar items; its Ask bar opens the main app chat.
 - **Local model** — Extractive mode works instantly; Phi-4 Mini can be downloaded inside the app.
 
 Nothing is synced to a FrontDesk server. Source bodies stay in memory for the duration of a request; the app persists metadata, grants, settings and derived embeddings only. Saved answers are Markdown files you own.
@@ -83,6 +84,10 @@ npm run dev:desktop
 ```
 
 Only `dev:tauri` can grant real folders, read files, run OCR and answer from them.
+
+## Menu-bar popover
+
+The tray icon opens a compact popover with the next three upcoming calendar items. The **Ask FrontDesk…** bar opens the main app directly in chat, and clicking an event opens chat ready to prep for it. Closing the main window keeps FrontDesk available in the tray.
 
 ## Local model
 

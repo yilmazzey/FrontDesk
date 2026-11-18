@@ -1259,6 +1259,17 @@ pub async fn open_original(
 }
 
 #[tauri::command]
+pub fn open_ask(app: tauri::AppHandle, question: Option<String>) -> Result<(), String> {
+    crate::tray::open_main_ask(&app, question);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hide_tray_popover(app: tauri::AppHandle) {
+    crate::tray::hide_popover(&app);
+}
+
+#[tauri::command]
 pub fn open_external(url: String) -> Result<(), String> {
     let parsed = Url::parse(&url).map_err(|_| "That web link is invalid.".to_string())?;
     if parsed.scheme() != "https" && parsed.scheme() != "http" {

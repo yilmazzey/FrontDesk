@@ -591,4 +591,12 @@ export const api = {
     if (inTauri()) await call<void>('open_external', { url })
     else window.open(url, '_blank', 'noopener,noreferrer')
   },
+
+  openAsk: async (question: string | null = null): Promise<void> => {
+    if (inTauri()) await call<void>('open_ask', { question })
+  },
+
+  hideTrayPopover: async (): Promise<void> => {
+    if (inTauri()) await call<void>('hide_tray_popover')
+  },
 }

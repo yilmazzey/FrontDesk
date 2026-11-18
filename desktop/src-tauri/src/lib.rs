@@ -72,6 +72,8 @@ pub fn run() {
             commands::open_saved,
             commands::reveal_path,
             commands::open_url,
+            commands::open_ask,
+            commands::hide_tray_popover,
             commands::open_external,
             commands::microsoft_diagnostics,
             commands::manager_snapshot,

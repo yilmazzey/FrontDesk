@@ -5,6 +5,7 @@ import Search from './pages/Search'
 import Timeline from './pages/Timeline'
 import Saved from './pages/Saved'
 import Settings from './pages/Settings'
+import TrayPopover from './pages/TrayPopover'
 import { AccessProvider } from './state/access'
 import { SavedProvider } from './state/saved'
 
@@ -13,7 +14,8 @@ export default function App() {
     <AccessProvider>
       <SavedProvider>
         <Routes>
-        <Route element={<AppShell />}>
+          <Route path="/tray" element={<TrayPopover />} />
+          <Route element={<AppShell />}>
           <Route index element={<Dashboard />} />
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/saved" element={<Saved />} />

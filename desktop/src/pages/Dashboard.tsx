@@ -31,9 +31,13 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    const state = location.state as { focusAsk?: boolean } | null
+    const state = location.state as { focusAsk?: boolean; question?: string } | null
     if (!state?.focusAsk) return
-    setFocusSignal(Date.now())
+    if (state.question?.trim()) {
+      setPrompt({ value: state.question.trim(), id: Date.now() })
+    } else {
+      setFocusSignal(Date.now())
+    }
     navigate('/', { replace: true, state: null })
   }, [location.state, navigate])
 

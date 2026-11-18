@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react'
+import { createPortal } from 'react-dom'
 import SaveAnswerDialog from './SaveAnswerDialog'
 import { when } from '../lib/format'
 import { api } from '../lib/ipc'
@@ -40,6 +48,13 @@ function typeLabel(value: string): string {
   return value
 }
 
+function statusLabel(answer: Answer): string {
+  if (answer.status === 'needs_clarification') return 'Needs one clarification'
+  if (answer.status === 'error') return 'Something went wrong'
+  if (answer.status === 'needs_setup') return 'Needs a local model'
+  return 'Not in your allowed sources'
+}
+
 type AnswerViewProps = {
   turn: Turn
   onAsk: (question: string) => void
@@ -58,16 +73,12 @@ function AnswerView({ turn, onAsk, onOpen, onSave }: AnswerViewProps) {
           <span className={`basis basis--${answer.basis}`}>{basisLabel(answer)}</span>
         ) : (
           <span className={`answer__status answer__status--${answer.status}`}>
-            {answer.status === 'needs_clarification'
-              ? 'Needs one clarification'
-              : answer.status === 'error'
-                ? 'Something went wrong'
-                : answer.status === 'needs_setup'
-                  ? 'Needs a local model'
-                  : 'Not in your allowed sources'}
+            {statusLabel(answer)}
           </span>
         )}
-        <span className="answer__model">{answer.model}</span>
+        {answer.basis === 'clock' ? null : (
+          <span className="answer__model">{answer.model}</span>
+        )}
       </div>
 
       <p className="answer__text">
@@ -166,7 +177,10 @@ export default function AskBar({
   const [notice, setNotice] = useState<string | null>(null)
   const [preview, setPreview] = useState<Citation | null>(null)
   const [saveTurn, setSaveTurn] = useState<Turn | null>(null)
+  const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
+  const messagesRef = useRef<HTMLDivElement | null>(null)
   const turnsRef = useRef<Turn[]>([])
   const busy = turns.some((turn) => turn.busy)
 
@@ -175,9 +189,39 @@ export default function AskBar({
   }, [turns])
 
   useEffect(() => {
+    if (!open) return
+    const frame = requestAnimationFrame(() => composerRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const node = messagesRef.current
+    if (node) node.scrollTop = node.scrollHeight
+  }, [open, turns])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (saveTurn) {
+        setSaveTurn(null)
+        return
+      }
+      if (preview) {
+        setPreview(null)
+        return
+      }
+      setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, preview, saveTurn])
+
+  useEffect(() => {
     if (!focusSignal) return
-    inputRef.current?.focus()
-    inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setOpen(true)
+    inputRef.current?.blur()
   }, [focusSignal])
 
   const updateTurn = useCallback((id: string, patch: Partial<Turn>) => {
@@ -192,6 +236,7 @@ export default function AskBar({
     async (value: string) => {
       const trimmed = value.trim()
       if (!trimmed) return
+      setOpen(true)
       const history: ChatTurn[] = turnsRef.current
         .flatMap((turn) =>
           turn.answer
@@ -238,6 +283,13 @@ export default function AskBar({
     void ask(question)
   }
 
+  function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      void ask(question)
+    }
+  }
+
   async function openCitation(citation: Citation) {
     setNotice(null)
     if (citation.sourceId.startsWith('fixture:')) {
@@ -260,133 +312,248 @@ export default function AskBar({
     }
   }
 
+  function clearConversation() {
+    setTurns([])
+    turnsRef.current = []
+    setPreview(null)
+    setNotice(null)
+    setSaveTurn(null)
+    requestAnimationFrame(() => composerRef.current?.focus())
+  }
+
   const modelLabel = info?.selectedModel
     ? models.find((model) => model.id === info.selectedModel)?.name ?? info.selectedModel
     : 'Extractive'
+  const lastTurn = turns[turns.length - 1]
 
   return (
-    <section className="askBar" aria-label="Ask FrontDesk">
-      <div className="askBar__meta" aria-label="Answer settings">
-        <span className="tag">{modelLabel}</span>
-        <button
-          type="button"
-          className={`modeChip${info?.answerMode !== 'grounded' ? ' is-on' : ''}`}
-          onClick={() => void selectMode('chat')}
-        >
-          Assistant
-        </button>
-        <button
-          type="button"
-          className={`modeChip${info?.answerMode === 'grounded' ? ' is-on' : ''}`}
-          onClick={() => void selectMode('grounded')}
-        >
-          Strict citations
-        </button>
-        {turns.length ? (
+    <>
+      <section className="askBar" aria-label="Ask FrontDesk">
+        <form className="askBar__form" onSubmit={onSubmit}>
+          <label className="srOnly" htmlFor="deskAsk">
+            Ask about your sources
+          </label>
+          <input
+            ref={inputRef}
+            id="deskAsk"
+            className="askBar__input"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
+            placeholder={
+              turns.length
+                ? 'Continue the conversation…'
+                : 'Ask about your meetings, people or commitments…'
+            }
+            autoComplete="off"
+          />
           <button
-            type="button"
-            className="askBar__clear"
-            onClick={() => {
-              setTurns([])
-              turnsRef.current = []
-              setPreview(null)
-              setNotice(null)
-              setSaveTurn(null)
-            }}
+            type="submit"
+            className="askBar__submit"
+            disabled={busy || !question.trim()}
+            aria-label="Ask"
           >
-            Clear
+            {busy ? '…' : 'ASK'}
           </button>
-        ) : null}
-      </div>
+        </form>
 
-      <form className="askBar__form" onSubmit={onSubmit}>
-        <label className="srOnly" htmlFor="deskAsk">
-          Ask about your sources
-        </label>
-        <input
-          ref={inputRef}
-          id="deskAsk"
-          className="askBar__input"
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Ask about your meetings, people or commitments…"
-          autoComplete="off"
-        />
-        <button
-          type="submit"
-          className="askBar__submit"
-          disabled={busy || !question.trim()}
-          aria-label="Ask"
-        >
-          {busy ? '…' : 'ASK'}
-        </button>
-      </form>
+        {turns.length === 0 ? (
+          <div className="askBar__suggestions" aria-label="Example questions">
+            {suggestions.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                className="chatSuggestion"
+                onClick={() => void ask(suggestion)}
+                disabled={busy}
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="askBar__resume">
+            <span className="tag">
+              {turns.length} {turns.length === 1 ? 'message' : 'messages'}
+            </span>
+            <span className="askBar__resumeText">{lastTurn?.question}</span>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setOpen(true)}>
+              Open chat →
+            </button>
+          </div>
+        )}
+      </section>
 
-      {turns.length === 0 ? (
-        <div className="askBar__suggestions" aria-label="Example questions">
-          {suggestions.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              className="chatSuggestion"
-              onClick={() => void ask(suggestion)}
-              disabled={busy}
+      {open
+        ? createPortal(
+            <div
+              className="chatOverlay"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setOpen(false)
+              }}
             >
-              {suggestion}
-            </button>
-          ))}
-        </div>
-      ) : null}
+              <section
+                className="chatScreen"
+                role="dialog"
+                aria-modal="true"
+                aria-label="FrontDesk chat"
+              >
+                <header className="chatScreen__head">
+                  <div className="chatScreen__identity">
+                    <span className="chatScreen__dot" aria-hidden="true" />
+                    <div>
+                      <strong>FrontDesk</strong>
+                      <span>Ask</span>
+                    </div>
+                  </div>
+                  <div className="chatScreen__controls">
+                    <span className="tag">{modelLabel}</span>
+                    <button
+                      type="button"
+                      className={`modeChip${info?.answerMode !== 'grounded' ? ' is-on' : ''}`}
+                      onClick={() => void selectMode('chat')}
+                    >
+                      Assistant
+                    </button>
+                    <button
+                      type="button"
+                      className={`modeChip${info?.answerMode === 'grounded' ? ' is-on' : ''}`}
+                      onClick={() => void selectMode('grounded')}
+                    >
+                      Strict citations
+                    </button>
+                    {turns.length ? (
+                      <button type="button" className="chatGhost" onClick={clearConversation}>
+                        Clear
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="chatClose"
+                      aria-label="Close chat"
+                      onClick={() => setOpen(false)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </header>
 
-      {notice ? <p className="notice notice--bad">{notice}</p> : null}
+                <div className="chatScreen__messages" ref={messagesRef}>
+                  {turns.length === 0 ? (
+                    <div className="chatWelcome">
+                      <p className="sectionLabel">Ask FrontDesk</p>
+                      <h2>What do you need to know?</h2>
+                      <p>
+                        Use your files, the local clock, optional web search and the local model.
+                        Every claim keeps its source.
+                      </p>
+                      <div className="chatWelcome__suggestions">
+                        {suggestions.map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            type="button"
+                            className="chatSuggestion"
+                            onClick={() => void ask(suggestion)}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    turns.map((turn) => (
+                      <article className="chatExchange" key={turn.id}>
+                        <div className="chatMessage chatMessage--user">
+                          <span className="chatMessage__role">You</span>
+                          <p className="chatBubble">{turn.question}</p>
+                        </div>
+                        <div className="chatMessage chatMessage--assistant">
+                          <span className="chatAvatar" aria-hidden="true">
+                            FD
+                          </span>
+                          <div className="chatAssistant">
+                            <span className="chatMessage__role">FrontDesk</span>
+                            {turn.busy ? (
+                              <p className="chatThinking">Thinking locally…</p>
+                            ) : null}
+                            {turn.error ? <p className="chatError">{turn.error}</p> : null}
+                            <AnswerView
+                              turn={turn}
+                              onAsk={(value) => void ask(value)}
+                              onOpen={(citation) => void openCitation(citation)}
+                              onSave={(selected) => setSaveTurn(selected)}
+                            />
+                          </div>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
 
-      {turns.length ? (
-        <div className="askThread">
-          {turns.map((turn) => (
-            <article className="askTurn" key={turn.id}>
-              <p className="askTurn__question">{turn.question}</p>
-              {turn.busy ? (
-                <p className="notice">Reading the allowed sources and thinking on this machine…</p>
+                {preview ? (
+                  <section className="sourcePreview chatPreview" aria-label="Source preview">
+                    <header className="sourcePreview__head">
+                      <div>
+                        <p className="sectionLabel">Source preview</p>
+                        <h3>{preview.title}</h3>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => setPreview(null)}
+                      >
+                        Close
+                      </button>
+                    </header>
+                    <p className="sourcePreview__meta">
+                      {preview.location} · as of {when(preview.timestamp)}
+                    </p>
+                    <blockquote>{preview.excerpt}</blockquote>
+                  </section>
+                ) : null}
+
+                {notice ? <p className="notice notice--bad chatNotice">{notice}</p> : null}
+
+                <div className="chatScreen__composer">
+                  <form className="chatComposer" onSubmit={onSubmit}>
+                    <textarea
+                      ref={composerRef}
+                      rows={1}
+                      value={question}
+                      onChange={(event) => setQuestion(event.target.value)}
+                      onKeyDown={onComposerKeyDown}
+                      placeholder="Message FrontDesk…"
+                      aria-label="Message FrontDesk"
+                    />
+                    <button
+                      type="submit"
+                      className="chatComposer__send"
+                      disabled={busy || !question.trim()}
+                      aria-label="Send message"
+                    >
+                      ↑
+                    </button>
+                  </form>
+                  <p className="chatHint">
+                    Enter to send · Shift+Enter for a new line · Esc to close
+                  </p>
+                </div>
+              </section>
+
+              {saveTurn?.answer ? (
+                <SaveAnswerDialog
+                  open={Boolean(saveTurn)}
+                  title={saveTurn.question}
+                  body={saveTurn.answer.text}
+                  sources={saveTurn.answer.citations.map((citation) => citation.title)}
+                  onClose={() => setSaveTurn(null)}
+                />
               ) : null}
-              {turn.error ? <p className="notice notice--bad">{turn.error}</p> : null}
-              <AnswerView
-                turn={turn}
-                onAsk={(value) => void ask(value)}
-                onOpen={(citation) => void openCitation(citation)}
-                onSave={(selected) => setSaveTurn(selected)}
-              />
-            </article>
-          ))}
-        </div>
-      ) : null}
-
-      {preview ? (
-        <section className="sourcePreview" aria-label="Source preview">
-          <header className="sourcePreview__head">
-            <div>
-              <p className="sectionLabel">Source preview</p>
-              <h3>{preview.title}</h3>
-            </div>
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setPreview(null)}>
-              Close
-            </button>
-          </header>
-          <p className="sourcePreview__meta">
-            {preview.location} · as of {when(preview.timestamp)}
-          </p>
-          <blockquote>{preview.excerpt}</blockquote>
-        </section>
-      ) : null}
-
-      {saveTurn?.answer ? (
-        <SaveAnswerDialog
-          open={Boolean(saveTurn)}
-          title={saveTurn.question}
-          body={saveTurn.answer.text}
-          sources={saveTurn.answer.citations.map((citation) => citation.title)}
-          onClose={() => setSaveTurn(null)}
-        />
-      ) : null}
-    </section>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   )
 }
