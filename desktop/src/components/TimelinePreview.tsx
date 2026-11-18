@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  category,
+  categoryLabel,
   dayLabel,
   linkMeeting,
   sourceDate,
@@ -26,7 +26,7 @@ export default function TimelinePreview({ sources }: Props) {
         .sort(
           (left, right) => (sourceDate(right)?.getTime() ?? 0) - (sourceDate(left)?.getTime() ?? 0),
         )
-        .slice(0, 6),
+        .slice(0, 5),
     [sources],
   )
 
@@ -54,18 +54,18 @@ export default function TimelinePreview({ sources }: Props) {
                 <span className="timelinePreview__body">
                   <strong>{source.title}</strong>
                   <em>
-                    {category(source)}
+                    {categoryLabel(source)}
                     {link ? ` · linked to ${link.meeting.title}` : ''}
                   </em>
                 </span>
-                <span className="tag">{category(source)}</span>
+                <span className="tag">{categoryLabel(source)}</span>
               </li>
             )
           })}
         </ul>
       ) : (
         <p className="panel__note">
-          Grant a folder in <Link to="/access">Access</Link> or connect Microsoft 365 in{' '}
+          Grant a folder or connect Microsoft 365 in{' '}
           <Link to="/settings">Settings</Link> to start the timeline.
         </p>
       )}

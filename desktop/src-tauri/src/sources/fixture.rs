@@ -4,12 +4,17 @@ const NOTES: &[(&str, &str, &str)] = &[
     (
         "welcome",
         "Welcome to FrontDesk",
-        "FrontDesk is a local-first workspace. Nothing is copied. The assistant reads only the sources you currently allow, on the fly. Knowledge stays where it was saved, and the original file remains the source of truth. Honest by design: if an answer is not in the allowed notes, FrontDesk says so plainly and does not guess. Every claim must be tied to a source. You can revoke access at any time from the Access page. The local model runs on this machine and no note content is uploaded.",
+        "FrontDesk is a local-first workspace. Nothing is copied. The assistant reads only the sources you currently allow, on the fly. Knowledge stays where it was saved, and the original file remains the source of truth. Honest by design: if an answer is not in the allowed notes, FrontDesk says so plainly and does not guess. Every claim must be tied to a source. You can revoke access at any time from Settings. The local model runs on this machine and no note content is uploaded.",
     ),
     (
         "protocol",
         "Study protocol — working notes",
         "The protocol review is scheduled for Friday at 09:30. The consent wording needs a second pass before the site sync. The retention window for scanned documents is seven years. The second site does not need its own approval, but the local ethics contact must be notified. Scanned patient pages are processed with OCR and the text is kept only for the duration of the answer. The original scan stays in the study folder and is cited by page and region.",
+    ),
+    (
+        "manager-one-on-one",
+        "1:1 — Priya Shah — working notes",
+        "Priya owns the launch scope. She wants the rollout split into two phases. I promised to send the revised scope by Friday. Waiting on Priya for the budget sign-off. Follow up with Marcus on the vendor shortlist. Action: ask Marcus for the updated vendor shortlist by Monday.",
     ),
     (
         "citations",

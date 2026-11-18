@@ -4,6 +4,7 @@ mod commands;
 pub mod contracts;
 mod embedding;
 mod index;
+mod manager;
 mod microsoft;
 pub mod model;
 mod permissions;
@@ -39,6 +40,11 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
+                // A hidden full-screen window otherwise leaves a black
+                // full-screen space with no way back.
+                if window.is_fullscreen().unwrap_or(false) {
+                    let _ = window.set_fullscreen(false);
+                }
                 let _ = window.hide();
             }
         })
@@ -58,7 +64,13 @@ pub fn run() {
             commands::build_index,
             commands::clear_index,
             commands::save_answer,
+            commands::set_saved_folder,
+            commands::list_saved,
             commands::open_saved,
+            commands::reveal_path,
+            commands::open_url,
+            commands::microsoft_diagnostics,
+            commands::manager_snapshot,
             commands::list_models,
             commands::select_model,
             commands::select_mode,
@@ -75,8 +87,24 @@ pub fn run() {
             microsoft::disconnect,
             microsoft::get_profile,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running FrontDesk");
+        .build(tauri::generate_context!())
+        .expect("error while building FrontDesk")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows,
+                ..
+            } = event
+            {
+                if !has_visible_windows {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                    }
+                }
+            }
+        });
 }
 
 /// In development the GGUF folder lives at the repo root. In a packaged build

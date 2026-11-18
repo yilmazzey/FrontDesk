@@ -15,6 +15,18 @@ export function category(source: SourceRef): Exclude<TimelineFilter, 'all'> {
   return 'notes'
 }
 
+const CATEGORY_LABELS: Record<Exclude<TimelineFilter, 'all'>, string> = {
+  meetings: 'Meeting',
+  notes: 'Note',
+  scans: 'Scan',
+  mail: 'Mail',
+  onenote: 'OneNote',
+}
+
+export function categoryLabel(source: SourceRef): string {
+  return CATEGORY_LABELS[category(source)]
+}
+
 export function dayKey(date: Date): string {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 }

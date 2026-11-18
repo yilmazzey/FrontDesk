@@ -1,14 +1,18 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use chrono::{DateTime, Utc};
 use futures_util::stream::{self, StreamExt};
 use reqwest::Url;
-use tauri::{Emitter, State};
+use serde::Serialize;
+use tauri::State;
 
 use crate::answer;
 use crate::audit::AuditEntry;
-use crate::contracts::{Answer, AppInfo, Excerpt, ModelRef, SourceGrant, SourceRef};
+use crate::contracts::{
+    Answer, AppInfo, Excerpt, ModelRef, SavedItem, SearchHit, SourceGrant, SourceRef,
+};
 use crate::index::{IndexHit, IndexStatus};
 use crate::microsoft::{self, MicrosoftState};
 use crate::model;
@@ -17,6 +21,7 @@ use crate::runtime;
 use crate::sources;
 use crate::sources::m365;
 use crate::state::AppState;
+use walkdir::WalkDir;
 
 #[tauri::command]
 pub fn ping() -> String {
@@ -205,7 +210,7 @@ pub async fn search_sources(
     state: State<'_, AppState>,
     microsoft_state: State<'_, MicrosoftState>,
     query: String,
-) -> Result<Vec<SourceRef>, String> {
+) -> Result<Vec<SearchHit>, String> {
     let query = query.trim();
     if query.is_empty() || query.len() > 200 {
         return Err("Enter a search term under 200 characters.".into());
@@ -240,7 +245,10 @@ pub async fn search_sources(
                 source.title, source.location, source.kind, text
             ),
         ) {
-            matches.push(source);
+            matches.push(SearchHit {
+                excerpt: matched_excerpt(&text, &terms),
+                source,
+            });
         }
     }
 
@@ -268,7 +276,10 @@ pub async fn search_sources(
                     source.title, source.location, source.kind, text
                 ),
             ) {
-                Some(source)
+                Some(SearchHit {
+                    excerpt: matched_excerpt(&text, terms_ref),
+                    source,
+                })
             } else {
                 None
             }
@@ -278,22 +289,175 @@ pub async fn search_sources(
         .collect::<Vec<_>>()
         .await;
     matches.extend(graph_matches);
-    matches.sort_by(|a, b| b.modified.cmp(&a.modified));
+    matches.sort_by(|a, b| b.source.modified.cmp(&a.source.modified));
     state.audit.lock().unwrap().append("search", None, None);
     Ok(matches)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorCheck {
+    pub ok: bool,
+    pub detail: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MicrosoftDiagnostics {
+    pub connected: bool,
+    pub account: Option<String>,
+    pub mail: ConnectorCheck,
+    pub calendar: ConnectorCheck,
+    pub onenote: ConnectorCheck,
+}
+
+#[tauri::command]
+pub async fn microsoft_diagnostics(
+    microsoft_state: State<'_, MicrosoftState>,
+) -> Result<MicrosoftDiagnostics, String> {
+    let Some(token) = microsoft::get_access_token(&microsoft_state).await? else {
+        return Ok(MicrosoftDiagnostics {
+            connected: false,
+            account: None,
+            mail: ConnectorCheck {
+                ok: false,
+                detail: "Not connected".into(),
+            },
+            calendar: ConnectorCheck {
+                ok: false,
+                detail: "Not connected".into(),
+            },
+            onenote: ConnectorCheck {
+                ok: false,
+                detail: "Not connected".into(),
+            },
+        });
+    };
+
+    let account = microsoft::graph_get::<serde_json::Value>(&microsoft_state, &token, "/me", &[])
+        .await
+        .ok()
+        .and_then(|value| {
+            value
+                .get("mail")
+                .or_else(|| value.get("userPrincipalName"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        });
+
+    let mail = match microsoft::graph_get::<serde_json::Value>(
+        &microsoft_state,
+        &token,
+        "/me/mailFolders/inbox/messages",
+        &[("$top", "1"), ("$select", "id")],
+    )
+    .await
+    {
+        Ok(value) => ConnectorCheck {
+            ok: true,
+            detail: if value
+                .get("value")
+                .and_then(|items| items.as_array())
+                .is_some_and(|items| !items.is_empty())
+            {
+                "Inbox reachable".into()
+            } else {
+                "Inbox reachable but empty".into()
+            },
+        },
+        Err(error) => ConnectorCheck {
+            ok: false,
+            detail: error,
+        },
+    };
+
+    let start = (chrono::Utc::now() - chrono::Duration::days(90))
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string();
+    let end = (chrono::Utc::now() + chrono::Duration::days(30))
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string();
+    let calendar = match microsoft::graph_get::<serde_json::Value>(
+        &microsoft_state,
+        &token,
+        "/me/calendar/calendarView",
+        &[
+            ("startDateTime", start.as_str()),
+            ("endDateTime", end.as_str()),
+            ("$top", "1"),
+            ("$select", "id"),
+        ],
+    )
+    .await
+    {
+        Ok(value) => ConnectorCheck {
+            ok: true,
+            detail: if value
+                .get("value")
+                .and_then(|items| items.as_array())
+                .is_some_and(|items| !items.is_empty())
+            {
+                "Events found".into()
+            } else {
+                "Calendar reachable but empty in this window".into()
+            },
+        },
+        Err(error) => ConnectorCheck {
+            ok: false,
+            detail: error,
+        },
+    };
+
+    let onenote = match microsoft::graph_get::<serde_json::Value>(
+        &microsoft_state,
+        &token,
+        "/me/onenote/pages",
+        &[("$top", "1"), ("$select", "id")],
+    )
+    .await
+    {
+        Ok(value) => ConnectorCheck {
+            ok: true,
+            detail: if value
+                .get("value")
+                .and_then(|items| items.as_array())
+                .is_some_and(|items| !items.is_empty())
+            {
+                "Pages found".into()
+            } else {
+                "OneNote reachable but no pages found".into()
+            },
+        },
+        Err(error) => ConnectorCheck {
+            ok: false,
+            detail: error,
+        },
+    };
+
+    Ok(MicrosoftDiagnostics {
+        connected: true,
+        account,
+        mail,
+        calendar,
+        onenote,
+    })
+}
+
+#[tauri::command]
+pub async fn manager_snapshot(
+    state: State<'_, AppState>,
+    microsoft_state: State<'_, MicrosoftState>,
+    self_name: Option<String>,
+) -> Result<crate::manager::ManagerSnapshot, String> {
+    crate::manager::snapshot(&state, &microsoft_state, self_name.as_deref()).await
+}
+
 #[tauri::command]
 pub async fn ask(
-    app: tauri::AppHandle,
     state: State<'_, AppState>,
     microsoft_state: State<'_, MicrosoftState>,
     question: String,
 ) -> Result<Answer, String> {
-    let stage = |name: &str| {
-        let _ = app.emit("ask-stage", serde_json::json!({ "stage": name }));
-    };
-    stage("ingest");
     let grants = state.permissions.lock().unwrap().list();
     let settings = state.settings.lock().unwrap().get();
     let mut all_sources = sources::list_all(&grants);
@@ -309,8 +473,6 @@ pub async fn ask(
     if let Some(index) = state.index.as_ref() {
         let _ = index.upsert_sources(&all_sources);
     }
-    stage("extract");
-
     let mut has_embeddings = state
         .index
         .as_ref()
@@ -321,7 +483,6 @@ pub async fn ask(
     // Build the metadata/vector candidate index on the first ask. It is a
     // one-time local pass; later questions read only the shortlisted sources.
     if !has_embeddings && state.index.is_some() {
-        stage("extract");
         if let Err(error) = index_sources(&state, &microsoft_state, &all_sources).await {
             eprintln!("Could not build the semantic index: {error}");
         }
@@ -373,7 +534,6 @@ pub async fn ask(
         }
 
         selected.truncate(12);
-        stage("link");
         let documents = read_documents(&microsoft_state, &selected).await;
         let preferred = preferred_chunks(&documents, &semantic_hits);
         (documents, preferred)
@@ -384,7 +544,6 @@ pub async fn ask(
         (documents, Vec::new())
     };
 
-    stage("plan");
     let result = answer::ask_with_documents(
         &question,
         &documents,
@@ -393,8 +552,6 @@ pub async fn ask(
         &state.models_dir,
         &settings.answer_mode,
     );
-    stage("brief");
-
     {
         let audit = state.audit.lock().unwrap();
         for source_id in &result.read_sources {
@@ -537,11 +694,24 @@ async fn index_sources(
 
 #[tauri::command]
 pub fn save_answer(
+    state: State<'_, AppState>,
     folder: String,
     classification: String,
     title: String,
     body: String,
     sources: Vec<String>,
+) -> Result<String, String> {
+    let path = write_saved_answer(&folder, &classification, &title, &body, &sources)?;
+    state.settings.lock().unwrap().set_saved_folder(&folder);
+    Ok(path)
+}
+
+fn write_saved_answer(
+    folder: &str,
+    classification: &str,
+    title: &str,
+    body: &str,
+    sources: &[String],
 ) -> Result<String, String> {
     let root = PathBuf::from(folder.trim());
     if !root.is_dir() {
@@ -620,6 +790,145 @@ savedAt: {}
 }
 
 #[tauri::command]
+pub fn set_saved_folder(state: State<'_, AppState>, folder: String) -> Result<String, String> {
+    let root = PathBuf::from(folder.trim());
+    if !root.is_dir() {
+        return Err("Choose an existing folder for saved answers.".into());
+    }
+    let root = fs::canonicalize(&root).unwrap_or(root);
+    let path = root.to_string_lossy().to_string();
+    state.settings.lock().unwrap().set_saved_folder(&path);
+    Ok(path)
+}
+
+#[tauri::command]
+pub fn list_saved(state: State<'_, AppState>) -> Result<Vec<SavedItem>, String> {
+    let folder = state.settings.lock().unwrap().get().saved_folder;
+    let Some(folder) = folder else {
+        return Ok(Vec::new());
+    };
+    let root = PathBuf::from(folder);
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+    Ok(scan_saved(&root))
+}
+
+fn scan_saved(root: &Path) -> Vec<SavedItem> {
+    let mut items = Vec::new();
+    for entry in WalkDir::new(root)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(Result::ok)
+        .take(600)
+    {
+        if !entry.file_type().is_file()
+            || entry.path().extension().and_then(|ext| ext.to_str()) != Some("md")
+        {
+            continue;
+        }
+        if let Some(item) = parse_saved(entry.path()) {
+            items.push(item);
+        }
+    }
+    items.sort_by(|left, right| right.saved_at.cmp(&left.saved_at));
+    items
+}
+
+fn parse_saved(path: &Path) -> Option<SavedItem> {
+    let raw = fs::read_to_string(path).ok()?;
+    let rest = raw.strip_prefix("---\n")?;
+    let end = rest.find("\n---\n")?;
+    let front = &rest[..end];
+    let body_block = rest[end + 5..].trim_start();
+
+    let mut classification = "reference".to_string();
+    let mut saved_at = String::new();
+    let mut sources = Vec::new();
+    let mut in_sources = false;
+
+    for line in front.lines() {
+        let trimmed = line.trim();
+        if let Some(value) = trimmed.strip_prefix("classification:") {
+            let value = value.trim().to_lowercase();
+            if matches!(
+                value.as_str(),
+                "briefing" | "roadmap" | "todo" | "decision" | "reference"
+            ) {
+                classification = value;
+            }
+            in_sources = false;
+        } else if let Some(value) = trimmed.strip_prefix("savedAt:") {
+            saved_at = value.trim().to_string();
+            in_sources = false;
+        } else if trimmed == "sources:" {
+            in_sources = true;
+        } else if in_sources {
+            if let Some(value) = trimmed.strip_prefix('-') {
+                let value = value.trim().trim_matches('"').trim();
+                if !value.is_empty() {
+                    sources.push(value.to_string());
+                }
+            } else if !trimmed.is_empty() {
+                in_sources = false;
+            }
+        }
+    }
+
+    if saved_at.is_empty() {
+        let modified = fs::metadata(path).ok()?.modified().ok()?;
+        saved_at = DateTime::<Utc>::from(modified).to_rfc3339();
+    }
+
+    let (title, body) = if let Some(title) = body_block.strip_prefix("# ") {
+        let (title, body) = title.split_once('\n').unwrap_or((title, ""));
+        (title.trim().to_string(), body.trim().to_string())
+    } else {
+        let title = path
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Saved answer")
+            .to_string();
+        (title, body_block.trim().to_string())
+    };
+
+    let path_string = path.to_string_lossy().to_string();
+    Some(SavedItem {
+        id: path_string.clone(),
+        path: path_string,
+        title,
+        classification,
+        saved_at,
+        body,
+        sources,
+    })
+}
+
+#[tauri::command]
+pub fn reveal_path(path: String) -> Result<(), String> {
+    let candidate = PathBuf::from(&path);
+    if !candidate.exists() {
+        return Err("That path is no longer available.".into());
+    }
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open").args(["-R", &path]).status();
+    #[cfg(target_os = "windows")]
+    let status = Command::new("explorer")
+        .arg(format!("/select,{path}"))
+        .status();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let status = Command::new("xdg-open")
+        .arg(candidate.parent().unwrap_or(&candidate))
+        .status();
+
+    status
+        .map_err(|error| format!("Could not reveal that path: {error}"))?
+        .success()
+        .then_some(())
+        .ok_or_else(|| "The path could not be revealed.".to_string())
+}
+
+#[tauri::command]
 pub fn open_saved(path: String) -> Result<(), String> {
     let path = PathBuf::from(path);
     if !path.is_file() {
@@ -636,6 +945,45 @@ pub fn clear_index(state: State<'_, AppState>) -> Result<IndexStatus, String> {
         .ok_or_else(|| "The metadata index is unavailable.".to_string())?;
     index.clear()?;
     index.status()
+}
+
+fn matched_excerpt(text: &str, terms: &[String]) -> String {
+    if text.trim().is_empty() {
+        return String::new();
+    }
+    let lower = text.to_lowercase();
+    let offset = terms
+        .iter()
+        .filter_map(|term| lower.find(term))
+        .min()
+        .unwrap_or(0);
+    let start = floor_boundary(text, offset.saturating_sub(120));
+    let end = ceil_boundary(text, (offset + 300).min(text.len()));
+    let mut excerpt = text[start..end]
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if start > 0 {
+        excerpt.insert(0, '…');
+    }
+    if end < text.len() {
+        excerpt.push('…');
+    }
+    excerpt
+}
+
+fn floor_boundary(text: &str, mut index: usize) -> usize {
+    while index > 0 && !text.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+fn ceil_boundary(text: &str, mut index: usize) -> usize {
+    while index < text.len() && !text.is_char_boundary(index) {
+        index += 1;
+    }
+    index
 }
 
 fn search_terms(query: &str) -> Vec<String> {
@@ -656,7 +1004,7 @@ fn matches_terms(terms: &[String], text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{matches_terms, save_answer, search_terms};
+    use super::{matched_excerpt, matches_terms, parse_saved, search_terms, write_saved_answer};
 
     #[test]
     fn content_search_matches_whole_words_and_all_query_terms() {
@@ -664,6 +1012,13 @@ mod tests {
         assert!(matches_terms(&terms, "Email regarding alpha's schedule"));
         assert!(!matches_terms(&terms, "email regarding the same schedule"));
         assert!(!matches_terms(&terms, "email from alpha"));
+    }
+
+    #[test]
+    fn search_excerpt_centres_the_matched_terms() {
+        let text = "The weekly review covered pricing, hiring and the launch plan. We agreed to send the revised scope by Friday and wait for legal before publishing.";
+        let excerpt = matched_excerpt(text, &["scope".into()]);
+        assert!(excerpt.contains("revised scope"));
     }
 
     #[test]
@@ -677,12 +1032,12 @@ mod tests {
                 .as_nanos()
         ));
         std::fs::create_dir_all(&folder).unwrap();
-        let path = save_answer(
-            folder.to_string_lossy().to_string(),
-            "briefing".into(),
-            "Weekly pricing brief".into(),
-            "We decided usage-based pricing.".into(),
-            vec!["Pricing sync".into()],
+        let path = write_saved_answer(
+            &folder.to_string_lossy(),
+            "briefing",
+            "Weekly pricing brief",
+            "We decided usage-based pricing.",
+            &["Pricing sync".into()],
         )
         .unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
@@ -697,6 +1052,11 @@ mod tests {
                 .and_then(|name| name.to_str()),
             Some("Briefing")
         );
+        let item = parse_saved(saved).expect("saved Markdown should rehydrate");
+        assert_eq!(item.title, "Weekly pricing brief");
+        assert_eq!(item.classification, "briefing");
+        assert_eq!(item.sources, vec!["Pricing sync"]);
+        assert!(item.body.contains("usage-based pricing"));
         let _ = std::fs::remove_dir_all(&folder);
     }
 }
@@ -732,6 +1092,7 @@ pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo, String> {
         models_dir: state.models_dir.to_string_lossy().to_string(),
         selected_model: settings.selected_model,
         answer_mode: settings.answer_mode,
+        saved_folder: settings.saved_folder,
     })
 }
 
@@ -792,6 +1153,38 @@ pub async fn open_original(
         .find(|source| source.id == id)
         .ok_or_else(|| "That source is no longer available.".to_string())?;
     open_microsoft_link(&source.location)
+}
+
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    let parsed = Url::parse(&url).map_err(|_| "That sign-in link is invalid.".to_string())?;
+    let host = parsed.host_str().unwrap_or_default();
+    let trusted = host == "microsoft.com"
+        || host.ends_with(".microsoft.com")
+        || host == "login.live.com"
+        || host.ends_with(".microsoftonline.com")
+        || host.ends_with(".live.com");
+    if parsed.scheme() != "https" || !trusted {
+        return Err("Refusing to open an unexpected sign-in link.".into());
+    }
+    open_external_url(parsed.as_str())
+}
+
+fn open_external_url(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open").arg(url).status();
+    #[cfg(target_os = "windows")]
+    let status = Command::new("rundll32")
+        .args(["url.dll,FileProtocolHandler", url])
+        .status();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let status = Command::new("xdg-open").arg(url).status();
+
+    status
+        .map_err(|error| format!("Could not open the sign-in page: {error}"))?
+        .success()
+        .then_some(())
+        .ok_or_else(|| "The sign-in page could not be opened.".to_string())
 }
 
 fn open_microsoft_link(link: &str) -> Result<(), String> {

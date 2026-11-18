@@ -161,50 +161,103 @@ pub fn read_text(path: &str) -> Result<String, String> {
     }
 }
 
-/// Render each page to a temporary image, OCR it, and delete the render. The
-/// OCR text is returned to the caller's memory; the temp folder is always
-/// removed, including when extraction fails partway through.
+/// Render each page to a temporary PPM, OCR it, and delete the render. PDFium
+/// is loaded from its verified local cache, so Poppler is not required. If
+/// PDFium cannot load, fall back to pdftoppm when it is available.
 fn ocr_pdf(path: &Path) -> Result<String, String> {
     let stamp = chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default();
     let dir = std::env::temp_dir().join(format!("frontdesk-ocr-{}-{stamp}", std::process::id()));
     fs::create_dir_all(&dir).map_err(|e| format!("Could not prepare OCR: {e}"))?;
 
-    let prefix = dir.join("page");
-    let result = (|| {
-        let output = Command::new("pdftoppm")
-            .args(["-png", "-r", "170"])
-            .arg(path)
-            .arg(&prefix)
-            .output()
-            .map_err(|e| format!("pdftoppm is not available: {e}"))?;
-        if !output.status.success() {
-            return Err(format!(
-                "pdftoppm failed: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            ));
+    let result = ocr_pdf_pdfium(path, &dir).or_else(|pdfium_error| {
+        if Command::new("pdftoppm").arg("-v").output().is_ok() {
+            ocr_pdf_poppler(path, &dir)
+        } else {
+            Err(format!(
+                "PDF OCR needs PDFium or pdftoppm. PDFium failed: {pdfium_error}"
+            ))
         }
-
-        let mut pages: Vec<PathBuf> = fs::read_dir(&dir)
-            .map_err(|e| format!("Could not list OCR pages: {e}"))?
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|entry| entry.extension().and_then(|e| e.to_str()) == Some("png"))
-            .collect();
-        pages.sort();
-
-        let mut text = String::new();
-        for page in pages {
-            text.push_str(&run_tool(
-                "tesseract",
-                &[page.to_string_lossy().as_ref(), "stdout"],
-            )?);
-            text.push('\u{0c}');
-        }
-        Ok(text)
-    })();
+    });
 
     let _ = fs::remove_dir_all(&dir);
     result
+}
+
+fn ocr_pdf_pdfium(path: &Path, dir: &Path) -> Result<String, String> {
+    use pdfium_render::prelude::{PdfBitmapFormat, PdfRenderConfig};
+
+    let pdfium = pdfium_bundled::bind_pdfium_silent()
+        .map_err(|error| format!("Could not load the local PDF renderer: {error}"))?;
+    let document = pdfium
+        .load_pdf_from_file(path, None)
+        .map_err(|error| format!("Could not open the PDF for OCR: {error}"))?;
+    let config = PdfRenderConfig::new()
+        .set_target_width(1700)
+        .set_format(PdfBitmapFormat::BGRA);
+
+    let mut text = String::new();
+    for index in 0..document.pages().len() {
+        let page = document
+            .pages()
+            .get(index)
+            .map_err(|error| format!("Could not read PDF page {}: {error}", index + 1))?;
+        let bitmap = page
+            .render_with_config(&config)
+            .map_err(|error| format!("Could not render PDF page {}: {error}", index + 1))?;
+        let width = bitmap.width() as usize;
+        let height = bitmap.height() as usize;
+        let rgba = bitmap.as_rgba_bytes();
+        let page_path = dir.join(format!("page-{index:04}.ppm"));
+        write_ppm(&page_path, &rgba, width, height)?;
+        text.push_str(&run_tool(
+            "tesseract",
+            &[page_path.to_string_lossy().as_ref(), "stdout"],
+        )?);
+        text.push('\u{0c}');
+    }
+    Ok(text)
+}
+
+fn write_ppm(path: &Path, rgba: &[u8], width: usize, height: usize) -> Result<(), String> {
+    let mut output = format!("P6\n{width} {height}\n255\n").into_bytes();
+    for pixel in rgba.chunks_exact(4) {
+        output.extend_from_slice(&pixel[..3]);
+    }
+    fs::write(path, output).map_err(|error| format!("Could not write an OCR page: {error}"))
+}
+
+fn ocr_pdf_poppler(path: &Path, dir: &Path) -> Result<String, String> {
+    let prefix = dir.join("page");
+    let output = Command::new("pdftoppm")
+        .args(["-png", "-r", "170"])
+        .arg(path)
+        .arg(&prefix)
+        .output()
+        .map_err(|error| format!("pdftoppm is not available: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "pdftoppm failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+
+    let mut pages: Vec<PathBuf> = fs::read_dir(dir)
+        .map_err(|error| format!("Could not list OCR pages: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|entry| entry.extension().and_then(|e| e.to_str()) == Some("png"))
+        .collect();
+    pages.sort();
+
+    let mut text = String::new();
+    for page in pages {
+        text.push_str(&run_tool(
+            "tesseract",
+            &[page.to_string_lossy().as_ref(), "stdout"],
+        )?);
+        text.push('\u{0c}');
+    }
+    Ok(text)
 }
 
 fn run_tool(program: &str, args: &[&str]) -> Result<String, String> {

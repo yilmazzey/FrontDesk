@@ -20,7 +20,7 @@ pub struct SourceRef {
 }
 
 /// A revocable permission. `scope` is a folder path, fixture marker, or
-/// Microsoft source family. It is the unit the Access page toggles.
+/// Microsoft source family. It is the unit Settings toggles.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceGrant {
@@ -33,6 +33,14 @@ pub struct SourceGrant {
 }
 
 /// The exact text fetched from a source for one answer. Lives in memory only.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub source: SourceRef,
+    /// A short, verbatim snippet around the first matched term. In memory only.
+    pub excerpt: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Excerpt {
@@ -112,4 +120,18 @@ pub struct AppInfo {
     pub selected_model: Option<String>,
     /// `chat | grounded`
     pub answer_mode: String,
+    /// Root folder last used for saved Markdown answers.
+    pub saved_folder: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedItem {
+    pub id: String,
+    pub path: String,
+    pub title: String,
+    pub classification: String,
+    pub saved_at: String,
+    pub body: String,
+    pub sources: Vec<String>,
 }

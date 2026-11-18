@@ -1,30 +1,39 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import DashboardAskDock from '../components/DashboardAskDock'
-import DailyAgenda from '../components/DailyAgenda'
-import TeamPanel from '../components/TeamPanel'
+import AskBar from '../components/AskBar'
+import NextUpCard from '../components/NextUpCard'
+import OpenLoopsCard from '../components/OpenLoopsCard'
+import PeoplePanel from '../components/PeoplePanel'
 import TimelinePreview from '../components/TimelinePreview'
+import { api } from '../lib/ipc'
 import { useAccess } from '../state/access'
+import type { ManagerSnapshot } from '../types/source'
+
+function shortTitle(value: string) {
+  return value.split(' — ')[0]?.trim() || value
+}
 
 export default function Dashboard() {
   const { grants, sources, loading } = useAccess()
   const location = useLocation()
   const navigate = useNavigate()
-  const [askOpen, setAskOpen] = useState(false)
-  const [askSeed, setAskSeed] = useState('')
+  const [focusSignal, setFocusSignal] = useState(0)
+  const [prompt, setPrompt] = useState<{ value: string; id: number } | undefined>()
+  const [snapshot, setSnapshot] = useState<ManagerSnapshot | null>(null)
+  const [snapshotLoading, setSnapshotLoading] = useState(true)
+  const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const now = new Date()
   const calendarConnected = grants.some((grant) => grant.kind === 'calendar')
 
-  const openAsk = (question = '') => {
-    setAskSeed(question)
-    setAskOpen(true)
+  function openAsk(question = '') {
+    if (question) setPrompt({ value: question, id: Date.now() })
+    else setFocusSignal(Date.now())
   }
 
   useEffect(() => {
-    const state = location.state as { askOpen?: boolean; question?: string } | null
-    if (!state?.askOpen) return
-    setAskSeed(state.question ?? '')
-    setAskOpen(true)
+    const state = location.state as { focusAsk?: boolean } | null
+    if (!state?.focusAsk) return
+    setFocusSignal(Date.now())
     navigate('/', { replace: true, state: null })
   }, [location.state, navigate])
 
@@ -32,58 +41,91 @@ export default function Dashboard() {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j') {
         event.preventDefault()
-        setAskSeed('')
-        setAskOpen(true)
+        setFocusSignal(Date.now())
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  useEffect(() => {
+    let active = true
+    setSnapshotLoading(true)
+    setSnapshotError(null)
+    void (async () => {
+      try {
+        const profile = calendarConnected
+          ? await api.getMicrosoftProfile().catch(() => null)
+          : null
+        const next = await api.managerSnapshot(profile?.displayName)
+        if (active) setSnapshot(next)
+      } catch (cause) {
+        if (active) {
+          setSnapshot(null)
+          setSnapshotError(cause instanceof Error ? cause.message : String(cause))
+        }
+      } finally {
+        if (active) setSnapshotLoading(false)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [calendarConnected, sources])
+
+  const suggestions = useMemo(() => {
+    const next = snapshot?.nextUp
+    const due = snapshot?.people.find((person) => person.due)
+    const waiting = snapshot?.openLoops.some((loop) => loop.direction === 'waiting')
+    const title = next ? shortTitle(next.source.title) : ''
+    const prep =
+      title && !/^1:1/i.test(title)
+        ? `Prep me for ${title}`
+        : 'Prep me for my next 1:1'
+    return [
+      prep,
+      'What did I commit to last week?',
+      waiting ? 'What am I waiting on?' : 'Who haven’t I spoken to in a month?',
+      due ? `Catch me up on ${due.name}` : 'Who’s due for a catch-up?',
+    ].slice(0, 4)
+  }, [snapshot])
+
   return (
-    <div className={`page${askOpen ? ' page--ask-open' : ''}`}>
+    <div className="page">
       <header className="pageHead pageHead--dashboard">
         <p className="eyebrow">
           {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
-
-        <button
-          type="button"
-          className="askDockTrigger"
-          onClick={() => openAsk()}
-          aria-label="Ask FrontDesk"
-          title="Ask FrontDesk (⌘J)"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4.5 5.5h15v10h-9l-4 3v-3h-2v-10ZM8.5 9.5h7M8.5 12.5h4.5" />
-          </svg>
-        </button>
       </header>
 
-      <div className="dashboardGrid">
-        <DailyAgenda
-          sources={sources}
-          loading={loading}
+      <AskBar focusSignal={focusSignal} prompt={prompt} suggestions={suggestions} />
+
+      {snapshotError ? <p className="notice notice--bad">{snapshotError}</p> : null}
+
+      <div className="managerTop">
+        <NextUpCard
+          snapshot={snapshot}
+          loading={snapshotLoading || loading}
           calendarConnected={calendarConnected}
           onAsk={openAsk}
         />
-        <TeamPanel
-          sources={sources}
-          loading={loading}
-          calendarConnected={calendarConnected}
+        <OpenLoopsCard
+          snapshot={snapshot}
+          loading={snapshotLoading}
           onAsk={openAsk}
         />
       </div>
+
+      <PeoplePanel
+        snapshot={snapshot}
+        loading={snapshotLoading || loading}
+        calendarConnected={calendarConnected}
+        onAsk={openAsk}
+      />
 
       <div className="dashboardWide">
         <TimelinePreview sources={sources} />
       </div>
-
-      <DashboardAskDock
-        open={askOpen}
-        initialQuestion={askSeed}
-        onClose={() => setAskOpen(false)}
-      />
     </div>
   )
 }

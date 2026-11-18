@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import PathLink from './PathLink'
 import { api, inTauri } from '../lib/ipc'
+import { useAccess } from '../state/access'
 import { useSaved } from '../state/saved'
 import type { SavedClassification } from '../types/source'
 
@@ -21,6 +23,7 @@ type Props = {
 
 export default function SaveAnswerDialog({ open, title, body, sources, onClose }: Props) {
   const { add } = useSaved()
+  const { info, refresh } = useAccess()
   const [folder, setFolder] = useState('')
   const [classification, setClassification] = useState<SavedClassification>('briefing')
   const [busy, setBusy] = useState(false)
@@ -28,12 +31,13 @@ export default function SaveAnswerDialog({ open, title, body, sources, onClose }
 
   useEffect(() => {
     if (!open) return
+    if (!folder && info?.savedFolder) setFolder(info.savedFolder)
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, open])
+  }, [folder, info?.savedFolder, onClose, open])
 
   if (!open) return null
 
@@ -71,6 +75,7 @@ export default function SaveAnswerDialog({ open, title, body, sources, onClose }
         body,
         sources,
       })
+      await refresh()
       onClose()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -100,7 +105,11 @@ export default function SaveAnswerDialog({ open, title, body, sources, onClose }
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => void chooseFolder()}>
           {folder ? 'Change folder' : 'Choose folder'}
         </button>
-        {folder ? <p className="panel__note monoWrap">{folder}</p> : null}
+        {folder ? (
+          <p className="panel__note monoWrap">
+            <PathLink path={folder}>{folder}</PathLink>
+          </p>
+        ) : null}
 
         <div className="saveDialog__classes" role="group" aria-label="Classification">
           {CLASSES.map((item) => (

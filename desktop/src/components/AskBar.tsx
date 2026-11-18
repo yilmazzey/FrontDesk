@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { useLocation } from 'react-router-dom'
-import AskStageRail, { useAskStages } from '../components/AskStageRail'
-import SaveAnswerDialog from '../components/SaveAnswerDialog'
+import SaveAnswerDialog from './SaveAnswerDialog'
 import { api } from '../lib/ipc'
-import { useAccess } from '../state/access'
 import type { Answer } from '../types/source'
+
+const defaultSuggestions = [
+  'Prep me for my next 1:1',
+  'What did I commit to last week?',
+  'Who haven’t I spoken to in a month?',
+]
 
 function when(value: string): string {
   const date = new Date(value)
@@ -18,48 +21,51 @@ function basisLabel(answer: Answer): string {
   return ''
 }
 
-const suggestions = [
-  'Summarise what my files say about attention.',
-  'How should I structure a literature summary?',
-  'What is a good weekly review ritual?',
-]
+type Props = {
+  focusSignal?: number
+  prompt?: { value: string; id: number }
+  suggestions?: string[]
+}
 
-export default function Chat() {
-  const location = useLocation()
-  const { info } = useAccess()
-  const initial = (location.state as { question?: string } | null)?.question ?? ''
-  const [question, setQuestion] = useState(initial)
+export default function AskBar({
+  focusSignal = 0,
+  prompt,
+  suggestions = defaultSuggestions,
+}: Props) {
+  const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveOpen, setSaveOpen] = useState(false)
-  const { active, done, start, finish } = useAskStages()
-  const autoAsked = useRef(false)
-  const mode = info?.answerMode ?? 'chat'
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    if (!focusSignal) return
+    inputRef.current?.focus()
+    inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [focusSignal])
 
   const ask = useCallback(async (value: string) => {
     const trimmed = value.trim()
     if (!trimmed) return
-    start()
     setBusy(true)
     setError(null)
+    setAnswer(null)
     setQuestion(trimmed)
     try {
       setAnswer(await api.ask(trimmed))
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
-      finish()
       setBusy(false)
     }
-  }, [finish, start])
+  }, [])
 
   useEffect(() => {
-    if (initial && !autoAsked.current) {
-      autoAsked.current = true
-      void ask(initial)
-    }
-  }, [ask, initial])
+    if (!prompt) return
+    setQuestion(prompt.value)
+    void ask(prompt.value)
+  }, [ask, prompt])
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -75,38 +81,31 @@ export default function Chat() {
   }
 
   return (
-    <div className="page">
-      <header className="pageHead">
-        <div>
-          <p className="eyebrow">Assistant</p>
-          <h1 className="pageTitle">
-            Ask. It <em>answers.</em>
-          </h1>
-          <p className="pageLede">
-            {mode === 'grounded'
-              ? 'Strict mode is on: every claim is cited to your allowed sources, or the answer is refused.'
-              : 'One assistant for your sources and everything else. It cites your files and connected Microsoft data when it uses them, and labels general knowledge.'}
-          </p>
-        </div>
-      </header>
-
-      <form className="chatForm" onSubmit={onSubmit}>
-        <label className="srOnly" htmlFor="chatQuestion">
-          Ask a question
+    <section className="askBar" aria-label="Ask FrontDesk">
+      <form className="askBar__form" onSubmit={onSubmit}>
+        <label className="srOnly" htmlFor="deskAsk">
+          Ask about your sources
         </label>
         <input
-          id="chatQuestion"
+          ref={inputRef}
+          id="deskAsk"
+          className="askBar__input"
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder="Ask about your files, mail, calendar or notes…"
-          autoFocus
+          placeholder="Ask about your meetings, people or commitments…"
+          autoComplete="off"
         />
-        <button type="submit" className="btn btn--primary" disabled={busy || !question.trim()}>
-          {busy ? 'Thinking…' : 'Ask'}
+        <button
+          type="submit"
+          className="askBar__submit"
+          disabled={busy || !question.trim()}
+          aria-label="Ask"
+        >
+          {busy ? '…' : 'ASK'}
         </button>
       </form>
 
-      <div className="chatSuggestions" aria-label="Example questions">
+      <div className="askBar__suggestions" aria-label="Example questions">
         {suggestions.map((suggestion) => (
           <button
             key={suggestion}
@@ -121,12 +120,7 @@ export default function Chat() {
       </div>
 
       {error ? <p className="notice notice--bad">{error}</p> : null}
-      {busy ? (
-        <div className="askProgress">
-          <AskStageRail active={active} done={done} />
-          <p className="notice">Reading the allowed sources and thinking on this machine…</p>
-        </div>
-      ) : null}
+      {busy ? <p className="notice">Reading the allowed sources and thinking on this machine…</p> : null}
 
       {answer ? (
         <section className={`answer answer--${answer.status}`} aria-live="polite">
@@ -215,6 +209,6 @@ export default function Chat() {
           onClose={() => setSaveOpen(false)}
         />
       ) : null}
-    </div>
+    </section>
   )
 }

@@ -12,6 +12,11 @@ export type SourceRef = {
   people?: string[]
 }
 
+export type SearchHit = {
+  source: SourceRef
+  excerpt: string
+}
+
 export type SourceGrant = {
   id: string
   kind: 'file' | 'mail' | 'calendar' | 'onenote'
@@ -74,6 +79,7 @@ export type AppInfo = {
   modelsDir: string
   selectedModel: string | null
   answerMode: AnswerMode
+  savedFolder: string | null
 }
 
 export type AuditEntry = {
@@ -122,6 +128,19 @@ export type IndexStatus = {
 
 export type SavedClassification = 'briefing' | 'roadmap' | 'todo' | 'decision' | 'reference'
 
+export type ConnectorCheck = {
+  ok: boolean
+  detail: string
+}
+
+export type MicrosoftDiagnostics = {
+  connected: boolean
+  account: string | null
+  mail: ConnectorCheck
+  calendar: ConnectorCheck
+  onenote: ConnectorCheck
+}
+
 export type SavedItem = {
   id: string
   path: string
@@ -148,3 +167,42 @@ export type DeviceCodePrompt = {
 export type DeviceCodePoll =
   | { status: 'pending'; intervalSeconds: number }
   | { status: 'connected' }
+
+export type NoteSnippet = {
+  sourceId: string
+  title: string
+  timestamp: string
+  excerpt: string
+}
+
+export type PersonPulse = {
+  name: string
+  lastMet: string | null
+  nextMet: string | null
+  meetingCount: number
+  due: boolean
+  note: NoteSnippet | null
+}
+
+export type OpenLoop = {
+  id: string
+  direction: 'mine' | 'waiting'
+  text: string
+  person: string | null
+  sourceId: string
+  sourceTitle: string
+  timestamp: string
+}
+
+export type NextUp = {
+  source: SourceRef
+  people: PersonPulse[]
+  actions: OpenLoop[]
+}
+
+export type ManagerSnapshot = {
+  nextUp: NextUp | null
+  people: PersonPulse[]
+  openLoops: OpenLoop[]
+  scannedSources: number
+}

@@ -7,8 +7,8 @@ The repo is a two-workspace monorepo:
 
 | Workspace | What it is | Dev URL |
 | --- | --- | --- |
-| `web/` | Public landing page: zoomable 3D desk, full-bleed slide gallery, notebook, and `/monitor` onboarding. | `http://localhost:5173` |
-| `desktop/` | Tauri app with a local Rust core: Access grants, Notes, Ask/Chat, Search, Settings and audit. | `http://localhost:5174` |
+| `web/` | Public landing page: zoomable 3D desk, full-bleed slide gallery, notebook, and `/monitor` download view. | `http://localhost:5173` |
+| `desktop/` | Tauri app with a local Rust core: Access grants, Timeline, Ask/Chat, Search, Saved, Settings and audit. | `http://localhost:5174` |
 
 The 3D experience is real. The desktop app is now a working local-first MVP: it reads granted
 folders on demand, answers with exact citations, and can run a GGUF model from `models/`. Ask is
@@ -166,18 +166,16 @@ Web:
 - **`/`** — the desk hero. The lamp toggles the scene light; the monitor dollies the camera and
   opens `/monitor`; the notebook opens About us / Pricing / Privacy. Scrolling hands off to the
   full-page gallery.
-- **`/monitor`** — sign-in, permissions, configuration and a **Download / Open Desktop App**
-  button.
-- **`/downloads/frontdesk-desktop.html`** — styled placeholder package page. No binary yet.
+- **`/monitor`** — the desktop download view: platform-aware download, release sizes and
+  install notes only.
 
 Desktop:
 
-- **`/#/`** — Dashboard: live source count, grants, quick ask.
-- **`/#/notes`** — read a granted note from its original on demand.
-- **`/#/chat`** — one assistant: short answers, citations when it uses your files, general knowledge labeled when it does not.
-- **`/#/search`** — searches the contents of files and connected Microsoft sources (no answers).
-- **`/#/access`** — grant/revoke folders, choose answer style and model adapter, inspect metadata-only activity.
-- **`/#/settings`** — connections, model folder, storage, behaviour.
+- **`/#/`** — Dashboard: manager view with the ask bar, next meeting prep, open loops, people and a five-row timeline preview.
+- **`/#/timeline`** — searchable, filterable time view across files, mail, calendar and OneNote; sticky day headers and likely-meeting links.
+- **`/#/search`** — searches source contents and shows matched excerpts, people, dates and category labels (no answers).
+- **`/#/saved`** — saved answers rehydrated from Markdown files in your chosen folder, with category filters, Open file and Reveal in Finder.
+- **`/#/settings`** — sources and access, Microsoft/runtime connections, models, semantic index, storage, activity and about.
 
 ## Project structure
 
@@ -197,11 +195,11 @@ Desktop:
 | `web/src/components/CircularGallery.tsx` | Vendored React Bits WebGL carousel (typed via `.d.ts`). |
 | `web/src/components/ZoomControl.tsx` | Desk zoom buttons, ⌘/Ctrl + wheel and +/− keys. |
 | `web/src/components/Journal.tsx` | Sticky journal bar, gallery, footer. |
-| `web/src/pages/MonitorPage.tsx` | `/monitor` onboarding placeholder. |
+| `web/src/pages/MonitorPage.tsx` | `/monitor`: the desktop download view with platform-aware CTA and release sizes. |
 | `web/src/lib/scroll.ts` | Non-reactive scroll value read by the camera rig. |
 | `web/src/styles.css` | Landing, journal, gallery, monitor and theme CSS. |
 | `web/public/desk.glb` | Optimized model (1.8 MB). |
-| `web/public/downloads/` | Desktop download page, with OS-detecting links to release assets. |
+| `web/public/downloads/` | Legacy download URL. It redirects to `/monitor`. |
 | `web/assets/computer_desk.glb` | Original 50 MB source, kept for re-export. |
 
 ### Desktop
@@ -209,12 +207,16 @@ Desktop:
 | Path | Purpose |
 | --- | --- |
 | `desktop/src/shell/AppShell.tsx` | Sidebar, titlebar, core status, theme switch, ⌘K → Search. |
-| `desktop/src/pages/Dashboard.tsx` | Live sources, grants, quick ask, model status. |
-| `desktop/src/pages/Notes.tsx` | Read a granted note from its original on demand. |
-| `desktop/src/pages/Chat.tsx` | Answer pipeline: chat/sources switch, citations, basis label, clarification, refusal. |
+| `desktop/src/pages/Dashboard.tsx` | Manager dashboard: next-up prep, open loops, people and timeline preview. |
+| `desktop/src/components/AskBar.tsx` | Inline ask input, data-driven suggestions, answer, citations and save action. |
+| `desktop/src/components/NextUpCard.tsx` | Next meeting, attendee notes and open prep actions. |
+| `desktop/src/components/OpenLoopsCard.tsx` | Commitments you owe and things you are waiting on. |
+| `desktop/src/components/PeoplePanel.tsx` | People chips with last meeting and catch-up nudges. |
+| `desktop/src-tauri/src/manager.rs` | Derives the manager snapshot in memory; never persists note text. |
+| `desktop/src/pages/Timeline.tsx` | Unified chronological view across every granted source. |
 | `desktop/src/pages/Search.tsx` | Search contents of granted files and Microsoft sources. |
-| `desktop/src/pages/Access.tsx` | Grant/revoke folders, answer style, model picker, metadata-only audit. |
-| `desktop/src/pages/Settings.tsx` | Connections, models, behaviour, storage, about. |
+| `desktop/src/pages/Saved.tsx` | Saved answers with their source titles. |
+| `desktop/src/pages/Settings.tsx` | Merged access and configuration, Microsoft diagnostics, models, index, storage, activity, about. |
 | `desktop/src/lib/ipc.ts` | Typed `invoke` wrappers + browser-preview fallback. |
 | `desktop/src/state/access.tsx` | Shared grants, sources, models and app info. |
 | `desktop/src/types/source.ts` | Source/Grant/Excerpt/Citation/Answer contracts. |
@@ -311,7 +313,7 @@ commits — they are ignored already.
 - **Web** — any static host needs an SPA fallback rewrite to `index.html` so `/monitor` resolves
   (Netlify `_redirects`, Vercel rewrites, nginx `try_files`). `vite preview` already does this.
 - **Desktop** — build `desktop/`, then layer Tauri on top. The frontend stays hash-routed
-  (`/#/notes`) because the webview has no server-side rewrites.
+  (`/#/timeline`) because the webview has no server-side rewrites.
 
 ## Packaging & distribution
 
@@ -369,8 +371,9 @@ Signing secrets (all optional; without them the bundles are unsigned):
     copy-pasteable package-manager command on Linux where elevation is required.
   - `FRONTDESK_LLAMA_SERVER` still overrides everything, which is useful for a custom build.
 
-`web/public/downloads/frontdesk-desktop.html` detects the visitor's OS/architecture, links the
-matching release asset, and lists sizes. Bump `VERSION` in that page with each app version.
+`web/src/pages/MonitorPage.tsx` detects the visitor's OS/architecture, links the latest release,
+and lists sizes. Update the version pill and sizes there with each app release. The old
+`/downloads/frontdesk-desktop.html` path redirects to `/monitor`.
 
 ## Model credit
 

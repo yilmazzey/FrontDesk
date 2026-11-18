@@ -28,6 +28,7 @@ struct MailMessage {
     parent_folder_id: Option<String>,
     subject: Option<String>,
     from: Option<Recipient>,
+    to_recipients: Option<Vec<Recipient>>,
     received_date_time: Option<String>,
     web_link: Option<String>,
 }
@@ -126,7 +127,7 @@ pub async fn list_graph(
     };
 
     let deleted_items_id = if grants.iter().any(|grant| grant.kind == "mail") {
-        Some(list_deleted_items_id(state, &token).await?)
+        list_deleted_items_id(state, &token).await.ok()
     } else {
         None
     };
@@ -139,12 +140,24 @@ pub async fn list_graph(
                     ("$top", PAGE_SIZE),
                     (
                         "$select",
-                        "id,parentFolderId,subject,from,receivedDateTime,webLink",
+                        "id,parentFolderId,subject,from,toRecipients,receivedDateTime,webLink",
                     ),
                     ("$orderby", "receivedDateTime desc"),
                 ];
-                let messages: GraphCollection<MailMessage> =
-                    microsoft::graph_get(state, &token, "/me/messages", &query).await?;
+                let messages: GraphCollection<MailMessage> = match microsoft::graph_get(
+                    state,
+                    &token,
+                    "/me/mailFolders/inbox/messages",
+                    &query,
+                )
+                .await
+                {
+                    Ok(messages) => messages,
+                    Err(error) => {
+                        eprintln!("Outlook inbox unavailable: {error}");
+                        continue;
+                    }
+                };
                 sources.extend(
                     messages
                         .value
@@ -155,29 +168,55 @@ pub async fn list_graph(
                         .map(|message| {
                             let sender = message
                                 .from
-                                .and_then(|recipient| recipient.email_address)
-                                .and_then(|address| address.name.or(address.address));
+                                .as_ref()
+                                .and_then(|recipient| recipient.email_address.as_ref())
+                                .and_then(|address| {
+                                    address.name.clone().or_else(|| address.address.clone())
+                                });
                             let title = message
                                 .subject
+                                .clone()
                                 .unwrap_or_else(|| "Email without subject".to_string());
                             let title = sender
+                                .clone()
                                 .filter(|sender| !sender.is_empty())
                                 .map(|sender| format!("{title} — {sender}"))
                                 .unwrap_or(title);
+                            let mut people = Vec::new();
+                            if let Some(sender) = sender {
+                                people.push(sender);
+                            }
+                            for recipient in message.to_recipients.unwrap_or_default() {
+                                if let Some(address) = recipient.email_address {
+                                    if let Some(name) = address.name.or(address.address) {
+                                        if !name.is_empty()
+                                            && !people
+                                                .iter()
+                                                .any(|known| known.eq_ignore_ascii_case(&name))
+                                        {
+                                            people.push(name);
+                                        }
+                                    }
+                                }
+                            }
+                            people.truncate(6);
                             make_source(
                                 grant,
                                 "mail",
                                 format!("mail:{}", encode_id(&message.id)),
                                 title,
-                                message.web_link.unwrap_or_else(|| "Outlook".into()),
+                                normalize_mail_link(message.web_link),
                                 message.received_date_time.unwrap_or_default(),
                                 &message.id,
-                                Vec::new(),
+                                people,
                             )
                         }),
                 );
             }
-            "calendar" => sources.extend(list_calendars(state, &token, grant).await?),
+            "calendar" => match list_calendars(state, &token, grant).await {
+                Ok(calendar_sources) => sources.extend(calendar_sources),
+                Err(error) => eprintln!("Calendar unavailable: {error}"),
+            },
             "onenote" => {
                 let query = [
                     ("$top", PAGE_SIZE),
@@ -185,7 +224,13 @@ pub async fn list_graph(
                     ("$orderby", "lastModifiedDateTime desc"),
                 ];
                 let pages: GraphCollection<OneNotePage> =
-                    microsoft::graph_get(state, &token, "/me/onenote/pages", &query).await?;
+                    match microsoft::graph_get(state, &token, "/me/onenote/pages", &query).await {
+                        Ok(pages) => pages,
+                        Err(error) => {
+                            eprintln!("OneNote unavailable: {error}");
+                            continue;
+                        }
+                    };
                 sources.extend(pages.value.into_iter().map(|page| {
                     let location = page
                         .links
@@ -393,6 +438,25 @@ fn make_calendar_source(
     make_source(
         grant, "calendar", id, title, location, modified, &event.id, people,
     )
+}
+
+fn normalize_mail_link(raw: Option<String>) -> String {
+    let Some(raw) = raw else {
+        return "Outlook".into();
+    };
+    let Ok(url) = Url::parse(&raw) else {
+        return raw;
+    };
+    let host = url.host_str().unwrap_or_default();
+    if host.ends_with("outlook.com") || host.ends_with("outlook.office.com") {
+        return raw;
+    }
+    if let Some((_, deeplink)) = url.query_pairs().find(|(key, _)| key == "deeplink") {
+        if deeplink.starts_with("/mail/") {
+            return format!("https://outlook.live.com{deeplink}");
+        }
+    }
+    raw
 }
 
 fn make_source(

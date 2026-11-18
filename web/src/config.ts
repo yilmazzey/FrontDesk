@@ -8,7 +8,6 @@ export const site = {
   tagline: 'A calmer place to work.',
   hackathon: 'Pfizer & Newpage Solutions Hackathon Challenge',
   appHref: '/monitor',
-  downloadHref: '/downloads/frontdesk-desktop.html',
   contactEmail: 'hello@frontdesk.studio',
   updated: 'November 2026',
 } as const

@@ -17,6 +17,9 @@ pub struct Settings {
     /// from the granted sources and refuses otherwise.
     #[serde(default = "default_mode")]
     pub answer_mode: String,
+    /// Root folder where saved Markdown answers live. Metadata only.
+    #[serde(default)]
+    pub saved_folder: Option<String>,
 }
 
 impl Default for Settings {
@@ -24,6 +27,7 @@ impl Default for Settings {
         Self {
             selected_model: None,
             answer_mode: default_mode(),
+            saved_folder: None,
         }
     }
 }
@@ -54,6 +58,11 @@ impl SettingsStore {
 
     pub fn set_mode(&mut self, mode: &str) {
         self.settings.answer_mode = normalize_mode(mode).to_string();
+        self.save();
+    }
+
+    pub fn set_saved_folder(&mut self, folder: &str) {
+        self.settings.saved_folder = Some(folder.trim().to_string());
         self.save();
     }
 

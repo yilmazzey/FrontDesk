@@ -5,23 +5,17 @@ import { useAccess } from '../state/access'
 
 const nav = [
   { to: '/', label: 'Dashboard', end: true, glyph: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
-  { to: '/notes', label: 'Notes', end: false, glyph: 'M5 3.8h9.5L19 8.2v12H5v-16ZM14.2 3.9v4.5H19M8.2 12.4h7.4M8.2 16h5.2' },
   { to: '/timeline', label: 'Timeline', end: false, glyph: 'M12 4.2a7.8 7.8 0 1 0 0 15.6 7.8 7.8 0 0 0 0-15.6ZM12 8v4.4l3 1.8' },
-  { to: '/chat', label: 'Ask', end: false, glyph: 'M4.5 5.5h15v10h-9l-4 3v-3h-2v-10ZM8.5 9.5h7M8.5 12.5h4.5' },
   { to: '/saved', label: 'Saved', end: false, glyph: 'M6 4h12v16l-6-4-6 4V4Z' },
   { to: '/search', label: 'Search', end: false, glyph: 'M11 4.2a6.8 6.8 0 1 0 0 13.6 6.8 6.8 0 0 0 0-13.6ZM16 16l4 4' },
-  { to: '/access', label: 'Access', end: false, glyph: 'M12 4.2 19 7v5.2c0 4.1-2.8 6.6-7 7.6-4.2-1-7-3.5-7-7.6V7l7-2.8ZM9.2 11.8l2 2 3.6-3.8' },
   { to: '/settings', label: 'Settings', end: false, glyph: 'M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2ZM12 3v2.2M12 18.8V21M4.6 7.8l1.9 1.1M17.5 15.1l1.9 1.1M4.6 16.2l1.9-1.1M17.5 8.9l1.9-1.1' },
 ]
 
 const titles: Record<string, string> = {
   '/': 'Dashboard',
-  '/notes': 'Notes',
   '/timeline': 'Timeline',
-  '/chat': 'Ask',
   '/saved': 'Saved',
   '/search': 'Search',
-  '/access': 'Access',
   '/settings': 'Settings',
 }
 
@@ -67,7 +61,7 @@ export function AppShell() {
     let unlisten: Array<() => void> = []
     void import('@tauri-apps/api/event').then(async ({ listen }) => {
       const offAsk = await listen('frontdesk-open-ask', () =>
-        navigate('/', { state: { askOpen: true, at: Date.now() } }),
+        navigate('/', { state: { focusAsk: true, at: Date.now() } }),
       )
       const offHome = await listen('frontdesk-open-home', () => navigate('/'))
       if (cancelled) {
@@ -158,23 +152,28 @@ export function AppShell() {
             type="button"
             className="themeSwitch"
             onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-            aria-label="Toggle light mode"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            <span className={`themeSwitch__track${theme === 'light' ? ' is-on' : ''}`}>
-              <span className="themeSwitch__knob" />
+            <svg className="themeSwitch__icon" viewBox="0 0 24 24" aria-hidden="true">
+              {theme === 'dark' ? (
+                <>
+                  <circle cx="12" cy="12" r="4.2" />
+                  <path d="M12 3.2v2.1M12 18.7v2.1M4.9 4.9l1.5 1.5M17.6 17.6l1.5 1.5M3.2 12h2.1M18.7 12h2.1M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" />
+                </>
+              ) : (
+                <path d="M19.2 14.4A7.4 7.4 0 0 1 9.6 4.8 7.6 7.6 0 1 0 19.2 14.4Z" />
+              )}
+            </svg>
+            <span className="themeSwitch__text">
+              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
             </span>
-            <span className="themeSwitch__text">{theme === 'light' ? 'Daylight' : 'Lamplight'}</span>
           </button>
         </div>
       </aside>
 
       <div className="work">
         <header className="titlebar">
-          <div className="titlebar__lights" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
           <span className="titlebar__title">{titles[pathname] ?? 'FrontDesk'}</span>
           <span className="titlebar__status">
             <span className="titlebar__statusDot" aria-hidden="true" />

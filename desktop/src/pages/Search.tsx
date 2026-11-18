@@ -1,40 +1,38 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/ipc'
+import { category, categoryLabel, type TimelineFilter } from '../lib/timeline'
 import { useAccess } from '../state/access'
-import type { SourceRef } from '../types/source'
+import type { SearchHit, SourceRef } from '../types/source'
 
 function when(value: string): string {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString()
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-type Filter = 'all' | 'notes' | 'scans' | 'mail' | 'calendar' | 'onenote'
-
-function category(source: SourceRef): Exclude<Filter, 'all'> {
-  if (source.kind === 'mail' || source.kind === 'calendar' || source.kind === 'onenote') {
-    return source.kind
-  }
-  if (source.kind === 'ocr' || source.location.toLowerCase().endsWith('.pdf')) return 'scans'
-  return 'notes'
-}
-
-const filters: Array<{ id: Filter; label: string }> = [
+const filters: Array<{ id: TimelineFilter; label: string }> = [
   { id: 'all', label: 'All' },
+  { id: 'meetings', label: 'Meetings' },
   { id: 'notes', label: 'Notes' },
   { id: 'scans', label: 'Scans' },
   { id: 'mail', label: 'Mail' },
-  { id: 'calendar', label: 'Calendar' },
   { id: 'onenote', label: 'OneNote' },
 ]
+
+function keepFilter(hit: SearchHit, filter: TimelineFilter) {
+  return filter === 'all' || category(hit.source) === filter
+}
 
 export default function Search() {
   const { sources } = useAccess()
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
-  const [results, setResults] = useState<SourceRef[]>([])
+  const [filter, setFilter] = useState<TimelineFilter>('all')
+  const [results, setResults] = useState<SearchHit[]>([])
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [openError, setOpenError] = useState<string | null>(null)
 
   const candidates = useMemo(
     () => sources.filter((source) => filter === 'all' || category(source) === filter),
@@ -46,7 +44,7 @@ export default function Search() {
     const timer = setTimeout(async () => {
       setSearchError(null)
       if (!query.trim()) {
-        setResults(candidates)
+        setResults(candidates.map((source) => ({ source, excerpt: '' })))
         setSearching(false)
         return
       }
@@ -55,8 +53,7 @@ export default function Search() {
       try {
         const found = await api.searchSources(query.trim())
         if (active) {
-          const allowed = new Set(candidates.map((source) => source.id))
-          setResults(found.filter((source) => allowed.has(source.id)))
+          setResults(found.filter((hit) => keepFilter(hit, filter)))
         }
       } catch (cause) {
         if (active) {
@@ -72,7 +69,16 @@ export default function Search() {
       active = false
       clearTimeout(timer)
     }
-  }, [candidates, query])
+  }, [candidates, filter, query])
+
+  async function open(source: SourceRef) {
+    setOpenError(null)
+    try {
+      await api.openOriginal(source.id)
+    } catch (cause) {
+      setOpenError(cause instanceof Error ? cause.message : String(cause))
+    }
+  }
 
   return (
     <div className="page page--flush">
@@ -84,7 +90,7 @@ export default function Search() {
           </h1>
           <p className="pageLede pageLede--tight">
             Search the contents of notes, scans, mail, calendar and OneNote. No answers here —{' '}
-            <Link to="/chat">ask the assistant</Link> when you want one.
+            <Link to="/" state={{ focusAsk: true }}>ask the assistant</Link> when you want one.
           </p>
         </div>
       </header>
@@ -121,30 +127,41 @@ export default function Search() {
       </div>
 
       {searchError ? <p className="notice notice--bad">{searchError}</p> : null}
+      {openError ? <p className="notice notice--bad">{openError}</p> : null}
 
       {searchError ? null : results.length ? (
         <ul className="results">
-          {results.map((source) => (
-            <li key={source.id} className="result">
-              <div className="result__head">
-                <h2 className="result__title">{source.title}</h2>
-                <span className="tag">{source.kind}</span>
-              </div>
-              <p className="result__body">{source.location}</p>
-              <div className="result__foot">
-                <span>As of {when(source.modified)}</span>
-                <span className="result__div" aria-hidden="true" />
-                <span>Read on demand</span>
-                <span className="result__cite">Original stays where it is</span>
-              </div>
-            </li>
-          ))}
+          {results.map((hit) => {
+            const people = hit.source.people?.filter(Boolean) ?? []
+            return (
+              <li key={hit.source.id}>
+                <button
+                  type="button"
+                  className="result result--button"
+                  onClick={() => void open(hit.source)}
+                  aria-label={`Open ${hit.source.title}`}
+                >
+                  <span className="result__head">
+                    <span className="result__title">{hit.source.title}</span>
+                    <span className="tag">{categoryLabel(hit.source)}</span>
+                  </span>
+                  {hit.excerpt ? <span className="result__body">{hit.excerpt}</span> : null}
+                  <span className="result__foot">
+                    <span>{people.length ? people.slice(0, 3).join(', ') : categoryLabel(hit.source)}</span>
+                    <span className="result__div" aria-hidden="true" />
+                    <span>{when(hit.source.modified)}</span>
+                    <span className="result__go">Open ↗</span>
+                  </span>
+                </button>
+              </li>
+            )
+          })}
         </ul>
       ) : (
         <div className="empty">
           <p className="empty__title">Nothing on the desk matches that.</p>
           <p>
-            The browser only lists what you allow. <Link to="/access">Grant another source</Link>{' '}
+            The browser only lists what you allow. <Link to="/settings">Grant another source</Link>{' '}
             or try a broader word.
           </p>
         </div>

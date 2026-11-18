@@ -14,15 +14,12 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit FrontDesk", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&ask, &open, &quit])?;
 
+    let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
     let builder = TrayIconBuilder::new()
-        .icon(
-            app.default_window_icon()
-                .cloned()
-                .expect("FrontDesk needs a window icon for the tray"),
-        )
+        .icon(tray_icon)
         .tooltip("FrontDesk")
         .menu(&menu)
-        // On Linux the left click opens the menu; elsewhere it opens the chat.
+        // On Linux the left click opens the menu; elsewhere it focuses the ask bar.
         .show_menu_on_left_click(cfg!(target_os = "linux"))
         .on_menu_event(|app, event| match event.id.as_ref() {
             "ask" => open_route(app, "frontdesk-open-ask"),

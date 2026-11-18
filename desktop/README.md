@@ -19,25 +19,30 @@ npm run dev:desktop   # browser preview only, no file access
 
 ## What works
 
-- **Dashboard** — daily agenda from the live calendar, a team list derived from
-  live attendees, and a ⌘J / top-right Ask overlay. The team list is metadata
-  only and is never persisted.
-- **Access** — grant a folder, revoke it, choose answer style and GGUF model,
-  inspect the metadata-only activity log.
-- **Notes** — read a granted Markdown/text/PDF/scan from its original.
-- **Ask** — one assistant. It prefers your retrieved files, cites them when it
-  uses them, and otherwise answers from general knowledge with a clear label.
-  Strict mode drops uncited claims and returns `insufficient` instead.
+- **Dashboard** — manager-first: a simple ask bar, **Next up** with attendee
+  notes and open actions, **Open loops** for commitments you owe and things you
+  are waiting on, people chips with catch-up nudges, and a five-row timeline
+  preview. Open loops are derived from recent notes in memory; note text is
+  never persisted.
+- **Ask** — the dashboard ask bar. It prefers your retrieved files, cites them
+  when it uses them, and otherwise answers from general knowledge with a clear
+  label. Strict mode drops uncited claims and returns `insufficient` instead.
+- **Timeline** — files, mail, calendar events and OneNote pages in one
+  chronological view.
 - **Search** — searches the contents of granted files, Outlook mail, calendar
   events and OneNote pages, with kind filters and no answer box.
-- **Settings** — model folder, adapter, storage, connections.
+- **Saved** — saved answers with their source titles.
+- **Settings** — merged access and configuration: folder grants, Microsoft
+  connection and per-connector diagnostics, runtime helpers, answer style, GGUF
+  model, semantic index, storage, activity log and about.
 
-PDF text is extracted in-process; image OCR uses `tesseract` and `poppler`.
-Markdown and text need neither.
+PDF text is extracted in-process. Scanned PDFs are rasterised with PDFium and
+read with `tesseract`; Poppler is only an optional fallback. Markdown and text
+need neither.
 
 ## Models
 
-Drop `.gguf` files into `../models/`. Select one on Access or Settings, then
+Drop `.gguf` files into `../models/`. Select one in Settings, then
 press **Load / warm model**. FrontDesk imports it into Ollama first; if Ollama
 is unavailable, it uses the managed llama.cpp fallback. **Extractive** answers
 instantly with no model.
@@ -60,8 +65,8 @@ src-tauri/src/
 ## Tray
 
 The app adds a small menu-bar icon on macOS and a system-tray icon on Windows
-and Linux. **Ask FrontDesk** opens the chat; **Open FrontDesk** shows the
-dashboard; **Quit FrontDesk** exits. Closing the window hides it to the tray
+and Linux. **Ask FrontDesk** opens the dashboard and focuses the ask bar;
+**Open FrontDesk** shows the dashboard; **Quit FrontDesk** exits. Closing the window hides it to the tray
 instead of quitting. Linux tray click events are not exposed by AppIndicator,
 so the menu is the entry point there.
 
@@ -69,7 +74,7 @@ so the menu is the entry point there.
 
 `src-tauri/` is runnable now: CLI, `lib`/`main` split, `ping` command,
 capability file, icons and `Cargo.lock` are in place. The frontend is
-hash-routed (`/#/notes`) because the webview has no server-side rewrites.
+hash-routed (`/#/timeline`) because the webview has no server-side rewrites.
 
 ## Microsoft Graph
 
@@ -78,5 +83,6 @@ from a public-client Microsoft Entra app with device-code flow enabled, then
 restart the app. The app requests delegated `User.Read`, `Mail.Read`,
 `Calendars.Read`, `Notes.Read` and `offline_access` permissions. Connect from
 **Settings**; mail, calendar and OneNote are read-only and can be individually
-revoked from **Access**. Sign-in tokens remain in memory and require reconnecting
+revoked there too. Settings reports whether each connector is reachable, empty
+or returning an error. Sign-in tokens remain in memory and require reconnecting
 after an app restart.

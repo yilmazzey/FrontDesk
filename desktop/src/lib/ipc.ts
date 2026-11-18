@@ -9,12 +9,18 @@ import type {
   DeviceCodePrompt,
   Excerpt,
   IndexStatus,
+  ManagerSnapshot,
+  MicrosoftDiagnostics,
   ModelRef,
   MicrosoftProfile,
+  OpenLoop,
+  PersonPulse,
   RuntimeKind,
   RuntimeProgress,
   RuntimeStatus,
   SavedClassification,
+  SavedItem,
+  SearchHit,
   SourceGrant,
   SourceRef,
 } from '../types/source'
@@ -26,12 +32,17 @@ const FIXTURE: { id: string; title: string; body: string }[] = [
   {
     id: 'welcome',
     title: 'Welcome to FrontDesk',
-    body: 'FrontDesk is a local-first workspace. Nothing is copied. The assistant reads only the sources you currently allow, on the fly. Knowledge stays where it was saved, and the original file remains the source of truth. Honest by design: if an answer is not in the allowed notes, FrontDesk says so plainly and does not guess. Every claim must be tied to a source. You can revoke access at any time from the Access page.',
+    body: 'FrontDesk is a local-first workspace. Nothing is copied. The assistant reads only the sources you currently allow, on the fly. Knowledge stays where it was saved, and the original file remains the source of truth. Honest by design: if an answer is not in the allowed notes, FrontDesk says so plainly and does not guess. Every claim must be tied to a source. You can revoke access at any time from Settings.',
   },
   {
     id: 'protocol',
     title: 'Study protocol — working notes',
     body: 'The protocol review is scheduled for Friday at 09:30. The consent wording needs a second pass before the site sync. The retention window for scanned documents is seven years. The second site does not need its own approval, but the local ethics contact must be notified. Scanned patient pages are processed with OCR and the text is kept only for the duration of the answer.',
+  },
+  {
+    id: 'manager-one-on-one',
+    title: '1:1 — Priya Shah — working notes',
+    body: 'Priya owns the launch scope. She wants the rollout split into two phases. I promised to send the revised scope by Friday. Waiting on Priya for the budget sign-off. Follow up with Marcus on the vendor shortlist. Action: ask Marcus for the updated vendor shortlist by Monday.',
   },
   {
     id: 'citations',
@@ -65,6 +76,138 @@ function browserSources(): SourceRef[] {
     modified: now(),
     hash: String(note.body.length),
   }))
+}
+
+function browserManagerSnapshot(): ManagerSnapshot {
+  const next = new Date()
+  next.setHours(10, 0, 0, 0)
+  if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1)
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString()
+  const timestamp = daysAgo(2)
+  const managerNote = {
+    sourceId: 'fixture:manager-one-on-one',
+    title: '1:1 — Priya Shah — working notes',
+    timestamp,
+    excerpt: 'Priya owns the launch scope. I promised to send the revised scope by Friday.',
+  }
+  const openLoops: OpenLoop[] = [
+    {
+      id: 'demo:loop:1',
+      direction: 'mine',
+      text: 'Send Priya the revised launch scope by Friday.',
+      person: 'Priya Shah',
+      sourceId: 'fixture:manager-one-on-one',
+      sourceTitle: '1:1 — Priya Shah — working notes',
+      timestamp,
+    },
+    {
+      id: 'demo:loop:2',
+      direction: 'waiting',
+      text: 'Waiting on Priya for the budget sign-off.',
+      person: 'Priya Shah',
+      sourceId: 'fixture:manager-one-on-one',
+      sourceTitle: '1:1 — Priya Shah — working notes',
+      timestamp,
+    },
+    {
+      id: 'demo:loop:3',
+      direction: 'mine',
+      text: 'Ask Marcus for the updated vendor shortlist by Monday.',
+      person: 'Marcus Lee',
+      sourceId: 'fixture:manager-one-on-one',
+      sourceTitle: '1:1 — Priya Shah — working notes',
+      timestamp,
+    },
+    {
+      id: 'demo:loop:4',
+      direction: 'waiting',
+      text: 'Waiting on Legal for the data-processing addendum.',
+      person: null,
+      sourceId: 'mail:legal',
+      sourceTitle: 'Legal review — data-processing addendum',
+      timestamp: daysAgo(5),
+    },
+    {
+      id: 'demo:loop:5',
+      direction: 'mine',
+      text: 'Share the hiring plan with Elena before Thursday.',
+      person: 'Elena Rossi',
+      sourceId: 'fixture:hiring',
+      sourceTitle: 'Hiring plan — first draft',
+      timestamp: daysAgo(8),
+    },
+  ]
+  const people: PersonPulse[] = [
+    {
+      name: 'Marcus Lee',
+      lastMet: daysAgo(43),
+      nextMet: next.toISOString(),
+      meetingCount: 6,
+      due: true,
+      note: {
+        sourceId: 'fixture:manager-one-on-one',
+        title: '1:1 — Priya Shah — working notes',
+        timestamp,
+        excerpt: 'Follow up with Marcus on the vendor shortlist before the Tuesday review.',
+      },
+    },
+    {
+      name: 'Priya Shah',
+      lastMet: daysAgo(12),
+      nextMet: next.toISOString(),
+      meetingCount: 9,
+      due: false,
+      note: managerNote,
+    },
+    {
+      name: 'Elena Rossi',
+      lastMet: daysAgo(8),
+      nextMet: null,
+      meetingCount: 4,
+      due: false,
+      note: {
+        sourceId: 'fixture:hiring',
+        title: 'Hiring plan — first draft',
+        timestamp: daysAgo(8),
+        excerpt: 'Elena asked for the hiring plan to include a second designer.',
+      },
+    },
+    {
+      name: 'Sam Okafor',
+      lastMet: daysAgo(61),
+      nextMet: null,
+      meetingCount: 3,
+      due: true,
+      note: {
+        sourceId: 'mail:budget',
+        title: 'Q1 budget risk',
+        timestamp: daysAgo(20),
+        excerpt: 'Sam flagged the Q1 budget risk and wants a decision before the next board pack.',
+      },
+    },
+  ]
+
+  return {
+    nextUp: {
+      source: {
+        id: 'demo:calendar:1',
+        grantId: 'demo:calendar',
+        kind: 'calendar',
+        title: 'Launch review — Priya Shah & Marcus Lee',
+        location: 'Microsoft Calendar',
+        modified: next.toISOString(),
+        hash: 'demo',
+        people: ['Priya Shah', 'Marcus Lee'],
+      },
+      people: people.filter((person) => ['Priya Shah', 'Marcus Lee'].includes(person.name)),
+      actions: openLoops
+        .filter((loop) => loop.person === 'Priya Shah' || loop.person === 'Marcus Lee')
+        .slice(0, 3),
+    },
+    people,
+    openLoops,
+    scannedSources: 4,
+  }
 }
 
 function words(value: string): string[] {
@@ -213,6 +356,9 @@ export const api = {
   getMicrosoftProfile: async (): Promise<MicrosoftProfile | null> =>
     inTauri() ? call<MicrosoftProfile | null>('get_profile') : null,
 
+  microsoftDiagnostics: async (): Promise<MicrosoftDiagnostics | null> =>
+    inTauri() ? call<MicrosoftDiagnostics>('microsoft_diagnostics') : null,
+
   grantMicrosoftSources: async (): Promise<SourceGrant[]> => {
     if (inTauri()) return call<SourceGrant[]>('grant_microsoft_sources')
     throw new Error('Microsoft source access needs the desktop app.')
@@ -232,18 +378,35 @@ export const api = {
   listSources: async (): Promise<SourceRef[]> =>
     inTauri() ? call<SourceRef[]>('list_sources') : browserSources(),
 
-  searchSources: async (query: string): Promise<SourceRef[]> => {
-    if (inTauri()) return call<SourceRef[]>('search_sources', { query })
+  searchSources: async (query: string): Promise<SearchHit[]> => {
+    if (inTauri()) return call<SearchHit[]>('search_sources', { query })
     const terms = query.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
     if (!terms.length) return []
     const sources = browserSources()
     const excerpts = await Promise.all(sources.map((source) => api.readSource(source.id)))
-    return sources.filter((source, index) => {
-      const words = `${source.title} ${source.location} ${source.kind} ${excerpts[index].text}`
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-      return terms.every((term) => words.includes(term))
-    })
+    return sources
+      .map((source, index) => ({ source, text: excerpts[index].text }))
+      .filter(({ source, text }) => {
+        const words = `${source.title} ${source.location} ${source.kind} ${text}`
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+        return terms.every((term) => words.includes(term))
+      })
+      .map(({ source, text }) => {
+        const lower = text.toLowerCase()
+        const offset = terms
+          .map((term) => lower.indexOf(term))
+          .filter((index) => index >= 0)
+          .sort((left, right) => left - right)[0] ?? 0
+        const start = Math.max(0, offset - 120)
+        const end = Math.min(text.length, offset + 300)
+        return {
+          source,
+          excerpt: `${start > 0 ? '…' : ''}${text.slice(start, end).replace(/\s+/g, ' ').trim()}${
+            end < text.length ? '…' : ''
+          }`,
+        }
+      })
   },
 
   readSource: async (id: string): Promise<Excerpt> => {
@@ -263,6 +426,11 @@ export const api = {
   ask: async (question: string): Promise<Answer> =>
     inTauri() ? call<Answer>('ask', { question }) : browserAsk(question),
 
+  managerSnapshot: async (selfName?: string | null): Promise<ManagerSnapshot> =>
+    inTauri()
+      ? call<ManagerSnapshot>('manager_snapshot', { selfName: selfName ?? null })
+      : browserManagerSnapshot(),
+
   listModels: async (): Promise<ModelRef[]> =>
     inTauri() ? call<ModelRef[]>('list_models') : [],
 
@@ -273,6 +441,7 @@ export const api = {
       modelsDir: 'browser://models',
       selectedModel: id,
       answerMode: browserMode,
+      savedFolder: null,
     }
   },
 
@@ -284,6 +453,7 @@ export const api = {
       modelsDir: 'browser://models',
       selectedModel: null,
       answerMode: browserMode,
+      savedFolder: null,
     }
   },
 
@@ -321,11 +491,6 @@ export const api = {
     return listen<RuntimeProgress>('runtime-progress', (event) => handler(event.payload))
   },
 
-  onAskStage: async (handler: (stage: string) => void): Promise<() => void> => {
-    if (!inTauri()) return () => {}
-    const { listen } = await import('@tauri-apps/api/event')
-    return listen<{ stage: string }>('ask-stage', (event) => handler(event.payload.stage))
-  },
 
   appInfo: async (): Promise<AppInfo> =>
     inTauri()
@@ -335,6 +500,7 @@ export const api = {
           modelsDir: 'browser://models',
           selectedModel: null,
           answerMode: browserMode,
+          savedFolder: null,
         },
 
   listAudit: async (limit = 50): Promise<AuditEntry[]> =>
@@ -359,7 +525,24 @@ export const api = {
     throw new Error('Saving an answer needs the desktop app.')
   },
 
+  setSavedFolder: async (folder: string): Promise<string> => {
+    if (inTauri()) return call<string>('set_saved_folder', { folder })
+    throw new Error('The folder picker needs the desktop app.')
+  },
+
+  listSaved: async (): Promise<SavedItem[]> =>
+    inTauri() ? call<SavedItem[]>('list_saved') : [],
+
   openSaved: async (path: string): Promise<void> => {
     if (inTauri()) await call<void>('open_saved', { path })
+  },
+
+  revealPath: async (path: string): Promise<void> => {
+    if (inTauri()) await call<void>('reveal_path', { path })
+  },
+
+  openUrl: async (url: string): Promise<void> => {
+    if (inTauri()) await call<void>('open_url', { url })
+    else window.open(url, '_blank', 'noopener,noreferrer')
   },
 }
