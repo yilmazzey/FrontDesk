@@ -17,7 +17,13 @@
     "package:desktop": "npm run tauri -w desktop -- build",
     "package:desktop:debug": "npm run tauri -w desktop -- build --debug",
     "preview:web": "npm run preview -w web",
-    "preview:desktop": "npm run preview -w desktop"
+    "preview:desktop": "npm run preview -w desktop",
+    "lint": "npm run typecheck && cargo clippy --manifest-path desktop/src-tauri/Cargo.toml -- -D warnings",
+    "typecheck": "tsc -b web/tsconfig.json desktop/tsconfig.json --pretty false",
+    "test": "cargo test --manifest-path desktop/src-tauri/Cargo.toml",
+    "doctor": "node scripts/doctor.mjs",
+    "version:sync": "node scripts/sync-version.mjs",
+    "version:check": "node scripts/sync-version.mjs --check"
   },
   "engines": {
     "node": ">=20"

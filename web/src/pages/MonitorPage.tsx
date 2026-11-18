@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { site } from '../config'
 
-const VERSION = '0.1.0'
+const VERSION = __APP_VERSION__
 const BASE = 'https://github.com/yilmazzey/FrontDesk/releases/latest/download'
 const assets = {
   'mac-arm': { file: `FrontDesk_${VERSION}_aarch64.dmg`, label: 'macOS (Apple Silicon)' },
@@ -85,7 +85,7 @@ export default function MonitorPage() {
             >
               All releases <span aria-hidden="true">→</span>
             </a>
-            <span className="monitorDownload__pill">v0.1.0 · unsigned preview</span>
+            <span className="monitorDownload__pill">v{__APP_VERSION__} · unsigned preview</span>
           </div>
 
           <p className="monitorDownload__notice">

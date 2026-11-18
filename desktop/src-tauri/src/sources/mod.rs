@@ -1,6 +1,7 @@
 pub mod fixture;
 pub mod local_fs;
 pub mod m365;
+pub mod web;
 
 use sha2::{Digest, Sha256};
 

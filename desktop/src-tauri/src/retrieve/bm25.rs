@@ -18,9 +18,18 @@ const STOPWORDS: &[&str] = &[
 ];
 
 fn tokens(text: &str) -> Vec<String> {
-    text.to_lowercase()
+    let normalized = text
+        .to_lowercase()
+        .replace("1:1", "oneonone")
+        .replace("1-on-1", "oneonone")
+        .replace("1 on 1", "oneonone");
+    normalized
         .split(|c: char| !c.is_alphanumeric())
-        .filter(|t| t.len() >= 2 && !STOPWORDS.contains(t))
+        .filter(|t| {
+            !t.is_empty()
+                && (t.len() >= 2 || t.chars().all(|c| c.is_ascii_digit()))
+                && !STOPWORDS.contains(t)
+        })
         .map(|t| t.to_string())
         .collect()
 }

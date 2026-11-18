@@ -1280,7 +1280,6 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tokio",
- "ureq 2.12.1",
  "walkdir",
  "zip",
 ]
@@ -1292,6 +1291,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1f9e3d69d39e4862ffed03ed071a76f9a13ba1d9109d355b0f0aa6b15e393c4"
 dependencies = [
  "futures-core",
+ "futures-sink",
 ]
 
 [[package]]
@@ -1723,7 +1723,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
- "ureq 3.5.2",
+ "ureq",
  "windows-sys 0.61.2",
 ]
 
@@ -1834,7 +1834,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots 1.0.12",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2924,7 +2924,7 @@ dependencies = [
  "ort-sys",
  "smallvec",
  "tracing",
- "ureq 3.5.2",
+ "ureq",
 ]
 
 [[package]]
@@ -2935,7 +2935,7 @@ checksum = "8d22b0417f1838db5a3ac0b3f98dfe39f6fb73624aa0a27c6bbb5040b9c7db2b"
 dependencies = [
  "hmac-sha256",
  "lzma-rust2",
- "ureq 3.5.2",
+ "ureq",
 ]
 
 [[package]]
@@ -3025,7 +3025,7 @@ dependencies = [
  "sha2 0.11.1",
  "tar",
  "thiserror 2.0.21",
- "ureq 3.5.2",
+ "ureq",
 ]
 
 [[package]]
@@ -3601,6 +3601,7 @@ checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "http",
@@ -3631,7 +3632,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams 0.4.2",
  "web-sys",
- "webpki-roots 1.0.12",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -5189,24 +5190,6 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "ureq"
-version = "2.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
-dependencies = [
- "base64 0.22.1",
- "flate2",
- "log",
- "once_cell",
- "rustls",
- "rustls-pki-types",
- "serde",
- "serde_json",
- "url",
- "webpki-roots 0.26.11",
-]
-
-[[package]]
-name = "ureq"
 version = "3.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ac5cecf619ca81f66a96482db09687c9f7465af65f4300a8c30cca05bd5a59d"
@@ -5222,7 +5205,7 @@ dependencies = [
  "serde_json",
  "ureq-proto",
  "utf8-zero",
- "webpki-roots 1.0.12",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -5552,15 +5535,6 @@ dependencies = [
  "pkg-config",
  "soup3-sys",
  "system-deps",
-]
-
-[[package]]
-name = "webpki-roots"
-version = "0.26.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "521bc38abb08001b01866da9f51eb7c5d647a19260e00054a8c7fd5f9e57f7a9"
-dependencies = [
- "webpki-roots 1.0.12",
 ]
 
 [[package]]

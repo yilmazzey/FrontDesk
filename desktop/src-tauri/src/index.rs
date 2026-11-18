@@ -367,12 +367,14 @@ fn encode_embedding(embedding: &[f32]) -> Vec<u8> {
 }
 
 fn decode_embedding(bytes: &[u8]) -> Result<Vec<f32>, String> {
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return Err("A stored embedding is malformed.".into());
     }
     Ok(bytes
-        .chunks_exact(4)
-        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|chunk| f32::from_le_bytes(*chunk))
         .collect())
 }
 

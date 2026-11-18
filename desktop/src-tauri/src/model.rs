@@ -9,6 +9,8 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
+use crate::contracts::ChatTurn;
+
 use crate::contracts::ModelRef;
 
 /// Ollama is preferred so existing local model setups keep working. If it is
@@ -105,19 +107,25 @@ pub fn warm(models_dir: &Path, id: &str) -> Result<String, String> {
     }
 }
 
-pub fn generate(models_dir: &Path, id: &str, system: &str, user: &str) -> Result<String, String> {
+pub fn generate(
+    models_dir: &Path,
+    id: &str,
+    system: &str,
+    user: &str,
+    history: &[ChatTurn],
+) -> Result<String, String> {
     let path = path_for(models_dir, id).ok_or_else(|| format!("Model not found: {id}"))?;
 
     match ensure_server() {
         Ok(()) => {
             let name = ensure_model(&path)?;
-            generate_ollama(&name, system, user)
+            generate_ollama(&name, system, user, history)
         }
         Err(ollama_error) => {
             ensure_llama_fallback();
             if llama_available() {
                 let base = ensure_llama(&path)?;
-                generate_llama(&base, system, user)
+                generate_llama(&base, system, user, history)
             } else {
                 Err(ollama_error)
             }
@@ -125,29 +133,47 @@ pub fn generate(models_dir: &Path, id: &str, system: &str, user: &str) -> Result
     }
 }
 
-fn generate_ollama(model: &str, system: &str, user: &str) -> Result<String, String> {
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_secs(3))
-        .timeout_read(Duration::from_secs(300))
-        .build();
+fn chat_messages(system: &str, user: &str, history: &[ChatTurn]) -> Value {
+    let mut messages = vec![json!({ "role": "system", "content": system })];
+    let recent = history
+        .iter()
+        .filter(|turn| turn.role == "user" || turn.role == "assistant")
+        .rev()
+        .take(6)
+        .collect::<Vec<_>>();
+    for turn in recent.into_iter().rev() {
+        messages.push(json!({ "role": turn.role, "content": turn.content }));
+    }
+    messages.push(json!({ "role": "user", "content": user }));
+    Value::Array(messages)
+}
+
+fn generate_ollama(
+    model: &str,
+    system: &str,
+    user: &str,
+    history: &[ChatTurn],
+) -> Result<String, String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("Could not prepare the local model request: {e}"))?;
 
     let body = json!({
         "model": model,
-        "messages": [
-            { "role": "system", "content": system },
-            { "role": "user", "content": user }
-        ],
+        "messages": chat_messages(system, user, history),
         "stream": false,
-        "options": { "temperature": 0.1, "num_ctx": 8192 }
+        "options": { "temperature": 0.1, "num_ctx": 8192, "num_predict": 512 }
     });
 
-    let response = agent
-        .post(&format!("{OLLAMA}/api/chat"))
-        .send_json(body)
+    let response = client
+        .post(format!("{OLLAMA}/api/chat"))
+        .json(&body)
+        .send()
         .map_err(|e| format!("Local model request failed: {e}"))?;
 
     let parsed: Value = response
-        .into_json()
+        .json()
         .map_err(|e| format!("Could not parse model response: {e}"))?;
 
     parsed
@@ -202,11 +228,12 @@ fn llama_available() -> bool {
 }
 
 fn healthy(base: &str) -> bool {
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_millis(600))
-        .timeout_read(Duration::from_millis(1500))
-        .build();
-    agent.get(&format!("{base}/health")).call().is_ok()
+    reqwest::blocking::Client::builder()
+        .timeout(Duration::from_millis(1500))
+        .build()
+        .ok()
+        .and_then(|client| client.get(format!("{base}/health")).send().ok())
+        .is_some_and(|response| response.status().is_success())
 }
 
 /// Start one llama-server process for the selected GGUF and reuse it until a
@@ -276,30 +303,33 @@ fn ensure_llama(path: &Path) -> Result<String, String> {
     Err("llama-server did not become ready within two minutes.".into())
 }
 
-fn generate_llama(base: &str, system: &str, user: &str) -> Result<String, String> {
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_secs(3))
-        .timeout_read(Duration::from_secs(300))
-        .build();
+fn generate_llama(
+    base: &str,
+    system: &str,
+    user: &str,
+    history: &[ChatTurn],
+) -> Result<String, String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("Could not prepare the llama.cpp request: {e}"))?;
 
     let body = json!({
         "model": "frontdesk-local",
-        "messages": [
-            { "role": "system", "content": system },
-            { "role": "user", "content": user }
-        ],
-        "temperature": 0.2,
+        "messages": chat_messages(system, user, history),
+        "temperature": 0.1,
         "max_tokens": 512,
         "stream": false
     });
 
-    let response = agent
-        .post(&format!("{base}/v1/chat/completions"))
-        .send_json(body)
+    let response = client
+        .post(format!("{base}/v1/chat/completions"))
+        .json(&body)
+        .send()
         .map_err(|e| format!("llama.cpp request failed: {e}"))?;
 
     let parsed: Value = response
-        .into_json()
+        .json()
         .map_err(|e| format!("Could not parse the llama.cpp response: {e}"))?;
 
     parsed
@@ -326,15 +356,15 @@ fn sanitize(stem: &str) -> String {
 }
 
 fn tags() -> Result<Value, String> {
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(Duration::from_secs(1))
-        .timeout_read(Duration::from_secs(2))
-        .build();
-    agent
-        .get(&format!("{OLLAMA}/api/tags"))
-        .call()
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .map_err(|e| e.to_string())?;
+    client
+        .get(format!("{OLLAMA}/api/tags"))
+        .send()
         .map_err(|e| e.to_string())?
-        .into_json()
+        .json()
         .map_err(|e| e.to_string())
 }
 
@@ -410,4 +440,34 @@ fn ensure_model(path: &Path) -> Result<String, String> {
     }
 
     Ok(name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_is_kept_in_order_and_bounded() {
+        let history = vec![
+            ChatTurn {
+                role: "user".into(),
+                content: "first".into(),
+            },
+            ChatTurn {
+                role: "assistant".into(),
+                content: "answer".into(),
+            },
+            ChatTurn {
+                role: "user".into(),
+                content: "follow up".into(),
+            },
+        ];
+        let messages = chat_messages("system", "now", &history);
+        let array = messages.as_array().unwrap();
+        assert_eq!(array[0]["role"], "system");
+        assert_eq!(array[1]["content"], "first");
+        assert_eq!(array[2]["content"], "answer");
+        assert_eq!(array[3]["content"], "follow up");
+        assert_eq!(array[4]["content"], "now");
+    }
 }

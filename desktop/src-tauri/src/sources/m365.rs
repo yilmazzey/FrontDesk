@@ -459,6 +459,7 @@ fn normalize_mail_link(raw: Option<String>) -> String {
     raw
 }
 
+#[allow(clippy::too_many_arguments)]
 fn make_source(
     grant: &SourceGrant,
     kind: &str,

@@ -217,30 +217,31 @@ pub fn status() -> RuntimeStatus {
             },
             ToolStatus {
                 key: "pdftotext".into(),
-                label: "Poppler · pdftotext".into(),
+                label: "Poppler · optional text fallback".into(),
                 installed: poppler.is_some(),
                 detail: poppler,
             },
             ToolStatus {
                 key: "pdftoppm".into(),
-                label: "Poppler · pdftoppm".into(),
+                label: "Poppler · optional render fallback".into(),
                 installed: pdftoppm,
                 detail: None,
             },
         ],
         platform,
-        can_auto_install_ocr: cfg!(target_os = "macos") && which("brew").is_some(),
+        can_auto_install_ocr: (cfg!(target_os = "macos") && which("brew").is_some())
+            || (cfg!(target_os = "windows") && which("winget").is_some()),
         ocr_hint,
     }
 }
 
 fn ocr_hint() -> String {
     if cfg!(target_os = "macos") {
-        "brew install tesseract poppler".into()
+        "brew install tesseract   # Poppler is optional; PDFium renders scans".into()
     } else if cfg!(target_os = "windows") {
-        "winget install UB-Mannheim.TesseractOCR · install Poppler manually".into()
+        "winget install UB-Mannheim.TesseractOCR   # Poppler is optional".into()
     } else {
-        "sudo apt install tesseract-ocr poppler-utils   # or your distro's equivalent".into()
+        "sudo apt install tesseract-ocr   # Poppler is optional".into()
     }
 }
 
@@ -368,15 +369,16 @@ fn install_llama(app: Option<&AppHandle>) -> Result<(), String> {
 }
 
 fn download(app: Option<&AppHandle>, kind: &str, url: &str, dest: &Path) -> Result<(), String> {
-    let response = ureq::get(url)
-        .call()
-        .map_err(|e| format!("Could not download {url}: {e}"))?;
+    let response =
+        reqwest::blocking::get(url).map_err(|e| format!("Could not download {url}: {e}"))?;
     let total = response
-        .header("content-length")
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok())
         .unwrap_or(0);
 
-    let mut reader = response.into_reader();
+    let mut reader = response;
     let mut file =
         fs::File::create(dest).map_err(|e| format!("Could not write {}: {e}", dest.display()))?;
     let mut buffer = vec![0u8; 256 * 1024];
@@ -396,11 +398,11 @@ fn download(app: Option<&AppHandle>, kind: &str, url: &str, dest: &Path) -> Resu
 
         if downloaded - last_reported >= 2 * 1024 * 1024 || downloaded == total {
             last_reported = downloaded;
-            let pct = if total > 0 {
-                format!("{}%", downloaded * 100 / total)
-            } else {
-                format!("{} MB", downloaded / (1024 * 1024))
-            };
+            let pct = downloaded
+                .checked_mul(100)
+                .and_then(|value| value.checked_div(total))
+                .map(|value| format!("{value}%"))
+                .unwrap_or_else(|| format!("{} MB", downloaded / (1024 * 1024)));
             emit(
                 app,
                 kind,
@@ -457,12 +459,17 @@ fn extract_zip(archive: &Path, dest: &Path) -> Result<(), String> {
 
 fn install_ocr(app: Option<&AppHandle>) -> Result<(), String> {
     let before = status();
-    if before.tools.iter().all(|tool| tool.installed) {
+    if before
+        .tools
+        .iter()
+        .find(|tool| tool.key == "tesseract")
+        .is_some_and(|tool| tool.installed)
+    {
         emit(
             app,
             "ocr",
             "done",
-            "OCR helpers are already installed.",
+            "Tesseract OCR is already installed.",
             0,
             0,
         );
@@ -481,12 +488,12 @@ fn install_ocr(app: Option<&AppHandle>) -> Result<(), String> {
             app,
             "ocr",
             "install",
-            "Installing Tesseract and Poppler with Homebrew. This can take a few minutes…",
+            "Installing Tesseract with Homebrew. Poppler is optional because PDFium renders scans.",
             0,
             0,
         );
         let output = Command::new("brew")
-            .args(["install", "tesseract", "poppler"])
+            .args(["install", "tesseract"])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -499,7 +506,7 @@ fn install_ocr(app: Option<&AppHandle>) -> Result<(), String> {
                 format!("{stdout} {stderr}").trim()
             ));
         }
-        emit(app, "ocr", "done", "OCR helpers installed.", 0, 0);
+        emit(app, "ocr", "done", "Tesseract OCR installed.", 0, 0);
         return Ok(());
     }
 
@@ -531,17 +538,18 @@ fn install_ocr(app: Option<&AppHandle>) -> Result<(), String> {
                     String::from_utf8_lossy(&output.stderr).trim()
                 ));
             }
-            // Poppler's Windows builds have no stable winget id; ask for that
-            // one step explicitly rather than pretending it succeeded.
-            return Err(
-                "Tesseract installed. Poppler (pdftoppm) still needs a manual install from \
-                 https://github.com/oschwartz10612/poppler-windows/releases, then add its `bin` \
-                 folder to PATH."
-                    .into(),
+            emit(
+                app,
+                "ocr",
+                "done",
+                "Tesseract OCR installed. PDFium handles scan rendering; Poppler is optional.",
+                0,
+                0,
             );
+            return Ok(());
         }
         return Err(format!(
-            "No winget found. Install Tesseract and Poppler manually: {}",
+            "No winget found. Install Tesseract manually: {}",
             ocr_hint()
         ));
     }

@@ -1,4 +1,4 @@
-export type SourceKind = 'file' | 'mail' | 'calendar' | 'onenote' | 'ocr'
+export type SourceKind = 'file' | 'mail' | 'calendar' | 'onenote' | 'ocr' | 'web'
 
 export type SourceRef = {
   id: string
@@ -19,7 +19,7 @@ export type SearchHit = {
 
 export type SourceGrant = {
   id: string
-  kind: 'file' | 'mail' | 'calendar' | 'onenote'
+  kind: 'file' | 'mail' | 'calendar' | 'onenote' | 'web'
   scope: string
   title: string
   grantedAt: string
@@ -45,14 +45,32 @@ export type Citation = {
   deepLink?: string | null
 }
 
+export type ChatTurn = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export type Clarification = {
   question: string
   options: string[]
 }
 
-export type AnswerStatus = 'answered' | 'insufficient' | 'needs_clarification' | 'error'
+export type AnswerStatus =
+  | 'answered'
+  | 'insufficient'
+  | 'needs_clarification'
+  | 'needs_setup'
+  | 'error'
 
-export type AnswerBasis = 'sources' | 'model' | 'mixed' | 'none'
+export type AnswerBasis =
+  | 'sources'
+  | 'model'
+  | 'mixed'
+  | 'web'
+  | 'files_web'
+  | 'web_mixed'
+  | 'clock'
+  | 'none'
 
 export type Answer = {
   status: AnswerStatus
@@ -80,6 +98,7 @@ export type AppInfo = {
   selectedModel: string | null
   answerMode: AnswerMode
   savedFolder: string | null
+  microsoftClientId: string | null
 }
 
 export type AuditEntry = {

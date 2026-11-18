@@ -244,7 +244,7 @@ pub fn disconnect(state: State<'_, MicrosoftState>) -> Result<(), String> {
 }
 
 pub(crate) fn clear_auth(state: &MicrosoftState) -> Result<(), String> {
-    clear_flow(&state)?;
+    clear_flow(state)?;
     *state
         .tokens
         .lock()

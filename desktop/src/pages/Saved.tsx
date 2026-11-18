@@ -1,15 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import PathLink from '../components/PathLink'
+import { when } from '../lib/format'
 import { api, inTauri } from '../lib/ipc'
 import { useAccess } from '../state/access'
 import { useSaved } from '../state/saved'
 import type { SavedClassification } from '../types/source'
-
-function when(value: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
-}
 
 const LABEL: Record<SavedClassification, string> = {
   briefing: 'Briefing',

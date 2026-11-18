@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import PathLink from '../components/PathLink'
 import RuntimePanel from '../components/RuntimePanel'
+import { bytes } from '../lib/format'
 import { api, inTauri } from '../lib/ipc'
 import { useAccess } from '../state/access'
 import type {
@@ -9,20 +10,18 @@ import type {
   IndexStatus,
   MicrosoftDiagnostics,
   MicrosoftProfile,
+  RuntimeProgress,
 } from '../types/source'
-
-function bytes(value: number): string {
-  if (value > 1024 ** 3) return `${(value / 1024 ** 3).toFixed(1)} GB`
-  if (value > 1024 ** 2) return `${(value / 1024 ** 2).toFixed(0)} MB`
-  return `${Math.max(1, Math.round(value / 1024))} KB`
-}
 
 export default function Settings() {
   const { info, models, sources, grants, refresh, grantFolder, grantFixture, revoke, selectModel, selectMode, warmModel } = useAccess()
   const [notice, setNotice] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState('0.1.0')
   const [microsoftProfile, setMicrosoftProfile] = useState<MicrosoftProfile | null>(null)
   const [microsoftChecks, setMicrosoftChecks] = useState<MicrosoftDiagnostics | null>(null)
   const [checksBusy, setChecksBusy] = useState(false)
+  const [clientIdDraft, setClientIdDraft] = useState('')
+  const [clientIdBusy, setClientIdBusy] = useState(false)
   const [deviceCode, setDeviceCode] = useState<DeviceCodePrompt | null>(null)
   const [microsoftBusy, setMicrosoftBusy] = useState(false)
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null)
@@ -32,8 +31,35 @@ export default function Settings() {
   const [folderBusy, setFolderBusy] = useState(false)
   const [audit, setAudit] = useState<AuditEntry[]>([])
   const [showAudit, setShowAudit] = useState(false)
+  const [modelProgress, setModelProgress] = useState<RuntimeProgress | null>(null)
+  const [modelBusy, setModelBusy] = useState(false)
+  const [modelNotice, setModelNotice] = useState<string | null>(null)
 
   const selected = info?.selectedModel ?? 'extractive'
+  const webGrant = grants.find((grant) => grant.kind === 'web')
+
+  useEffect(() => {
+    if (!inTauri()) return
+    let stop: (() => void) | undefined
+    let cancelled = false
+    void api
+      .onRuntimeProgress((next) => {
+        if (next.kind !== 'model') return
+        setModelProgress(next)
+        if (next.phase === 'done') {
+          setModelBusy(false)
+          void refresh()
+        }
+      })
+      .then((unlisten) => {
+        if (cancelled) unlisten()
+        else stop = unlisten
+      })
+    return () => {
+      cancelled = true
+      stop?.()
+    }
+  }, [refresh])
 
   useEffect(() => {
     let active = true
@@ -45,6 +71,26 @@ export default function Settings() {
       .catch(() => {
         if (active) setIndexStatus(null)
       })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    setClientIdDraft(
+      info?.microsoftClientId ?? import.meta.env.VITE_MICROSOFT_CLIENT_ID?.trim() ?? '',
+    )
+  }, [info?.microsoftClientId])
+
+  useEffect(() => {
+    if (!inTauri()) return
+    let active = true
+    void import('@tauri-apps/api/app')
+      .then(({ getVersion }) => getVersion())
+      .then((version) => {
+        if (active) setAppVersion(version)
+      })
+      .catch(() => {})
     return () => {
       active = false
     }
@@ -133,10 +179,25 @@ export default function Settings() {
     }
   }
 
+  async function saveClientId() {
+    setClientIdBusy(true)
+    setNotice(null)
+    try {
+      await api.setMicrosoftClientId(clientIdDraft.trim() || null)
+      await refresh()
+      setNotice('Microsoft client ID saved.')
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setClientIdBusy(false)
+    }
+  }
+
   async function connectMicrosoft() {
-    const clientId = import.meta.env.VITE_MICROSOFT_CLIENT_ID?.trim()
+    const clientId =
+      clientIdDraft.trim() || import.meta.env.VITE_MICROSOFT_CLIENT_ID?.trim()
     if (!clientId) {
-      setNotice('Set VITE_MICROSOFT_CLIENT_ID in desktop/.env.local, then restart the app.')
+      setNotice('Enter a Microsoft client ID below, or set VITE_MICROSOFT_CLIENT_ID in desktop/.env.local.')
       return
     }
     setMicrosoftBusy(true)
@@ -217,6 +278,20 @@ export default function Settings() {
     }
   }
 
+  async function enableWebSearch() {
+    setFolderBusy(true)
+    setNotice(null)
+    try {
+      await api.grantWebSearch()
+      await refresh()
+      setNotice('Web search enabled. Only your question is sent to Bing; source contents stay local.')
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
   async function restoreFixture() {
     setFolderBusy(true)
     setNotice(null)
@@ -248,6 +323,33 @@ export default function Settings() {
   async function clearActivity() {
     await api.clearAudit()
     setAudit([])
+  }
+
+  async function downloadModel() {
+    setModelBusy(true)
+    setModelNotice(null)
+    setModelProgress({
+      kind: 'model',
+      phase: 'download',
+      message: 'Starting the Phi-4 Mini download…',
+      downloaded: 0,
+      total: 0,
+    })
+    try {
+      await api.downloadModel()
+      setModelNotice('Phi-4 Mini is installed and ready to select.')
+      await refresh()
+    } catch (cause) {
+      setModelNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setModelBusy(false)
+      setModelProgress(null)
+    }
+  }
+
+  async function cancelModelDownload() {
+    await api.cancelModelDownload()
+    setModelNotice('Stopping the model download…')
   }
 
   async function loadModel() {
@@ -321,12 +423,18 @@ export default function Settings() {
                 <span className="grantList__body">
                   <strong>{grant.title}</strong>
                   <em>
-                    {grant.kind} ·{' '}
-                    {grant.kind === 'file' &&
-                    (grant.scope.startsWith('/') || grant.scope.startsWith('~')) ? (
-                      <PathLink path={grant.scope}>{grant.scope}</PathLink>
+                    {grant.kind === 'web' ? (
+                      'public snippets · question only'
                     ) : (
-                      grant.scope
+                      <>
+                        {grant.kind} ·{' '}
+                        {grant.kind === 'file' &&
+                        (grant.scope.startsWith('/') || grant.scope.startsWith('~')) ? (
+                          <PathLink path={grant.scope}>{grant.scope}</PathLink>
+                        ) : (
+                          grant.scope
+                        )}
+                      </>
                     )}
                   </em>
                 </span>
@@ -339,6 +447,22 @@ export default function Settings() {
                 </button>
               </li>
             ))}
+            {!webGrant ? (
+              <li>
+                <span className="grantList__body">
+                  <strong>Web search</strong>
+                  <em>Public snippets · only your question is sent</em>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  disabled={folderBusy}
+                  onClick={() => void enableWebSearch()}
+                >
+                  Enable
+                </button>
+              </li>
+            ) : null}
             {!grants.some((grant) => grant.id === 'fixture:desk') ? (
               <li>
                 <span className="grantList__body">
@@ -356,6 +480,10 @@ export default function Settings() {
             ) : null}
             {!grants.length ? <li className="emptyRow">No access granted.</li> : null}
           </ul>
+          <p className="panel__note">
+            Web search sends only the question to Bing. Notes, mail, calendar and OneNote
+            contents are never included. Strict citations ignores the web grant.
+          </p>
         </section>
 
         <div className="settingsSection">
@@ -399,6 +527,31 @@ export default function Settings() {
               {microsoftBusy ? 'Connecting…' : microsoftProfile ? 'Disconnect' : 'Connect'}
             </button>
           </div>
+          <div className="clientIdRow">
+            <label className="fieldLabel" htmlFor="microsoftClientId">
+              Microsoft client ID
+            </label>
+            <input
+              id="microsoftClientId"
+              value={clientIdDraft}
+              onChange={(event) => setClientIdDraft(event.target.value)}
+              placeholder="Public Entra application ID"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={clientIdBusy}
+              onClick={() => void saveClientId()}
+            >
+              {clientIdBusy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+          <p className="panel__note">
+            Public client ID for device-code sign-in. Official builds include one; self-hosted
+            demos can override it here.
+          </p>
+
           {deviceCode ? (
             <div className="authPrompt">
               <p>
@@ -547,6 +700,45 @@ export default function Settings() {
             Add or remove a <code>.gguf</code> file in this folder to plug a model in or out. The
             model stays a file on this machine; the adapter can change without touching the UI.
           </p>
+
+          <div className="modelDownload">
+            <label className="fieldLabel">One-click local model</label>
+            <p className="panel__note">
+              Phi-4 Mini (Q4_K_M) · ~2.3 GB · SHA-256 verified. Extractive mode needs no download.
+            </p>
+            <div className="modelActions">
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                disabled={modelBusy || models.some((model) => /phi-?4.?mini/i.test(model.name))}
+                onClick={() => void downloadModel()}
+              >
+                {models.some((model) => /phi-?4.?mini/i.test(model.name))
+                  ? 'Phi-4 Mini installed'
+                  : modelBusy
+                    ? 'Downloading…'
+                    : 'Download Phi-4 Mini'}
+              </button>
+              {modelBusy ? (
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => void cancelModelDownload()}
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
+            {modelProgress ? (
+              <p className="panel__note">
+                {modelProgress.message}
+                {modelProgress.total > 0
+                  ? ` · ${Math.min(100, Math.round((modelProgress.downloaded / modelProgress.total) * 100))}%`
+                  : ''}
+              </p>
+            ) : null}
+            {modelNotice ? <p className="panel__note">{modelNotice}</p> : null}
+          </div>
         </section>
 
         <RuntimePanel />
@@ -663,7 +855,7 @@ export default function Settings() {
             <h2 id="about" className="panel__title">
               About
             </h2>
-            <span className="panel__meta">v0.2.0 local core</span>
+            <span className="panel__meta">v{appVersion} local core</span>
           </header>
 
           <p className="panel__note">

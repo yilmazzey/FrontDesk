@@ -358,7 +358,7 @@ fn ceil_boundary(text: &str, mut index: usize) -> usize {
 
 fn extract_loops(source: &SourceRef, text: &str, known_people: &[String]) -> Vec<OpenLoop> {
     let mut loops = Vec::new();
-    for segment in text.split(|character: char| matches!(character, '\n' | '.' | '!' | '?' | ';')) {
+    for segment in text.split(['\n', '.', '!', '?', ';']) {
         let mut cleaned = segment.trim();
         cleaned = cleaned.trim_start_matches(|character: char| {
             matches!(character, '-' | '*' | '•' | ' ' | '\t')

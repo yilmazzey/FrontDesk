@@ -7,6 +7,7 @@ mod index;
 mod manager;
 mod microsoft;
 pub mod model;
+mod model_download;
 mod permissions;
 mod retrieve;
 mod runtime;
@@ -32,6 +33,7 @@ pub fn run() {
             runtime::init(&data_dir);
             app.manage(state::AppState::new(data_dir, models_dir));
             app.manage(microsoft::MicrosoftState::default());
+            app.manage(model_download::ModelDownloadState::default());
             tray::setup(app)?;
             Ok(())
         })
@@ -54,6 +56,7 @@ pub fn run() {
             commands::grant_folder,
             commands::grant_fixture,
             commands::grant_microsoft_sources,
+            commands::grant_web_search,
             commands::disconnect_microsoft,
             commands::revoke_grant,
             commands::list_sources,
@@ -69,11 +72,13 @@ pub fn run() {
             commands::open_saved,
             commands::reveal_path,
             commands::open_url,
+            commands::open_external,
             commands::microsoft_diagnostics,
             commands::manager_snapshot,
             commands::list_models,
             commands::select_model,
             commands::select_mode,
+            commands::set_microsoft_client_id,
             commands::warm_model,
             commands::app_info,
             commands::list_audit,
@@ -81,6 +86,8 @@ pub fn run() {
             commands::open_original,
             commands::runtime_status,
             commands::install_runtime,
+            commands::download_model,
+            commands::cancel_model_download,
             microsoft::begin_sign_in,
             microsoft::poll_sign_in,
             microsoft::cancel_sign_in,

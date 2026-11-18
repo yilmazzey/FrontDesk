@@ -53,13 +53,24 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            build-essential \
+            curl \
+            wget \
+            file \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            tesseract-ocr \
+            poppler-utils
 
       - name: Install workspace dependencies
         run: npm ci
+
+      - name: Verify release version
+        run: node scripts/sync-version.mjs --check ${{ github.ref_name }}
 
       - name: Build, sign and attach installers
         uses: tauri-apps/tauri-action@v0
@@ -81,13 +92,17 @@ jobs:
           releaseBody: |
             FrontDesk desktop installers.
 
-            - macOS: universal DMG (Apple Silicon + Intel)
+            - macOS: separate Apple Silicon and Intel DMGs
             - Windows: NSIS installer
             - Linux: AppImage and .deb
 
-            The installer does not bundle a language model. Drop a GGUF file into
-            the model folder from Settings, connect Ollama, or keep using the
-            extractive answerer.
+            The installer does not bundle a language model. Use the extractive
+            answerer with no download, install a GGUF from Settings, or connect
+            Ollama.
+
+            Unsigned preview builds: macOS may ask you to allow the app in
+            System Settings → Privacy & Security. Windows may show SmartScreen
+            until an Authenticode certificate is added.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

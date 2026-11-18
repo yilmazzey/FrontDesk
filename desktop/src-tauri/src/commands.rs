@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard};
 
 use chrono::{DateTime, Utc};
 use futures_util::stream::{self, StreamExt};
@@ -11,17 +12,24 @@ use tauri::State;
 use crate::answer;
 use crate::audit::AuditEntry;
 use crate::contracts::{
-    Answer, AppInfo, Excerpt, ModelRef, SavedItem, SearchHit, SourceGrant, SourceRef,
+    Answer, AppInfo, ChatTurn, Excerpt, ModelRef, SavedItem, SearchHit, SourceGrant, SourceRef,
 };
 use crate::index::{IndexHit, IndexStatus};
 use crate::microsoft::{self, MicrosoftState};
 use crate::model;
+use crate::model_download::{self, ModelDownloadState};
 use crate::retrieve::chunker::{self, Chunk};
 use crate::runtime;
 use crate::sources;
-use crate::sources::m365;
+use crate::sources::{m365, web};
 use crate::state::AppState;
 use walkdir::WalkDir;
+
+fn state_lock<'a, T>(mutex: &'a Mutex<T>) -> Result<MutexGuard<'a, T>, String> {
+    mutex
+        .lock()
+        .map_err(|_| "An application state lock was poisoned. Restart FrontDesk.".to_string())
+}
 
 #[tauri::command]
 pub fn ping() -> String {
@@ -30,7 +38,7 @@ pub fn ping() -> String {
 
 #[tauri::command]
 pub fn list_grants(state: State<'_, AppState>) -> Result<Vec<SourceGrant>, String> {
-    Ok(state.permissions.lock().unwrap().list())
+    Ok(state_lock(&state.permissions)?.list())
 }
 
 #[tauri::command]
@@ -98,7 +106,7 @@ pub async fn grant_microsoft_sources(
         return Err("Connect your Microsoft account before granting its sources.".into());
     }
 
-    let mut permissions = state.permissions.lock().unwrap();
+    let mut permissions = state_lock(&state.permissions)?;
     let grants = [
         ("mail", "mailbox", "Microsoft Outlook"),
         ("calendar", "calendar", "Microsoft Calendar"),
@@ -108,7 +116,7 @@ pub async fn grant_microsoft_sources(
     .map(|(kind, scope, title)| permissions.grant(kind, scope, title))
     .collect::<Vec<_>>();
     for grant in &grants {
-        state.audit.lock().unwrap().append(
+        state_lock(&state.audit)?.append(
             "grant",
             Some(grant.id.clone()),
             Some(grant.scope.clone()),
@@ -118,12 +126,20 @@ pub async fn grant_microsoft_sources(
 }
 
 #[tauri::command]
+pub fn grant_web_search(state: State<'_, AppState>) -> Result<Vec<SourceGrant>, String> {
+    let mut permissions = state_lock(&state.permissions)?;
+    let grant = permissions.grant("web", "web", "Web search");
+    state_lock(&state.audit)?.append("grant", Some(grant.id.clone()), Some(grant.scope.clone()));
+    Ok(permissions.list())
+}
+
+#[tauri::command]
 pub fn disconnect_microsoft(
     state: State<'_, AppState>,
     microsoft_state: State<'_, MicrosoftState>,
 ) -> Result<Vec<SourceGrant>, String> {
     microsoft::clear_auth(&microsoft_state)?;
-    let mut permissions = state.permissions.lock().unwrap();
+    let mut permissions = state_lock(&state.permissions)?;
     let ids = permissions
         .list()
         .into_iter()
@@ -132,18 +148,18 @@ pub fn disconnect_microsoft(
         .collect::<Vec<_>>();
     for id in ids {
         permissions.revoke(&id);
-        state.audit.lock().unwrap().append("revoke", Some(id), None);
+        state_lock(&state.audit)?.append("revoke", Some(id), None);
     }
     Ok(permissions.list())
 }
 
 #[tauri::command]
 pub fn revoke_grant(state: State<'_, AppState>, id: String) -> Result<Vec<SourceGrant>, String> {
-    let removed = state.permissions.lock().unwrap().revoke(&id);
+    let removed = state_lock(&state.permissions)?.revoke(&id);
     if removed {
-        state.audit.lock().unwrap().append("revoke", Some(id), None);
+        state_lock(&state.audit)?.append("revoke", Some(id), None);
     }
-    Ok(state.permissions.lock().unwrap().list())
+    Ok(state_lock(&state.permissions)?.list())
 }
 
 #[tauri::command]
@@ -151,7 +167,7 @@ pub async fn list_sources(
     state: State<'_, AppState>,
     microsoft_state: State<'_, MicrosoftState>,
 ) -> Result<Vec<SourceRef>, String> {
-    let grants = state.permissions.lock().unwrap().list();
+    let grants = state_lock(&state.permissions)?.list();
     let mut all = sources::list_all(&grants);
     // Live connectors must never hide local sources. If Microsoft is offline
     // or the token expired, the local desk keeps working.
@@ -169,7 +185,7 @@ pub async fn read_source(
     microsoft_state: State<'_, MicrosoftState>,
     id: String,
 ) -> Result<Excerpt, String> {
-    let grants = state.permissions.lock().unwrap().list();
+    let grants = state_lock(&state.permissions)?.list();
     // Look for a local source first so reading a file never depends on Graph.
     let local = sources::list_all(&grants)
         .into_iter()
@@ -189,7 +205,7 @@ pub async fn read_source(
         sources::read_text(&source)?
     };
 
-    state.audit.lock().unwrap().append(
+    state_lock(&state.audit)?.append(
         "read",
         Some(source.id.clone()),
         Some(source.location.clone()),
@@ -220,7 +236,7 @@ pub async fn search_sources(
         return Ok(Vec::new());
     }
 
-    let grants = state.permissions.lock().unwrap().list();
+    let grants = state_lock(&state.permissions)?.list();
     let mut all_sources = sources::list_all(&grants);
     match m365::list_graph(&microsoft_state, &grants).await {
         Ok(graph) => all_sources.extend(graph),
@@ -233,7 +249,7 @@ pub async fn search_sources(
     let mut matches = Vec::new();
     for source in local_sources {
         let text = sources::read_text(&source)?;
-        state.audit.lock().unwrap().append(
+        state_lock(&state.audit)?.append(
             "read",
             Some(source.id.clone()),
             Some(source.location.clone()),
@@ -264,11 +280,13 @@ pub async fn search_sources(
                     return None;
                 }
             };
-            audit.lock().unwrap().append(
-                "read",
-                Some(source.id.clone()),
-                Some(source.location.clone()),
-            );
+            if let Ok(audit) = audit.lock() {
+                audit.append(
+                    "read",
+                    Some(source.id.clone()),
+                    Some(source.location.clone()),
+                );
+            }
             if matches_terms(
                 terms_ref,
                 &format!(
@@ -290,7 +308,7 @@ pub async fn search_sources(
         .await;
     matches.extend(graph_matches);
     matches.sort_by(|a, b| b.source.modified.cmp(&a.source.modified));
-    state.audit.lock().unwrap().append("search", None, None);
+    state_lock(&state.audit)?.append("search", None, None);
     Ok(matches)
 }
 
@@ -457,9 +475,11 @@ pub async fn ask(
     state: State<'_, AppState>,
     microsoft_state: State<'_, MicrosoftState>,
     question: String,
+    history: Option<Vec<ChatTurn>>,
 ) -> Result<Answer, String> {
-    let grants = state.permissions.lock().unwrap().list();
-    let settings = state.settings.lock().unwrap().get();
+    ensure_default_model(&state)?;
+    let grants = state_lock(&state.permissions)?.list();
+    let settings = state_lock(&state.settings)?.get();
     let mut all_sources = sources::list_all(&grants);
     all_sources.extend(
         m365::list_graph(&microsoft_state, &grants)
@@ -500,7 +520,7 @@ pub async fn ask(
         .and_then(|index| index.search_keywords(&question, 12).ok())
         .unwrap_or_default();
 
-    let (documents, preferred_chunks) = if has_embeddings || !keyword_hits.is_empty() {
+    let (mut documents, preferred_chunks) = if has_embeddings || !keyword_hits.is_empty() {
         let index = state
             .index
             .as_ref()
@@ -516,7 +536,7 @@ pub async fn ask(
         }
 
         let semantic_hits = if has_embeddings {
-            let query_embedding = state.embedder.embed(&[question.clone()])?;
+            let query_embedding = state.embedder.embed(std::slice::from_ref(&question))?;
             index.search_embeddings(&query_embedding[0], 24)?
         } else {
             Vec::new()
@@ -544,16 +564,34 @@ pub async fn ask(
         (documents, Vec::new())
     };
 
-    let result = answer::ask_with_documents(
-        &question,
-        &documents,
-        &preferred_chunks,
-        settings.selected_model.as_deref(),
-        &state.models_dir,
-        &settings.answer_mode,
-    );
+    if settings.answer_mode == "chat" && wants_web(&question) {
+        if let Some(grant) = grants.iter().find(|grant| grant.kind == "web") {
+            match web::search(&question, grant).await {
+                Ok(results) => documents.extend(results),
+                Err(error) => eprintln!("Web search unavailable: {error}"),
+            }
+        }
+    }
+
+    let selected_model = settings.selected_model.clone();
+    let answer_mode = settings.answer_mode.clone();
+    let models_dir = state.models_dir.clone();
+    let history = history.unwrap_or_default();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        answer::ask_with_documents(
+            &question,
+            &documents,
+            &preferred_chunks,
+            selected_model.as_deref(),
+            &models_dir,
+            &answer_mode,
+            &history,
+        )
+    })
+    .await
+    .map_err(|error| format!("The answer task stopped: {error}"))?;
     {
-        let audit = state.audit.lock().unwrap();
+        let audit = state_lock(&state.audit)?;
         for source_id in &result.read_sources {
             audit.append("read", Some(source_id.clone()), None);
         }
@@ -640,7 +678,7 @@ pub async fn build_index(
     state: State<'_, AppState>,
     microsoft_state: State<'_, MicrosoftState>,
 ) -> Result<IndexStatus, String> {
-    let grants = state.permissions.lock().unwrap().list();
+    let grants = state_lock(&state.permissions)?.list();
     let mut all_sources = sources::list_all(&grants);
     all_sources.extend(
         m365::list_graph(&microsoft_state, &grants)
@@ -702,7 +740,7 @@ pub fn save_answer(
     sources: Vec<String>,
 ) -> Result<String, String> {
     let path = write_saved_answer(&folder, &classification, &title, &body, &sources)?;
-    state.settings.lock().unwrap().set_saved_folder(&folder);
+    state_lock(&state.settings)?.set_saved_folder(&folder);
     Ok(path)
 }
 
@@ -797,13 +835,13 @@ pub fn set_saved_folder(state: State<'_, AppState>, folder: String) -> Result<St
     }
     let root = fs::canonicalize(&root).unwrap_or(root);
     let path = root.to_string_lossy().to_string();
-    state.settings.lock().unwrap().set_saved_folder(&path);
+    state_lock(&state.settings)?.set_saved_folder(&path);
     Ok(path)
 }
 
 #[tauri::command]
 pub fn list_saved(state: State<'_, AppState>) -> Result<Vec<SavedItem>, String> {
-    let folder = state.settings.lock().unwrap().get().saved_folder;
+    let folder = state_lock(&state.settings)?.get().saved_folder;
     let Some(folder) = folder else {
         return Ok(Vec::new());
     };
@@ -986,6 +1024,23 @@ fn ceil_boundary(text: &str, mut index: usize) -> usize {
     index
 }
 
+fn wants_web(question: &str) -> bool {
+    let lower = question.to_lowercase();
+    [
+        "web",
+        "online",
+        "internet",
+        "latest",
+        "news",
+        "weather",
+        "headline",
+        "current events",
+        "look up",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
 fn search_terms(query: &str) -> Vec<String> {
     query
         .split(|character: char| !character.is_alphanumeric())
@@ -1069,13 +1124,39 @@ pub fn list_models(state: State<'_, AppState>) -> Result<Vec<ModelRef>, String> 
 #[tauri::command]
 pub fn select_model(state: State<'_, AppState>, id: Option<String>) -> Result<AppInfo, String> {
     let selected = id.filter(|value| !value.trim().is_empty() && value != "extractive");
-    state.settings.lock().unwrap().select_model(selected);
+    state_lock(&state.settings)?.select_model(selected);
     app_info(state)
+}
+
+fn ensure_default_model(state: &AppState) -> Result<(), String> {
+    let mut store = state_lock(&state.settings)?;
+    let settings = store.get();
+    if settings.model_choice_explicit || settings.selected_model.is_some() {
+        return Ok(());
+    }
+    let models = model::list(&state.models_dir);
+    if let Some(first) = models.first() {
+        store.auto_select_model(Some(first.id.clone()));
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub fn select_mode(state: State<'_, AppState>, mode: String) -> Result<AppInfo, String> {
-    state.settings.lock().unwrap().set_mode(&mode);
+    state_lock(&state.settings)?.set_mode(&mode);
+    app_info(state)
+}
+
+#[tauri::command]
+pub fn set_microsoft_client_id(
+    state: State<'_, AppState>,
+    client_id: Option<String>,
+) -> Result<AppInfo, String> {
+    state
+        .settings
+        .lock()
+        .unwrap()
+        .set_microsoft_client_id(client_id.as_deref());
     app_info(state)
 }
 
@@ -1086,19 +1167,41 @@ pub fn warm_model(state: State<'_, AppState>, id: String) -> Result<String, Stri
 
 #[tauri::command]
 pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo, String> {
-    let settings = state.settings.lock().unwrap().get();
+    ensure_default_model(&state)?;
+    let settings = state_lock(&state.settings)?.get();
     Ok(AppInfo {
         data_dir: state.data_dir.to_string_lossy().to_string(),
         models_dir: state.models_dir.to_string_lossy().to_string(),
         selected_model: settings.selected_model,
         answer_mode: settings.answer_mode,
         saved_folder: settings.saved_folder,
+        microsoft_client_id: settings.microsoft_client_id,
     })
 }
 
 #[tauri::command]
 pub fn runtime_status() -> runtime::RuntimeStatus {
     runtime::status()
+}
+
+#[tauri::command]
+pub async fn download_model(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    download: State<'_, ModelDownloadState>,
+) -> Result<String, String> {
+    let models_dir = state.models_dir.clone();
+    let download_state = download.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        model_download::download(&app, &models_dir, &download_state)
+    })
+    .await
+    .map_err(|error| format!("The model download task stopped: {error}"))?
+}
+
+#[tauri::command]
+pub fn cancel_model_download(download: State<'_, ModelDownloadState>) {
+    download.cancel();
 }
 
 /// Download and install a helper runtime (`llama`, `ocr`, or `all`). The
@@ -1119,12 +1222,12 @@ pub fn list_audit(
     state: State<'_, AppState>,
     limit: Option<usize>,
 ) -> Result<Vec<AuditEntry>, String> {
-    Ok(state.audit.lock().unwrap().list(limit.unwrap_or(50)))
+    Ok(state_lock(&state.audit)?.list(limit.unwrap_or(50)))
 }
 
 #[tauri::command]
 pub fn clear_audit(state: State<'_, AppState>) -> Result<(), String> {
-    let audit = state.audit.lock().unwrap();
+    let audit = state_lock(&state.audit)?;
     audit.clear();
     audit.append("clear", None, None);
     Ok(())
@@ -1136,7 +1239,7 @@ pub async fn open_original(
     microsoft_state: State<'_, MicrosoftState>,
     id: String,
 ) -> Result<(), String> {
-    let grants = state.permissions.lock().unwrap().list();
+    let grants = state_lock(&state.permissions)?.list();
     if let Some(source) = sources::list_all(&grants)
         .into_iter()
         .find(|source| source.id == id)
@@ -1156,6 +1259,15 @@ pub async fn open_original(
 }
 
 #[tauri::command]
+pub fn open_external(url: String) -> Result<(), String> {
+    let parsed = Url::parse(&url).map_err(|_| "That web link is invalid.".to_string())?;
+    if parsed.scheme() != "https" && parsed.scheme() != "http" {
+        return Err("Only web links can be opened.".to_string());
+    }
+    open_external_url(parsed.as_str())
+}
+
+#[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
     let parsed = Url::parse(&url).map_err(|_| "That sign-in link is invalid.".to_string())?;
     let host = parsed.host_str().unwrap_or_default();
@@ -1163,7 +1275,12 @@ pub fn open_url(url: String) -> Result<(), String> {
         || host.ends_with(".microsoft.com")
         || host == "login.live.com"
         || host.ends_with(".microsoftonline.com")
-        || host.ends_with(".live.com");
+        || host.ends_with(".live.com")
+        || host == "outlook.office.com"
+        || host.ends_with(".outlook.office.com")
+        || host == "outlook.office365.com"
+        || host.ends_with(".outlook.office365.com")
+        || host.ends_with(".sharepoint.com");
     if parsed.scheme() != "https" || !trusted {
         return Err("Refusing to open an unexpected sign-in link.".into());
     }

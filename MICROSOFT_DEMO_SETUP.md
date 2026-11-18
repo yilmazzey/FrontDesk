@@ -386,4 +386,4 @@ If any of these happen, message me instead of spending more time:
 - [ ] Client ID + tenant details sent to me.
 - [ ] No passwords, tokens or client secrets sent.
 
-Once the client ID and tenant are in place, I will wire the device-code flow, calendar/OneNote/mail connectors and the timestamped meeting brief against the real account.
+Once the client ID is in place, connect from Settings and check the per-connector diagnostics. Mail, calendar and OneNote are read-only and can be revoked together from the same panel.

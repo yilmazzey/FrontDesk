@@ -220,7 +220,7 @@ fn ocr_pdf_pdfium(path: &Path, dir: &Path) -> Result<String, String> {
 
 fn write_ppm(path: &Path, rgba: &[u8], width: usize, height: usize) -> Result<(), String> {
     let mut output = format!("P6\n{width} {height}\n255\n").into_bytes();
-    for pixel in rgba.chunks_exact(4) {
+    for pixel in rgba.as_chunks::<4>().0 {
         output.extend_from_slice(&pixel[..3]);
     }
     fs::write(path, output).map_err(|error| format!("Could not write an OCR page: {error}"))

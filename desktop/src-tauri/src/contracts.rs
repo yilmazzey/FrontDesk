@@ -35,6 +35,13 @@ pub struct SourceGrant {
 /// The exact text fetched from a source for one answer. Lives in memory only.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ChatTurn {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchHit {
     pub source: SourceRef,
     /// A short, verbatim snippet around the first matched term. In memory only.
@@ -122,6 +129,8 @@ pub struct AppInfo {
     pub answer_mode: String,
     /// Root folder last used for saved Markdown answers.
     pub saved_folder: Option<String>,
+    /// Public Microsoft Entra client ID for device-code sign-in.
+    pub microsoft_client_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

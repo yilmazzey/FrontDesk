@@ -149,7 +149,7 @@ export default function RuntimePanel() {
                   {tool.installed ? 'ready' : 'missing'}
                 </span>
               </strong>
-              <em>{tool.detail ?? (tool.installed ? 'on PATH' : 'needed for scans')}</em>
+              <em>{tool.detail ?? (tool.installed ? 'on PATH' : tool.key.startsWith('pdf') ? 'optional — PDFium fallback' : 'needed for scans')}</em>
             </span>
           </li>
         ))}

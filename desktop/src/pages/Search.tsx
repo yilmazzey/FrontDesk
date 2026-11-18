@@ -1,16 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { whenDate } from '../lib/format'
 import { api } from '../lib/ipc'
 import { category, categoryLabel, type TimelineFilter } from '../lib/timeline'
 import { useAccess } from '../state/access'
 import type { SearchHit, SourceRef } from '../types/source'
-
-function when(value: string): string {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-}
 
 const filters: Array<{ id: TimelineFilter; label: string }> = [
   { id: 'all', label: 'All' },
@@ -149,7 +143,7 @@ export default function Search() {
                   <span className="result__foot">
                     <span>{people.length ? people.slice(0, 3).join(', ') : categoryLabel(hit.source)}</span>
                     <span className="result__div" aria-hidden="true" />
-                    <span>{when(hit.source.modified)}</span>
+                    <span>{whenDate(hit.source.modified)}</span>
                     <span className="result__go">Open ↗</span>
                   </span>
                 </button>

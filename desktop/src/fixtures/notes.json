@@ -1,0 +1,22 @@
+[
+  {
+    "id": "welcome",
+    "title": "Welcome to FrontDesk",
+    "body": "FrontDesk is a local-first workspace. Nothing is copied. The assistant reads only the sources you currently allow, on the fly. Knowledge stays where it was saved, and the original file remains the source of truth. Honest by design: if an answer is not in the allowed notes, FrontDesk says so plainly and does not guess. Every claim must be tied to a source. You can revoke access at any time from Settings. The local model runs on this machine and no note content is uploaded."
+  },
+  {
+    "id": "protocol",
+    "title": "Study protocol — working notes",
+    "body": "The protocol review is scheduled for Friday at 09:30. The consent wording needs a second pass before the site sync. The retention window for scanned documents is seven years. The second site does not need its own approval, but the local ethics contact must be notified. Scanned patient pages are processed with OCR and the text is kept only for the duration of the answer. The original scan stays in the study folder and is cited by page and region."
+  },
+  {
+    "id": "manager-one-on-one",
+    "title": "1:1 — Priya Shah — working notes",
+    "body": "Priya owns the launch scope. She wants the rollout split into two phases. I promised to send the revised scope by Friday. Waiting on Priya for the budget sign-off. Follow up with Marcus on the vendor shortlist. Action: ask Marcus for the updated vendor shortlist by Monday."
+  },
+  {
+    "id": "citations",
+    "title": "Citations that hold up",
+    "body": "Every answer should point at a paragraph, not a whole document. Show the quote inline and let the reader jump to it. A citation stores the exact fetched excerpt, never a paraphrase. If the model adds a claim without a citation, the verifier drops the claim. When the evidence is thin, the correct response is to say that the allowed sources do not contain the answer."
+  }
+]

@@ -20,6 +20,14 @@ pub struct Settings {
     /// Root folder where saved Markdown answers live. Metadata only.
     #[serde(default)]
     pub saved_folder: Option<String>,
+    /// Public Microsoft Entra client ID. Not a secret; lets packaged builds
+    /// sign in without baking it into the installer at build time.
+    #[serde(default)]
+    pub microsoft_client_id: Option<String>,
+    /// True once the user explicitly chose a model or Extractive. Automatic
+    /// startup selection is skipped afterwards.
+    #[serde(default)]
+    pub model_choice_explicit: bool,
 }
 
 impl Default for Settings {
@@ -28,6 +36,8 @@ impl Default for Settings {
             selected_model: None,
             answer_mode: default_mode(),
             saved_folder: None,
+            microsoft_client_id: None,
+            model_choice_explicit: false,
         }
     }
 }
@@ -53,6 +63,12 @@ impl SettingsStore {
 
     pub fn select_model(&mut self, id: Option<String>) {
         self.settings.selected_model = id;
+        self.settings.model_choice_explicit = true;
+        self.save();
+    }
+
+    pub fn auto_select_model(&mut self, id: Option<String>) {
+        self.settings.selected_model = id;
         self.save();
     }
 
@@ -63,6 +79,14 @@ impl SettingsStore {
 
     pub fn set_saved_folder(&mut self, folder: &str) {
         self.settings.saved_folder = Some(folder.trim().to_string());
+        self.save();
+    }
+
+    pub fn set_microsoft_client_id(&mut self, client_id: Option<&str>) {
+        self.settings.microsoft_client_id = client_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
         self.save();
     }
 

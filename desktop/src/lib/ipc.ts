@@ -4,6 +4,7 @@ import type {
   AnswerMode,
   AppInfo,
   AuditEntry,
+  ChatTurn,
   Citation,
   DeviceCodePoll,
   DeviceCodePrompt,
@@ -28,28 +29,9 @@ import type {
 export const inTauri = () =>
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-const FIXTURE: { id: string; title: string; body: string }[] = [
-  {
-    id: 'welcome',
-    title: 'Welcome to FrontDesk',
-    body: 'FrontDesk is a local-first workspace. Nothing is copied. The assistant reads only the sources you currently allow, on the fly. Knowledge stays where it was saved, and the original file remains the source of truth. Honest by design: if an answer is not in the allowed notes, FrontDesk says so plainly and does not guess. Every claim must be tied to a source. You can revoke access at any time from Settings.',
-  },
-  {
-    id: 'protocol',
-    title: 'Study protocol — working notes',
-    body: 'The protocol review is scheduled for Friday at 09:30. The consent wording needs a second pass before the site sync. The retention window for scanned documents is seven years. The second site does not need its own approval, but the local ethics contact must be notified. Scanned patient pages are processed with OCR and the text is kept only for the duration of the answer.',
-  },
-  {
-    id: 'manager-one-on-one',
-    title: '1:1 — Priya Shah — working notes',
-    body: 'Priya owns the launch scope. She wants the rollout split into two phases. I promised to send the revised scope by Friday. Waiting on Priya for the budget sign-off. Follow up with Marcus on the vendor shortlist. Action: ask Marcus for the updated vendor shortlist by Monday.',
-  },
-  {
-    id: 'citations',
-    title: 'Citations that hold up',
-    body: 'Every answer should point at a paragraph, not a whole document. Show the quote inline and let the reader jump to it. A citation stores the exact fetched excerpt, never a paraphrase. If the model adds a claim without a citation, the verifier drops the claim. When the evidence is thin, the correct response is to say that the allowed sources do not contain the answer.',
-  },
-]
+import fixtureNotes from '../fixtures/notes.json'
+
+const FIXTURE: { id: string; title: string; body: string }[] = fixtureNotes
 
 const now = () => new Date().toISOString()
 
@@ -225,6 +207,36 @@ function words(value: string): string[] {
 }
 
 function browserAsk(question: string): Answer {
+  const clock = question.trim().toLowerCase().replace(/[?.!]+$/, '')
+  if (
+    [
+      'what day is it',
+      'what day is today',
+      'what is the date',
+      "what's the date",
+      "today's date",
+      'what time is it',
+      "what's the time",
+      'current date',
+      'current time',
+    ].includes(clock)
+  ) {
+    const now = new Date()
+    return {
+      status: 'answered',
+      text: `It is ${now.toLocaleDateString(undefined, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })} at ${now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}.`,
+      citations: [],
+      clarification: null,
+      model: 'local-clock',
+      basis: 'clock',
+    }
+  }
+
   const noModel: Answer = {
     status: 'error',
     text:
@@ -294,7 +306,7 @@ function browserAsk(question: string): Answer {
 
   return {
     status: 'answered',
-    text: `From “${best.title}”: ${sentence}`,
+    text: `From “${best.title}”: ${sentence} [1]`,
     citations: [citation],
     clarification: null,
     model: 'browser-preview',
@@ -358,6 +370,11 @@ export const api = {
 
   microsoftDiagnostics: async (): Promise<MicrosoftDiagnostics | null> =>
     inTauri() ? call<MicrosoftDiagnostics>('microsoft_diagnostics') : null,
+
+  grantWebSearch: async (): Promise<SourceGrant[]> => {
+    if (inTauri()) return call<SourceGrant[]>('grant_web_search')
+    throw new Error('Web search access needs the desktop app.')
+  },
 
   grantMicrosoftSources: async (): Promise<SourceGrant[]> => {
     if (inTauri()) return call<SourceGrant[]>('grant_microsoft_sources')
@@ -423,8 +440,8 @@ export const api = {
     }
   },
 
-  ask: async (question: string): Promise<Answer> =>
-    inTauri() ? call<Answer>('ask', { question }) : browserAsk(question),
+  ask: async (question: string, history: ChatTurn[] = []): Promise<Answer> =>
+    inTauri() ? call<Answer>('ask', { question, history }) : browserAsk(question),
 
   managerSnapshot: async (selfName?: string | null): Promise<ManagerSnapshot> =>
     inTauri()
@@ -442,6 +459,7 @@ export const api = {
       selectedModel: id,
       answerMode: browserMode,
       savedFolder: null,
+      microsoftClientId: null,
     }
   },
 
@@ -454,6 +472,19 @@ export const api = {
       selectedModel: null,
       answerMode: browserMode,
       savedFolder: null,
+      microsoftClientId: null,
+    }
+  },
+
+  setMicrosoftClientId: async (clientId: string | null): Promise<AppInfo> => {
+    if (inTauri()) return call<AppInfo>('set_microsoft_client_id', { clientId })
+    return {
+      dataDir: 'browser://data',
+      modelsDir: 'browser://models',
+      selectedModel: null,
+      answerMode: browserMode,
+      savedFolder: null,
+      microsoftClientId: clientId,
     }
   },
 
@@ -491,6 +522,15 @@ export const api = {
     return listen<RuntimeProgress>('runtime-progress', (event) => handler(event.payload))
   },
 
+  downloadModel: async (): Promise<string> => {
+    if (inTauri()) return call<string>('download_model')
+    throw new Error('The model downloader needs the desktop app.')
+  },
+
+  cancelModelDownload: async (): Promise<void> => {
+    if (inTauri()) await call<void>('cancel_model_download')
+  },
+
 
   appInfo: async (): Promise<AppInfo> =>
     inTauri()
@@ -501,6 +541,7 @@ export const api = {
           selectedModel: null,
           answerMode: browserMode,
           savedFolder: null,
+          microsoftClientId: null,
         },
 
   listAudit: async (limit = 50): Promise<AuditEntry[]> =>
@@ -543,6 +584,11 @@ export const api = {
 
   openUrl: async (url: string): Promise<void> => {
     if (inTauri()) await call<void>('open_url', { url })
+    else window.open(url, '_blank', 'noopener,noreferrer')
+  },
+
+  openExternal: async (url: string): Promise<void> => {
+    if (inTauri()) await call<void>('open_external', { url })
     else window.open(url, '_blank', 'noopener,noreferrer')
   },
 }
