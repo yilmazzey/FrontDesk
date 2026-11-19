@@ -460,6 +460,7 @@ export const api = {
       answerMode: browserMode,
       savedFolder: null,
       microsoftClientId: null,
+      includePrivateOnenote: false,
     }
   },
 
@@ -473,6 +474,20 @@ export const api = {
       answerMode: browserMode,
       savedFolder: null,
       microsoftClientId: null,
+      includePrivateOnenote: false,
+    }
+  },
+
+  setIncludePrivateOnenote: async (include: boolean): Promise<AppInfo> => {
+    if (inTauri()) return call<AppInfo>('set_include_private_onenote', { include })
+    return {
+      dataDir: 'browser://data',
+      modelsDir: 'browser://models',
+      selectedModel: null,
+      answerMode: browserMode,
+      savedFolder: null,
+      microsoftClientId: null,
+      includePrivateOnenote: include,
     }
   },
 
@@ -485,6 +500,7 @@ export const api = {
       answerMode: browserMode,
       savedFolder: null,
       microsoftClientId: clientId,
+      includePrivateOnenote: false,
     }
   },
 
@@ -542,6 +558,7 @@ export const api = {
           answerMode: browserMode,
           savedFolder: null,
           microsoftClientId: null,
+          includePrivateOnenote: false,
         },
 
   listAudit: async (limit = 50): Promise<AuditEntry[]> =>

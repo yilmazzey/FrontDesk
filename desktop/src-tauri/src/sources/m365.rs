@@ -29,7 +29,9 @@ struct MailMessage {
     subject: Option<String>,
     from: Option<Recipient>,
     to_recipients: Option<Vec<Recipient>>,
+    cc_recipients: Option<Vec<Recipient>>,
     received_date_time: Option<String>,
+    sent_date_time: Option<String>,
     web_link: Option<String>,
 }
 
@@ -89,6 +91,13 @@ struct OneNotePage {
     title: Option<String>,
     last_modified_date_time: Option<String>,
     links: Option<OneNoteLinks>,
+    parent_section: Option<OneNoteSection>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OneNoteSection {
+    display_name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -114,6 +123,7 @@ struct GraphBody {
 pub async fn list_graph(
     state: &MicrosoftState,
     grants: &[SourceGrant],
+    include_private_onenote: bool,
 ) -> Result<Vec<SourceRef>, String> {
     let has_microsoft_grant = grants
         .iter()
@@ -135,84 +145,10 @@ pub async fn list_graph(
 
     for grant in grants {
         match grant.kind.as_str() {
-            "mail" => {
-                let query = [
-                    ("$top", PAGE_SIZE),
-                    (
-                        "$select",
-                        "id,parentFolderId,subject,from,toRecipients,receivedDateTime,webLink",
-                    ),
-                    ("$orderby", "receivedDateTime desc"),
-                ];
-                let messages: GraphCollection<MailMessage> = match microsoft::graph_get(
-                    state,
-                    &token,
-                    "/me/mailFolders/inbox/messages",
-                    &query,
-                )
-                .await
-                {
-                    Ok(messages) => messages,
-                    Err(error) => {
-                        eprintln!("Outlook inbox unavailable: {error}");
-                        continue;
-                    }
-                };
-                sources.extend(
-                    messages
-                        .value
-                        .into_iter()
-                        .filter(|message| {
-                            message.parent_folder_id.as_deref() != deleted_items_id.as_deref()
-                        })
-                        .map(|message| {
-                            let sender = message
-                                .from
-                                .as_ref()
-                                .and_then(|recipient| recipient.email_address.as_ref())
-                                .and_then(|address| {
-                                    address.name.clone().or_else(|| address.address.clone())
-                                });
-                            let title = message
-                                .subject
-                                .clone()
-                                .unwrap_or_else(|| "Email without subject".to_string());
-                            let title = sender
-                                .clone()
-                                .filter(|sender| !sender.is_empty())
-                                .map(|sender| format!("{title} — {sender}"))
-                                .unwrap_or(title);
-                            let mut people = Vec::new();
-                            if let Some(sender) = sender {
-                                people.push(sender);
-                            }
-                            for recipient in message.to_recipients.unwrap_or_default() {
-                                if let Some(address) = recipient.email_address {
-                                    if let Some(name) = address.name.or(address.address) {
-                                        if !name.is_empty()
-                                            && !people
-                                                .iter()
-                                                .any(|known| known.eq_ignore_ascii_case(&name))
-                                        {
-                                            people.push(name);
-                                        }
-                                    }
-                                }
-                            }
-                            people.truncate(6);
-                            make_source(
-                                grant,
-                                "mail",
-                                format!("mail:{}", encode_id(&message.id)),
-                                title,
-                                normalize_mail_link(message.web_link),
-                                message.received_date_time.unwrap_or_default(),
-                                &message.id,
-                                people,
-                            )
-                        }),
-                );
-            }
+            "mail" => match list_mail(state, &token, grant, deleted_items_id.as_deref()).await {
+                Ok(mail_sources) => sources.extend(mail_sources),
+                Err(error) => eprintln!("Outlook mail unavailable: {error}"),
+            },
             "calendar" => match list_calendars(state, &token, grant).await {
                 Ok(calendar_sources) => sources.extend(calendar_sources),
                 Err(error) => eprintln!("Calendar unavailable: {error}"),
@@ -220,7 +156,10 @@ pub async fn list_graph(
             "onenote" => {
                 let query = [
                     ("$top", PAGE_SIZE),
-                    ("$select", "id,title,lastModifiedDateTime,links"),
+                    (
+                        "$select",
+                        "id,title,lastModifiedDateTime,links,parentSection",
+                    ),
                     ("$orderby", "lastModifiedDateTime desc"),
                 ];
                 let pages: GraphCollection<OneNotePage> =
@@ -231,28 +170,150 @@ pub async fn list_graph(
                             continue;
                         }
                     };
-                sources.extend(pages.value.into_iter().map(|page| {
-                    let location = page
-                        .links
-                        .and_then(|links| links.one_note_web_url)
-                        .and_then(|link| link.href)
-                        .unwrap_or_else(|| "OneNote".into());
-                    make_source(
-                        grant,
-                        "onenote",
-                        format!("onenote:{}", encode_id(&page.id)),
-                        page.title.unwrap_or_else(|| "Untitled OneNote page".into()),
-                        location,
-                        page.last_modified_date_time.unwrap_or_default(),
-                        &page.id,
-                        Vec::new(),
-                    )
-                }));
+                sources.extend(
+                    pages
+                        .value
+                        .into_iter()
+                        .filter(|page| {
+                            include_private_onenote
+                                || !page
+                                    .parent_section
+                                    .as_ref()
+                                    .and_then(|section| section.display_name.as_deref())
+                                    .is_some_and(|name| name.to_lowercase().contains("private"))
+                        })
+                        .map(|page| {
+                            let location = page
+                                .links
+                                .and_then(|links| links.one_note_web_url)
+                                .and_then(|link| link.href)
+                                .unwrap_or_else(|| "OneNote".into());
+                            make_source(
+                                grant,
+                                "onenote",
+                                format!("onenote:{}", encode_id(&page.id)),
+                                page.title.unwrap_or_else(|| "Untitled OneNote page".into()),
+                                location,
+                                page.last_modified_date_time.unwrap_or_default(),
+                                &page.id,
+                                Vec::new(),
+                            )
+                        }),
+                );
             }
             _ => {}
         }
     }
 
+    Ok(sources)
+}
+
+async fn list_mail(
+    state: &MicrosoftState,
+    token: &str,
+    grant: &SourceGrant,
+    deleted_items_id: Option<&str>,
+) -> Result<Vec<SourceRef>, String> {
+    let query = [
+        ("$top", PAGE_SIZE),
+        (
+            "$select",
+            "id,parentFolderId,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,webLink",
+        ),
+        ("$orderby", "receivedDateTime desc"),
+    ];
+    let mut sources = Vec::new();
+    for (folder, sent) in [("inbox", false), ("sentitems", true)] {
+        let path = format!("/me/mailFolders/{folder}/messages");
+        let messages: GraphCollection<MailMessage> =
+            match microsoft::graph_get(state, token, &path, &query).await {
+                Ok(messages) => messages,
+                Err(error) => {
+                    eprintln!("Outlook {folder} unavailable: {error}");
+                    continue;
+                }
+            };
+        for message in messages.value {
+            if !sent && message.parent_folder_id.as_deref() == deleted_items_id {
+                continue;
+            }
+            let sender = message
+                .from
+                .as_ref()
+                .and_then(|recipient| recipient.email_address.as_ref())
+                .and_then(|address| address.name.clone().or_else(|| address.address.clone()));
+            let mut recipients: Vec<String> = Vec::new();
+            for recipient in message
+                .to_recipients
+                .unwrap_or_default()
+                .into_iter()
+                .chain(message.cc_recipients.unwrap_or_default())
+            {
+                if let Some(address) = recipient.email_address {
+                    if let Some(name) = address.name.or(address.address) {
+                        if !name.is_empty()
+                            && !recipients
+                                .iter()
+                                .any(|known| known.eq_ignore_ascii_case(&name))
+                        {
+                            recipients.push(name);
+                        }
+                    }
+                }
+            }
+            let subject = message
+                .subject
+                .clone()
+                .unwrap_or_else(|| "Email without subject".to_string());
+            let title = if sent {
+                let to = recipients
+                    .iter()
+                    .take(2)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if to.is_empty() {
+                    format!("Sent · {subject}")
+                } else {
+                    format!("Sent · {subject} — to {to}")
+                }
+            } else {
+                sender
+                    .clone()
+                    .filter(|sender| !sender.is_empty())
+                    .map(|sender| format!("{subject} — {sender}"))
+                    .unwrap_or(subject.clone())
+            };
+            let mut people: Vec<String> = Vec::new();
+            if !sent {
+                if let Some(sender) = sender {
+                    people.push(sender);
+                }
+            }
+            for recipient in recipients {
+                if !people
+                    .iter()
+                    .any(|known| known.eq_ignore_ascii_case(&recipient))
+                {
+                    people.push(recipient);
+                }
+            }
+            people.truncate(6);
+            sources.push(make_source(
+                grant,
+                "mail",
+                format!("mail:{}", encode_id(&message.id)),
+                title,
+                normalize_mail_link(message.web_link),
+                message
+                    .received_date_time
+                    .or(message.sent_date_time)
+                    .unwrap_or_default(),
+                &message.id,
+                people,
+            ));
+        }
+    }
     Ok(sources)
 }
 
@@ -351,7 +412,7 @@ async fn list_calendars(
     let start = (Utc::now() - Duration::days(90))
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
-    let end = (Utc::now() + Duration::days(30))
+    let end = (Utc::now() + Duration::days(180))
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
 

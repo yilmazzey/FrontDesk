@@ -81,6 +81,7 @@ pub fn run() {
             commands::select_model,
             commands::select_mode,
             commands::set_microsoft_client_id,
+            commands::set_include_private_onenote,
             commands::warm_model,
             commands::app_info,
             commands::list_audit,

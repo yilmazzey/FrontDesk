@@ -168,10 +168,11 @@ pub async fn list_sources(
     microsoft_state: State<'_, MicrosoftState>,
 ) -> Result<Vec<SourceRef>, String> {
     let grants = state_lock(&state.permissions)?.list();
+    let include_private_onenote = state_lock(&state.settings)?.get().include_private_onenote;
     let mut all = sources::list_all(&grants);
     // Live connectors must never hide local sources. If Microsoft is offline
     // or the token expired, the local desk keeps working.
-    match m365::list_graph(&microsoft_state, &grants).await {
+    match m365::list_graph(&microsoft_state, &grants, include_private_onenote).await {
         Ok(graph) => all.extend(graph),
         Err(error) => eprintln!("Microsoft sources unavailable: {error}"),
     }
@@ -186,13 +187,14 @@ pub async fn read_source(
     id: String,
 ) -> Result<Excerpt, String> {
     let grants = state_lock(&state.permissions)?.list();
+    let include_private_onenote = state_lock(&state.settings)?.get().include_private_onenote;
     // Look for a local source first so reading a file never depends on Graph.
     let local = sources::list_all(&grants)
         .into_iter()
         .find(|source| source.id == id);
     let source = match local {
         Some(source) => source,
-        None => m365::list_graph(&microsoft_state, &grants)
+        None => m365::list_graph(&microsoft_state, &grants, include_private_onenote)
             .await?
             .into_iter()
             .find(|source| source.id == id)
@@ -237,8 +239,9 @@ pub async fn search_sources(
     }
 
     let grants = state_lock(&state.permissions)?.list();
+    let include_private_onenote = state_lock(&state.settings)?.get().include_private_onenote;
     let mut all_sources = sources::list_all(&grants);
-    match m365::list_graph(&microsoft_state, &grants).await {
+    match m365::list_graph(&microsoft_state, &grants, include_private_onenote).await {
         Ok(graph) => all_sources.extend(graph),
         Err(error) => eprintln!("Microsoft search unavailable: {error}"),
     }
@@ -482,7 +485,7 @@ pub async fn ask(
     let settings = state_lock(&state.settings)?.get();
     let mut all_sources = sources::list_all(&grants);
     all_sources.extend(
-        m365::list_graph(&microsoft_state, &grants)
+        m365::list_graph(&microsoft_state, &grants, settings.include_private_onenote)
             .await
             .unwrap_or_else(|error| {
                 eprintln!("Microsoft sources unavailable, answering locally: {error}");
@@ -679,9 +682,10 @@ pub async fn build_index(
     microsoft_state: State<'_, MicrosoftState>,
 ) -> Result<IndexStatus, String> {
     let grants = state_lock(&state.permissions)?.list();
+    let include_private_onenote = state_lock(&state.settings)?.get().include_private_onenote;
     let mut all_sources = sources::list_all(&grants);
     all_sources.extend(
-        m365::list_graph(&microsoft_state, &grants)
+        m365::list_graph(&microsoft_state, &grants, include_private_onenote)
             .await
             .unwrap_or_else(|error| {
                 eprintln!("Microsoft sources unavailable while indexing: {error}");
@@ -1142,6 +1146,15 @@ fn ensure_default_model(state: &AppState) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn set_include_private_onenote(
+    state: State<'_, AppState>,
+    include: bool,
+) -> Result<AppInfo, String> {
+    state_lock(&state.settings)?.set_include_private_onenote(include);
+    app_info(state)
+}
+
+#[tauri::command]
 pub fn select_mode(state: State<'_, AppState>, mode: String) -> Result<AppInfo, String> {
     state_lock(&state.settings)?.set_mode(&mode);
     app_info(state)
@@ -1176,6 +1189,7 @@ pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo, String> {
         answer_mode: settings.answer_mode,
         saved_folder: settings.saved_folder,
         microsoft_client_id: settings.microsoft_client_id,
+        include_private_onenote: settings.include_private_onenote,
     })
 }
 
@@ -1240,6 +1254,7 @@ pub async fn open_original(
     id: String,
 ) -> Result<(), String> {
     let grants = state_lock(&state.permissions)?.list();
+    let include_private_onenote = state_lock(&state.settings)?.get().include_private_onenote;
     if let Some(source) = sources::list_all(&grants)
         .into_iter()
         .find(|source| source.id == id)
@@ -1250,7 +1265,7 @@ pub async fn open_original(
         return open_path(&source.location);
     }
 
-    let source = m365::list_graph(&microsoft_state, &grants)
+    let source = m365::list_graph(&microsoft_state, &grants, include_private_onenote)
         .await?
         .into_iter()
         .find(|source| source.id == id)

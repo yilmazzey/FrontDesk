@@ -99,6 +99,7 @@ export type AppInfo = {
   answerMode: AnswerMode
   savedFolder: string | null
   microsoftClientId: string | null
+  includePrivateOnenote: boolean
 }
 
 export type AuditEntry = {

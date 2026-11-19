@@ -10,7 +10,8 @@ use tokio::sync::Semaphore;
 const DEVICE_CODE_URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode";
 const TOKEN_URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 pub(crate) const GRAPH_URL: &str = "https://graph.microsoft.com/v1.0";
-const SCOPES: &str = "offline_access User.Read Notes.Read Mail.Read Calendars.Read";
+const SCOPES: &str =
+    "offline_access User.Read Files.Read Notes.Read Mail.Read Mail.Read.Shared Calendars.Read";
 
 pub struct MicrosoftState {
     pub(crate) client: Client,

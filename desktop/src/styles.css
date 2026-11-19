@@ -4019,3 +4019,37 @@ input {
 .trayPanel__foot button:hover {
   color: var(--ink);
 }
+
+.privateToggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-2);
+  cursor: pointer;
+}
+
+.privateToggle input {
+  margin-top: 2px;
+  accent-color: var(--amber);
+}
+
+.privateToggle span {
+  display: grid;
+  gap: 2px;
+}
+
+.privateToggle strong {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.privateToggle em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}

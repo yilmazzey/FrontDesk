@@ -597,6 +597,21 @@ export default function Settings() {
             </div>
           ) : null}
 
+          <label className="privateToggle">
+            <input
+              type="checkbox"
+              checked={info?.includePrivateOnenote ?? false}
+              onChange={(event) => {
+                const include = event.target.checked
+                void api.setIncludePrivateOnenote(include).then(() => refresh())
+              }}
+            />
+            <span>
+              <strong>Include private OneNote sections</strong>
+              <em>Sections named “private” stay hidden from Ask and search by default.</em>
+            </span>
+          </label>
+
           {microsoftChecks ? (
             <div className="diagList">
               {microsoftChecks.account ? (

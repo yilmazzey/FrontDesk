@@ -116,12 +116,15 @@ This is required for the device-code login used by the desktop app.
 | Permission | Why |
 | --- | --- |
 | `User.Read` | Read the signed-in account name/email |
+| `Files.Read` | Read files shared through Microsoft Graph |
 | `Notes.Read` | Read the user’s OneNote notebooks/pages |
-| `Mail.Read` | Read the user’s mailbox |
+| `Mail.Read` | Read the user’s mailbox, including Sent Items |
+| `Mail.Read.Shared` | Read shared mailboxes where the user has access |
 | `Calendars.Read` | Read the user’s calendar |
 | `offline_access` | Get a refresh token so the app can reconnect |
 
-- [ ] Read-only permissions only. Do **not** add write permissions.
+- [ ] Read-only permissions only for the FrontDesk app. Do **not** add write permissions to the app registration the app signs in with.
+- [ ] To seed backdated demo mail, create a **second** app registration with delegated `Mail.ReadWrite` (see 4c). The FrontDesk app never requests that scope.
 - [ ] Do **not** add `Notes.Read.All`. That is for reading every user in a tenant and usually needs admin consent.
 - [ ] If **Grant admin consent** is available and you are the tenant admin, click it.
 - [ ] If it is not available, user consent will be requested at first sign-in.
@@ -212,6 +215,25 @@ Options discussed: seat-based vs usage-based. No final decision.
 
 - [ ] Confirm all four appear in the inbox.
 
+**Backdating mail (Outlook cannot do this).** Exchange stamps `sentDateTime` and `receivedDateTime` when a message is submitted, so composing "now" always gives today's date. To build a story that spans weeks, seed the mailbox through Graph and set the MAPI timestamps. `scripts/seed_demo_mail.py` does exactly that:
+
+```bash
+# Preview the story without touching the mailbox
+python3 scripts/seed_demo_mail.py --file scripts/demo_mail.json --list
+
+# Seed it (device-code sign-in; asks for Mail.ReadWrite)
+python3 scripts/seed_demo_mail.py \
+  --file scripts/demo_mail.json \
+  --client-id "$SEED_CLIENT_ID" \
+  --tenant frontdeskdemo.onmicrosoft.com
+```
+
+The script writes items straight into Inbox, Sent Items or Drafts and sets `PR_CLIENT_SUBMIT_TIME` (`0x0039`) and `PR_MESSAGE_DELIVERY_TIME` (`0x0E06`), plus `PR_MESSAGE_FLAGS` (`0x0E07 = 4`) so the item is not a draft. It then reads each message back and prints the timestamps Graph actually stored. Nothing is sent to a real address.
+
+Use the **seeding app registration** with delegated `Mail.ReadWrite`. Do not add `Mail.ReadWrite` to the read-only app the FrontDesk app uses.
+
+`scripts/demo_mail.json` contains the full Kestrel story: 6 sent messages, 14 inbox messages, 1 draft and 3 noise messages, with the cast already renamed to Manager, Anika, Zeynep and Damla. Placeholder addresses use `domain` in the JSON; `me` resolves to the signed-in account. Reruns skip subjects that already exist unless you pass `--allow-duplicates`.
+
 ### 4d. Local handwritten note
 
 - [ ] Write a synthetic handwritten page or whiteboard:
@@ -265,7 +287,7 @@ CLIENT_ID="paste-your-client-id"
 curl -s -X POST \
   "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode" \
   -d "client_id=$CLIENT_ID" \
-  -d "scope=offline_access User.Read Notes.Read Mail.Read Calendars.Read"
+  -d "scope=offline_access User.Read Files.Read Notes.Read Mail.Read Mail.Read.Shared Calendars.Read"
 ```
 
 - [ ] Copy the `user_code` from the response.
@@ -375,7 +397,7 @@ If any of these happen, message me instead of spending more time:
 - [ ] Entra app registration created.
 - [ ] Client ID and tenant ID recorded.
 - [ ] **Allow public client flows** enabled.
-- [ ] Delegated `User.Read`, `Notes.Read`, `Mail.Read`, `Calendars.Read`, `offline_access` added.
+- [ ] Delegated `User.Read`, `Files.Read`, `Notes.Read`, `Mail.Read`, `Mail.Read.Shared`, `Calendars.Read`, `offline_access` added.
 - [ ] Consent granted (or admin consent requested).
 - [ ] Graph Explorer shows OneNote pages, calendar events and inbox messages.
 - [ ] Synthetic OneNote pages created.

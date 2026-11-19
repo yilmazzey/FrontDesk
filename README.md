@@ -106,7 +106,7 @@ You can also place a GGUF file in `models/` and select it in Settings. To force 
 
 Official builds include a public-client application ID in `desktop/.env.production`. This is not a secret. You can override it in **Settings → Microsoft account → Microsoft client ID**, or copy `desktop/.env.example` to `desktop/.env.local` and set `VITE_MICROSOFT_CLIENT_ID`.
 
-The Entra app must allow public client / device-code flow and delegated `User.Read`, `Mail.Read`, `Calendars.Read`, `Notes.Read` and `offline_access`. Connect from Settings and follow the browser code prompt. Tokens stay in memory and must be renewed by reconnecting after an app restart.
+The Entra app must allow public client / device-code flow and delegated `User.Read`, `Files.Read`, `Mail.Read`, `Mail.Read.Shared`, `Calendars.Read`, `Notes.Read` and `offline_access`. Connect from Settings and follow the browser code prompt. Tokens stay in memory and must be renewed by reconnecting after an app restart.
 
 For the full Entra walkthrough, see [MICROSOFT_DEMO_SETUP.md](MICROSOFT_DEMO_SETUP.md).
 

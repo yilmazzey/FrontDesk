@@ -28,6 +28,9 @@ pub struct Settings {
     /// startup selection is skipped afterwards.
     #[serde(default)]
     pub model_choice_explicit: bool,
+    /// Include OneNote pages in sections whose name contains "private".
+    #[serde(default)]
+    pub include_private_onenote: bool,
 }
 
 impl Default for Settings {
@@ -38,6 +41,7 @@ impl Default for Settings {
             saved_folder: None,
             microsoft_client_id: None,
             model_choice_explicit: false,
+            include_private_onenote: false,
         }
     }
 }
@@ -79,6 +83,11 @@ impl SettingsStore {
 
     pub fn set_saved_folder(&mut self, folder: &str) {
         self.settings.saved_folder = Some(folder.trim().to_string());
+        self.save();
+    }
+
+    pub fn set_include_private_onenote(&mut self, include: bool) {
+        self.settings.include_private_onenote = include;
         self.save();
     }
 

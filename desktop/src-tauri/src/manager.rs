@@ -80,8 +80,13 @@ pub async fn snapshot(
     self_name: Option<&str>,
 ) -> Result<ManagerSnapshot, String> {
     let grants = state.permissions.lock().unwrap().list();
+    let include_private_onenote = state
+        .settings
+        .lock()
+        .map(|settings| settings.get().include_private_onenote)
+        .unwrap_or(false);
     let mut all_sources = sources::list_all(&grants);
-    if let Ok(graph) = m365::list_graph(microsoft_state, &grants).await {
+    if let Ok(graph) = m365::list_graph(microsoft_state, &grants, include_private_onenote).await {
         all_sources.extend(graph);
     }
 
