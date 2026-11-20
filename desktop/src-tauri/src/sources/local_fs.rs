@@ -261,7 +261,11 @@ fn ocr_pdf_poppler(path: &Path, dir: &Path) -> Result<String, String> {
 }
 
 fn run_tool(program: &str, args: &[&str]) -> Result<String, String> {
-    let output = Command::new(program).args(args).output().map_err(|e| {
+    // Resolve Homebrew paths too: Finder-launched apps do not inherit the
+    // user's interactive shell PATH.
+    let binary =
+        crate::runtime::which(program).unwrap_or_else(|| std::path::PathBuf::from(program));
+    let output = Command::new(binary).args(args).output().map_err(|e| {
         format!(
             "{program} is not available: {e}. Install the OCR helpers from \
                  Access → Local runtime, or run the package-manager command shown there."

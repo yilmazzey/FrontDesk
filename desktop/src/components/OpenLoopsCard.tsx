@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import type { ManagerSnapshot, OpenLoop } from '../types/source'
 
 type Props = {
@@ -62,6 +63,16 @@ export default function OpenLoopsCard({ snapshot, loading, onAsk }: Props) {
         <span className="panel__meta">
           {loading ? 'Reading recent notes…' : `${loops.length} found`}
         </span>
+        <Link
+          to="/loops"
+          className="panel__arrow"
+          aria-label="Open the full open loops page"
+          title="Open all open loops"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </Link>
       </header>
 
       {loading && !snapshot ? (

@@ -99,6 +99,7 @@ export type AppInfo = {
   answerMode: AnswerMode
   savedFolder: string | null
   microsoftClientId: string | null
+  microsoftTenant?: string | null
   includePrivateOnenote: boolean
 }
 
@@ -182,6 +183,7 @@ export type DeviceCodePrompt = {
   verificationUri: string
   message: string
   intervalSeconds: number
+  expiresIn: number
 }
 
 export type DeviceCodePoll =
@@ -225,4 +227,94 @@ export type ManagerSnapshot = {
   people: PersonPulse[]
   openLoops: OpenLoop[]
   scannedSources: number
+}
+
+export type GraphEvidence = {
+  kind: 'profile' | 'directory' | 'signature' | 'note' | 'manual' | string
+  title: string
+  detail: string | null
+  timestamp: string | null
+  sourceId: string | null
+  excerpt: string | null
+}
+
+export type PeopleGraphNode = {
+  id: string
+  name: string
+  email: string | null
+  role: string | null
+  department: string
+  isSelf: boolean
+  weight: number
+  mailCount: number
+  meetingCount: number
+  mentionCount: number
+  noteCount: number
+  note: string | null
+  edited: boolean
+  manual: boolean
+  evidence: GraphEvidence[]
+}
+
+export type PeopleGraphEdge = {
+  id: string
+  source: string
+  target: string
+  weight: number
+  kinds: Array<'mail' | 'meeting' | 'mention' | 'note'>
+}
+
+export type DepartmentCluster = {
+  name: string
+  count: number
+}
+
+export type PeopleGraphData = {
+  selfId: string
+  selfName: string
+  selfDepartment: string
+  nodes: PeopleGraphNode[]
+  edges: PeopleGraphEdge[]
+  departments: DepartmentCluster[]
+  scannedMessages: number
+  scannedEvents: number
+  scannedNotes: number
+  source: 'graph' | 'empty'
+  exportedAt: string | null
+}
+
+export type PersonOverride = {
+  id: string
+  name: string | null
+  email: string | null
+  role: string | null
+  department: string | null
+  note: string | null
+  manual: boolean
+}
+
+export type PeopleOverrides = {
+  people: Record<string, PersonOverride>
+}
+
+export type PeopleSnapshot = {
+  version: number
+  exportedAt: string
+  graph: PeopleGraphData
+  overrides: PeopleOverrides
+}
+
+export type ScreenShareState = {
+  sharing: boolean
+  apps: string[]
+}
+
+export type BrowserSignInPrompt = {
+  url: string
+  expiresIn: number
+}
+
+export type BrowserSignInPoll = {
+  status: 'pending' | 'connected' | 'error' | 'idle'
+  error: string | null
 }

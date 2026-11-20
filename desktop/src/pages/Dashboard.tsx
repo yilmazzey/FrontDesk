@@ -5,23 +5,25 @@ import NextUpCard from '../components/NextUpCard'
 import OpenLoopsCard from '../components/OpenLoopsCard'
 import PeoplePanel from '../components/PeoplePanel'
 import TimelinePreview from '../components/TimelinePreview'
-import { api } from '../lib/ipc'
 import { useAccess } from '../state/access'
-import type { ManagerSnapshot } from '../types/source'
 
 function shortTitle(value: string) {
   return value.split(' — ')[0]?.trim() || value
 }
 
 export default function Dashboard() {
-  const { grants, sources, loading } = useAccess()
+  const {
+    grants,
+    sources,
+    loading,
+    snapshot,
+    snapshotLoading,
+    snapshotError,
+  } = useAccess()
   const location = useLocation()
   const navigate = useNavigate()
   const [focusSignal, setFocusSignal] = useState(0)
   const [prompt, setPrompt] = useState<{ value: string; id: number } | undefined>()
-  const [snapshot, setSnapshot] = useState<ManagerSnapshot | null>(null)
-  const [snapshotLoading, setSnapshotLoading] = useState(true)
-  const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const now = new Date()
   const calendarConnected = grants.some((grant) => grant.kind === 'calendar')
 
@@ -51,31 +53,6 @@ export default function Dashboard() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-
-  useEffect(() => {
-    let active = true
-    setSnapshotLoading(true)
-    setSnapshotError(null)
-    void (async () => {
-      try {
-        const profile = calendarConnected
-          ? await api.getMicrosoftProfile().catch(() => null)
-          : null
-        const next = await api.managerSnapshot(profile?.displayName)
-        if (active) setSnapshot(next)
-      } catch (cause) {
-        if (active) {
-          setSnapshot(null)
-          setSnapshotError(cause instanceof Error ? cause.message : String(cause))
-        }
-      } finally {
-        if (active) setSnapshotLoading(false)
-      }
-    })()
-    return () => {
-      active = false
-    }
-  }, [calendarConnected, sources])
 
   const suggestions = useMemo(() => {
     const next = snapshot?.nextUp

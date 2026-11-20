@@ -135,7 +135,8 @@ fn emit(
 }
 
 fn tool_version(program: &str, args: &[&str]) -> Option<String> {
-    let output = Command::new(program)
+    let binary = which(program)?;
+    let output = Command::new(binary)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -155,9 +156,18 @@ fn tool_version(program: &str, args: &[&str]) -> Option<String> {
         .map(|line| line.chars().take(120).collect())
 }
 
-fn which(program: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
+pub(crate) fn which(program: &str) -> Option<PathBuf> {
+    // GUI apps launched from Finder get a minimal PATH. Include the usual
+    // Homebrew locations so installed helpers are not reported as missing.
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(path) = std::env::var_os("PATH") {
+        candidates.extend(std::env::split_paths(&path));
+    }
+    for dir in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"] {
+        candidates.push(PathBuf::from(dir));
+    }
+    candidates
+        .into_iter()
         .map(|dir| dir.join(program))
         .find(|candidate| candidate.is_file())
 }
@@ -477,13 +487,13 @@ fn install_ocr(app: Option<&AppHandle>) -> Result<(), String> {
     }
 
     if cfg!(target_os = "macos") {
-        if which("brew").is_none() {
+        let Some(brew) = which("brew") else {
             return Err(
                 "Homebrew is not installed, so FrontDesk cannot install Tesseract/Poppler automatically. \
                  Install Homebrew from https://brew.sh, then retry."
                     .into(),
             );
-        }
+        };
         emit(
             app,
             "ocr",
@@ -492,7 +502,7 @@ fn install_ocr(app: Option<&AppHandle>) -> Result<(), String> {
             0,
             0,
         );
-        let output = Command::new("brew")
+        let output = Command::new(brew)
             .args(["install", "tesseract"])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

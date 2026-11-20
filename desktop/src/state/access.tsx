@@ -8,15 +8,28 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from '../lib/ipc'
-import type { AnswerMode, AppInfo, ModelRef, SourceGrant, SourceRef } from '../types/source'
+import type {
+  AnswerMode,
+  AppInfo,
+  ManagerSnapshot,
+  ModelRef,
+  SourceGrant,
+  SourceRef,
+} from '../types/source'
 
 type AccessValue = {
   grants: SourceGrant[]
   sources: SourceRef[]
   models: ModelRef[]
   info: AppInfo | null
+  snapshot: ManagerSnapshot | null
   loading: boolean
+  snapshotLoading: boolean
   error: string | null
+  snapshotError: string | null
+  /** Re-read every source, grant and the manager snapshot. */
+  resync: () => Promise<void>
+  /** Alias kept for settings actions that only need fresh access data. */
   refresh: () => Promise<void>
   grantFolder: (path: string) => Promise<void>
   grantFixture: () => Promise<void>
@@ -33,10 +46,15 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const [sources, setSources] = useState<SourceRef[]>([])
   const [models, setModels] = useState<ModelRef[]>([])
   const [info, setInfo] = useState<AppInfo | null>(null)
+  const [snapshot, setSnapshot] = useState<ManagerSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
+  const [snapshotLoading, setSnapshotLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [snapshotError, setSnapshotError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
+  const resync = useCallback(async () => {
+    setLoading(true)
+    setSnapshotLoading(true)
     try {
       const [nextGrants, nextSources, nextModels, nextInfo] = await Promise.all([
         api.listGrants(),
@@ -49,51 +67,59 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       setModels(nextModels)
       setInfo(nextInfo)
       setError(null)
+
+      // Keep the last good snapshot if the live scan fails; navigation must
+      // never blank the dashboard while the app is open.
+      try {
+        const calendarConnected = nextGrants.some(
+          (grant) => grant.kind === 'calendar',
+        )
+        const profile = calendarConnected
+          ? await api.getMicrosoftProfile().catch(() => null)
+          : null
+        const nextSnapshot = await api.managerSnapshot(profile?.displayName)
+        setSnapshot(nextSnapshot)
+        setSnapshotError(null)
+      } catch (cause) {
+        setSnapshotError(cause instanceof Error ? cause.message : String(cause))
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setLoading(false)
+      setSnapshotLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    refresh().finally(() => setLoading(false))
-  }, [refresh])
-
-  useEffect(() => {
-    const refreshOnFocus = () => {
-      void refresh()
-    }
-    window.addEventListener('focus', refreshOnFocus)
-    return () => window.removeEventListener('focus', refreshOnFocus)
-  }, [refresh])
+    void resync()
+  }, [resync])
 
   const grantFolder = useCallback(
     async (path: string) => {
       await api.grantFolder(path)
-      await refresh()
+      await resync()
     },
-    [refresh],
+    [resync],
   )
 
   const grantFixture = useCallback(async () => {
     await api.grantFixture()
-    await refresh()
-  }, [refresh])
+    await resync()
+  }, [resync])
 
   const revoke = useCallback(
     async (id: string) => {
       await api.revokeGrant(id)
-      await refresh()
+      await resync()
     },
-    [refresh],
+    [resync],
   )
 
-  const selectModel = useCallback(
-    async (id: string | null) => {
-      const next = await api.selectModel(id)
-      setInfo(next)
-    },
-    [],
-  )
+  const selectModel = useCallback(async (id: string | null) => {
+    const next = await api.selectModel(id)
+    setInfo(next)
+  }, [])
 
   const selectMode = useCallback(async (mode: AnswerMode) => {
     const next = await api.selectMode(mode)
@@ -113,9 +139,13 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       sources,
       models,
       info,
+      snapshot,
       loading,
+      snapshotLoading,
       error,
-      refresh,
+      snapshotError,
+      resync,
+      refresh: resync,
       grantFolder,
       grantFixture,
       revoke,
@@ -128,9 +158,12 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       sources,
       models,
       info,
+      snapshot,
       loading,
+      snapshotLoading,
       error,
-      refresh,
+      snapshotError,
+      resync,
       grantFolder,
       grantFixture,
       revoke,

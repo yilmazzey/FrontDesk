@@ -131,6 +131,8 @@ pub struct AppInfo {
     pub saved_folder: Option<String>,
     /// Public Microsoft Entra client ID for device-code sign-in.
     pub microsoft_client_id: Option<String>,
+    /// Tenant ID or domain used for sign-in; `None` means `common`.
+    pub microsoft_tenant: Option<String>,
     pub include_private_onenote: bool,
 }
 

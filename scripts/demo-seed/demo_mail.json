@@ -1,0 +1,454 @@
+{
+  "clientId": "",
+  "people": {
+    "anika": {
+      "name": "Anika Okafor",
+      "address": "anika.okafor"
+    },
+    "zeynep": {
+      "name": "Dr Zeynep Nair",
+      "address": "zeynep.nair"
+    },
+    "damla": {
+      "name": "Damla Hartley",
+      "address": "damla.hartley"
+    },
+    "hannah": {
+      "name": "Hannah Whitcombe",
+      "address": "hannah.whitcombe"
+    },
+    "tomasz": {
+      "name": "Tomasz Wrona",
+      "address": "tomasz.wrona"
+    },
+    "lena": {
+      "name": "Lena Fischer",
+      "address": "lena.fischer@northlight-creative.example"
+    },
+    "aisha": {
+      "name": "Aisha Rahman",
+      "address": "aisha.rahman"
+    },
+    "itdesk": {
+      "name": "IT Service Desk",
+      "address": "itdesk"
+    },
+    "learning": {
+      "name": "Learning & Compliance",
+      "address": "learning"
+    },
+    "comms": {
+      "name": "Site Communications",
+      "address": "comms"
+    },
+    "hr": {
+      "name": "People & Culture",
+      "address": "people.culture"
+    },
+    "security": {
+      "name": "Information Security",
+      "address": "infosec"
+    },
+    "procurement": {
+      "name": "Procurement Desk",
+      "address": "procurement"
+    },
+    "travel": {
+      "name": "Corporate Travel",
+      "address": "travel"
+    },
+    "facilities": {
+      "name": "Facilities Team",
+      "address": "facilities"
+    },
+    "events": {
+      "name": "Events Team",
+      "address": "events"
+    },
+    "pharmafocus": {
+      "name": "PharmaFocus Weekly",
+      "address": "news@pharmafocus.example"
+    }
+  },
+  "messages": [
+    {
+      "folder": "inbox",
+      "date": "2026-10-09T16:42:00+01:00",
+      "from": "anika",
+      "to": [
+        "me"
+      ],
+      "subject": "Northlight v2 creative — ready for your eyes",
+      "body": "Hi,\n\nv2 came back from Northlight this afternoon. They've given us two options for the lead on the HCP email: A leads with claim 4 (the comparison), B leads with the nurse support programme.\n\nI prefer A, it's the strongest hook we have. Can we go through both on Thursday in our 1:1?\n\nFolder link: https://example.com/shared/kestrel/northlight-v2\n\nAnika\n\nAnika Okafor\nSenior Brand Manager, Kestrel\nCommercial & Marketing"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-10-12T10:05:00+01:00",
+      "from": "anika",
+      "to": [
+        "me"
+      ],
+      "subject": "Congress poster — the slide with the claim 4 data",
+      "body": "As promised, slide 12 from the poster. This is the only place the comparison data exists right now — the manuscript is still under review as far as I know.\n\nAnika\n\nAnika Okafor\nSenior Brand Manager, Kestrel\nCommercial & Marketing"
+    },
+    {
+      "folder": "sent",
+      "date": "2026-10-15T17:20:00+01:00",
+      "from": "me",
+      "to": [
+        "anika"
+      ],
+      "subject": "Re: today",
+      "body": "Anika,\n\nThanks — good session. Confirming: we go with option B for the MLR pack and park claim 4 for now. The poster data isn't enough and Zeynep isn't comfortable with comparative wording until the paper is published. MLR would bounce it and cost us a cycle we don't have.\n\nPlease check timing with Zeynep. I'll speak to Tomasz about the retainer.\n\nManager"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-10-16T09:15:00+01:00",
+      "from": "anika",
+      "to": [
+        "zeynep"
+      ],
+      "cc": [
+        "me"
+      ],
+      "subject": "Claim 4 — when can we expect the publication?",
+      "body": "Hi Zeynep,\n\nWe're building the HCP launch email and I wanted to check where the Congress data is for claim 4. Is there a publication date? I think it's poster only at the moment.\n\nThanks,\nAnika\n\nAnika Okafor\nSenior Brand Manager, Kestrel\nCommercial & Marketing"
+    },
+    {
+      "folder": "sent",
+      "date": "2026-10-16T09:30:00+01:00",
+      "from": "me",
+      "to": [
+        "zeynep"
+      ],
+      "subject": "Claim 4 publication timing",
+      "body": "Zeynep,\n\nFollowing up on Anika's note: is there an online publication date for the claim 4 data, or are we still poster-only? I need to know whether there's any realistic path to using the comparative wording before MLR.\n\nIf it isn't in print, I'll keep it out of the launch email.\n\nThanks,\nManager"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-10-26T15:30:00Z",
+      "from": "hannah",
+      "to": [
+        "me",
+        "anika",
+        "zeynep",
+        "damla"
+      ],
+      "subject": "Kestrel steering 26 Oct — actions",
+      "importance": "high",
+      "flag": true,
+      "body": "Thanks all, useful session. Actions:\n\n- Manager: bring the rationale for the claim 4 position to the next steering (23 Nov)\n- AO: MLR submission by 24 Nov, no slippage\n- DH: confirm comms timeline with Regulatory\n- HW: speak to Finance about agency spend\n\nThe board is keen on the strongest possible message at launch, so let's not lose claim 4 without a good reason.\n\nHannah\n\nHannah Whitcombe\nCommercial Director, UK\nCommercial & Marketing"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-03T11:08:00Z",
+      "from": "zeynep",
+      "to": [
+        "anika"
+      ],
+      "cc": [
+        "me"
+      ],
+      "subject": "RE: Claim 4 — when can we expect the publication?",
+      "body": "Hi both,\n\nSorry for the slow reply. Short version: the manuscript has been accepted in principle but there's no online date yet.\n\nThe poster alone doesn't meet our standard for a comparative statement, so I wouldn't be able to support the claim 4 wording in anything promotional until it's in print.\n\nHappy to review the nurse programme version as soon as the MLR pack is in.\n\nZeynep\n\nDr Zeynep Nair\nMedical Advisor\nMedical"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-10T14:05:00Z",
+      "from": "anika",
+      "to": [
+        "me"
+      ],
+      "subject": "Northlight PO — extra creative round",
+      "body": "Hi,\n\nNorthlight are asking for a PO for the extra v3 round: £18.4k including the pharmacist leave-behind adaptation. I said I'd check with you before pushing Finance.\n\nDo you want me to go to Tomasz, or will you?\n\nAnika\n\nAnika Okafor\nSenior Brand Manager, Kestrel\nCommercial & Marketing"
+    },
+    {
+      "folder": "sent",
+      "date": "2026-11-11T09:40:00Z",
+      "from": "me",
+      "to": [
+        "tomasz"
+      ],
+      "cc": [
+        "anika"
+      ],
+      "subject": "Northlight extra round — PO route",
+      "body": "Tomasz,\n\nNorthlight need a PO for roughly £18.4k for an extra creative round (v3 plus the pharmacist leave-behind adaptation). Can this come from the launch contingency? Let me know what you need from me.\n\nManager"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-12T10:22:00Z",
+      "from": "tomasz",
+      "to": [
+        "me"
+      ],
+      "cc": [
+        "anika"
+      ],
+      "subject": "RE: Northlight extra round — PO route",
+      "body": "Hi,\n\nIt would come from the launch contingency, but that line needs Hannah's sign-off for anything over £15k. If you can get me a one-line OK from her I can raise the PO the same day.\n\nTomasz\n\nTomasz Wrona\nFinance Business Partner\nFinance"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-12T16:50:00Z",
+      "from": "damla",
+      "to": [
+        "me",
+        "hannah",
+        "anika",
+        "zeynep"
+      ],
+      "subject": "Launch comms date — moving to 9 Feb",
+      "importance": "high",
+      "body": "Hi all,\n\nHeads up following this morning's call with Regulatory and Supply. The first commercial supply release has slipped, so the earliest we can go with launch comms is Tuesday 9 Feb (it was Wednesday 3 Feb). Press embargo planning follows that date.\n\nI'll send a revised comms timeline next week. Please update your plans. I'd treat 9 Feb as firm unless you hear otherwise.\n\nDamla\n\nDamla Hartley\nCorporate Affairs Manager\nCorporate Affairs"
+    },
+    {
+      "folder": "sent",
+      "date": "2026-11-12T17:05:00Z",
+      "from": "me",
+      "to": [
+        "damla"
+      ],
+      "subject": "Launch date — 9 Feb",
+      "body": "Damla,\n\nThanks for the update. I've noted 9 February as the firm comms date and I'll treat the 3 February plan and calendar hold as superseded.\n\nPlease send the revised timeline and embargo plan when you have it. I need to brief Hannah before Monday.\n\nManager"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-13T12:12:00Z",
+      "from": "aisha",
+      "to": [
+        "me"
+      ],
+      "subject": "Heron hospital pharmacy webinar — could you speak for 10 mins?",
+      "body": "Hi,\n\nWould you be up for 10 minutes on nurse-led support models at the Heron webinar on 3 Dec? Run-through is Monday 23rd at 10:30 if that works. No worries if not.\n\nAisha\n\nAisha Rahman\nBrand Lead, Heron\nCommercial & Marketing"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-17T09:02:00Z",
+      "from": "hannah",
+      "to": [
+        "me"
+      ],
+      "cc": [
+        "anika",
+        "zeynep",
+        "damla"
+      ],
+      "subject": "Monday steering — agenda",
+      "importance": "high",
+      "flag": true,
+      "read": false,
+      "body": "Agenda for Monday:\n\n- 1. Launch date and comms (Damla)\n- 2. Claim 4 — where we landed and why (Manager)\n- 3. Agency spend — extra round (Hannah / Tomasz)\n- 4. MLR timeline (Anika)\n\nThe board will ask why we dropped claim 4, so please bring the full rationale, and an option if there is one.\n\nThanks,\nHannah\n\nHannah Whitcombe\nCommercial Director, UK\nCommercial & Marketing"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-17T17:31:00Z",
+      "from": "zeynep",
+      "to": [
+        "me"
+      ],
+      "subject": "Claim 4 pub — quick update (not for the wider thread)",
+      "read": false,
+      "body": "Quick one outside the thread.\n\nI heard from the corresponding author: the editor is saying early to mid December for online, but they've been vague before so please don't plan on it.\n\nIf it does land I'd want two weeks to review the claim wording properly, and I'm on leave 14–18 Dec (Rahul Shah covers). Happy to talk before Monday.\n\nZeynep\n\nDr Zeynep Nair\nMedical Advisor\nMedical"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-18T11:20:00Z",
+      "from": "anika",
+      "to": [
+        "me"
+      ],
+      "subject": "MLR pack — on track, plus one question",
+      "read": false,
+      "body": "Hi,\n\nPack goes in Tuesday as planned. One question: should I submit a variant with claim 4 as well, so we don't have to restart MLR if the paper comes through? It would add a few days now but might save weeks later.\n\nYour call.\n\nAnika\n\nAnika Okafor\nSenior Brand Manager, Kestrel\nCommercial & Marketing"
+    },
+    {
+      "folder": "sent",
+      "date": "2026-11-18T15:45:00Z",
+      "from": "me",
+      "to": [
+        "hannah"
+      ],
+      "subject": "Re: Monday steering — agenda",
+      "body": "Hannah,\n\nWill do. Short version: Medical can't support claim 4 until the paper is published. I'll bring the detail and a proposal.\n\nI also need your steer on the Northlight extra round — it's above the £15k limit and Tomasz needs your OK.\n\nManager"
+    },
+    {
+      "folder": "drafts",
+      "date": "2026-11-18T16:20:00Z",
+      "from": "me",
+      "to": [
+        "hannah"
+      ],
+      "subject": "Claim 4 — options for Monday",
+      "body": "On claim 4. Where we are:\n\n- Not in the launch email because [pull reasons from my notes!!]\n- Medical position: [Zeynep — check her email]\n- Option: [TBC]\n\nBudget: need OK on the extra round before"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-19T08:10:00Z",
+      "from": "lena",
+      "to": [
+        "me"
+      ],
+      "cc": [
+        "anika"
+      ],
+      "subject": "Northlight — v3 timings",
+      "importance": "high",
+      "read": false,
+      "body": "Hi,\n\nIf we get the PO by Friday 27 Nov we can deliver v3 by 11 Dec. After that we're into the Christmas slowdown and it slips to mid January.\n\nLena\n\nLena Fischer\nAccount Director\nNorthlight Creative"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-19T09:05:00Z",
+      "from": "anika",
+      "to": [
+        "me"
+      ],
+      "subject": "Steering prep tomorrow",
+      "read": false,
+      "body": "Hi,\n\nCan we use 20 mins tomorrow for the variant question and 10 for me (career stuff)?\n\nAnika\n\nAnika Okafor\nSenior Brand Manager, Kestrel\nCommercial & Marketing"
+    },
+    {
+      "folder": "sent",
+      "date": "2026-11-19T09:15:00Z",
+      "from": "me",
+      "to": [
+        "anika"
+      ],
+      "subject": "Re: Steering prep tomorrow",
+      "body": "Anika,\n\nYes — 20 minutes on the variant question, then 10 for your career conversation. Please bring the trade-off: what a claim 4 variant costs us now versus restarting MLR later.\n\nManager"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-12T08:00:00Z",
+      "from": "itdesk",
+      "to": [
+        "me"
+      ],
+      "subject": "Planned maintenance: Saturday 21 Nov, 22:00–02:00",
+      "body": "Email and file sharing will be intermittently unavailable during the window. No action needed.\n\nIT Service Desk\nInternal IT"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-16T07:30:00Z",
+      "from": "learning",
+      "to": [
+        "me"
+      ],
+      "subject": "Reminder: annual compliance training due 30 Nov",
+      "importance": "high",
+      "read": false,
+      "body": "You have 2 modules outstanding. Please complete them by Monday 30 Nov.\n\nLearning & Compliance\nPeople & Culture"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-09T08:30:00Z",
+      "from": "comms",
+      "to": [
+        "me"
+      ],
+      "subject": "This week on site: car park resurfacing, winter menu, wellbeing week",
+      "body": "Weekly site round-up. Car park B closed Tuesday and Wednesday. New winter menu in the canteen from Monday.\n\nSite Communications\nCorporate Affairs"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-05T10:00:00Z",
+      "from": "hr",
+      "to": [
+        "me"
+      ],
+      "subject": "Benefits enrolment closes Friday",
+      "body": "The annual benefits window closes at 17:00 on Friday. If you want to change your dental cover, dependants or cycle-to-work plan, submit the form before then. No action is needed if you are keeping your current selections.\n\nPeople & Culture\nHuman Resources"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-06T08:30:00Z",
+      "from": "security",
+      "to": [
+        "me"
+      ],
+      "subject": "Phishing simulation — three clicks in Commercial & Marketing",
+      "body": "The latest simulation ran on Tuesday. Three people in Commercial & Marketing clicked the link, and one entered credentials. Nothing was exposed because the page was a simulation. Please remind your team: check the sender, hover the link, and report anything suspicious with the Report button."
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-08T10:20:00Z",
+      "from": "aisha",
+      "to": [
+        "me"
+      ],
+      "subject": "Comparative claims in Heron materials — how did you get yours through MLR?",
+      "body": "Hi,\n\nQuick favour. Heron is drafting a patient-support leaflet and Legal have pushed back on a comparative statement. I remember Kestrel had a similar debate. How did you frame the evidence pack so MLR would accept it?\n\nThis is for Heron, not Kestrel — completely separate review.\n\nAisha\n\nAisha Rahman\nBrand Lead, Heron\nCommercial & Marketing"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-09T09:00:00Z",
+      "from": "pharmafocus",
+      "to": [
+        "me"
+      ],
+      "subject": "The week in pharma: supply chains, AI and pricing",
+      "body": "This week: three lessons from the latest supply-chain disruptions, how commercial teams are using AI for field planning, and why payers are asking harder questions about combination therapies.\n\nRead the full digest online. You are receiving this because you subscribed to PharmaFocus Weekly."
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-10T09:00:00Z",
+      "from": "procurement",
+      "to": [
+        "me"
+      ],
+      "subject": "Invoice INV-8841 needs a cost centre",
+      "body": "Invoice INV-8841 from Office Interiors has arrived without a cost centre. Please reply with the correct code so we can release payment. This is separate from any agency purchase orders.\n\nProcurement Desk\nProcurement"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-11T13:15:00Z",
+      "from": "facilities",
+      "to": [
+        "me"
+      ],
+      "subject": "Parcel at reception and stationery delivery",
+      "body": "A parcel addressed to you is at reception. The stationery order for the third floor has also arrived and is in the cupboard by the printer. No action needed unless the parcel is not yours.\n\nFacilities Team\nFacilities"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-14T09:45:00Z",
+      "from": "travel",
+      "to": [
+        "me"
+      ],
+      "subject": "Booking confirmed: Manchester, 14 Dec",
+      "body": "Your travel booking is confirmed. Outbound: 08:05 on 14 Dec. Return: 18:40 on 15 Dec. Hotel: Piccadilly Central, one night. Tickets are in the travel portal. This booking is personal to your account."
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-14T15:30:00Z",
+      "from": "aisha",
+      "to": [
+        "me"
+      ],
+      "subject": "Heron webinar slides + 3 Dec joining link",
+      "body": "Slides for the Heron hospital pharmacy webinar are attached in the shared folder. The joining link is in the calendar invite. Your 10 minutes is after the coffee break, around 11:40. This is Heron content — please do not reuse Kestrel material.\n\nAisha Rahman\nBrand Lead, Heron\nCommercial & Marketing"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-15T11:20:00Z",
+      "from": "learning",
+      "to": [
+        "me"
+      ],
+      "subject": "Excel pivot tables: 30-minute webinar",
+      "body": "A 30-minute live session on pivot tables and slicers runs on Thursday at 14:00. Suitable for beginners. Sign up in the learning portal. This is optional and unrelated to compliance training.\n\nLearning & Compliance\nPeople & Culture"
+    },
+    {
+      "folder": "inbox",
+      "date": "2026-11-18T07:45:00Z",
+      "from": "events",
+      "to": [
+        "me"
+      ],
+      "subject": "Winter social: RSVP by 24 Nov",
+      "body": "The UK Commercial & Marketing winter social is on 4 Dec at the Riverside Rooms. RSVP by 24 Nov with any dietary requirements. Partners welcome. This is a social event, not a launch comms activity."
+    }
+  ]
+}

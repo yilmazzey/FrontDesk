@@ -271,12 +271,17 @@ def main() -> int:
             print(f"would create         {folder:9}  {timestamp}  {payload['subject']}")
             continue
 
-        result = graph(
-            "POST",
-            f"/me/mailFolders/{folder}/messages",
-            token,
-            payload,
-        )
+        try:
+            result = graph(
+                "POST",
+                f"/me/mailFolders/{folder}/messages",
+                token,
+                payload,
+            )
+        except SystemExit as error:
+            print(f"failed  {folder:9}  {timestamp}  {payload['subject']}")
+            print(f"         {error}")
+            continue
         created += 1
         print(f"created {folder:9}  {timestamp}  {payload['subject']}")
 

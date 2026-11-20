@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import PathLink from '../components/PathLink'
+import PrivacySettings from '../components/PrivacySettings'
 import RuntimePanel from '../components/RuntimePanel'
 import { bytes } from '../lib/format'
 import { api, inTauri } from '../lib/ipc'
@@ -20,9 +22,17 @@ export default function Settings() {
   const [microsoftProfile, setMicrosoftProfile] = useState<MicrosoftProfile | null>(null)
   const [microsoftChecks, setMicrosoftChecks] = useState<MicrosoftDiagnostics | null>(null)
   const [checksBusy, setChecksBusy] = useState(false)
-  const [clientIdDraft, setClientIdDraft] = useState('')
+  const [clientIdDraft, setClientIdDraft] = useState(
+    () => import.meta.env.VITE_MICROSOFT_CLIENT_ID?.trim() ?? '',
+  )
   const [clientIdBusy, setClientIdBusy] = useState(false)
+  const [tenantDraft, setTenantDraft] = useState('common')
+  const [tenantBusy, setTenantBusy] = useState(false)
   const [deviceCode, setDeviceCode] = useState<DeviceCodePrompt | null>(null)
+  const [codeExpiresAt, setCodeExpiresAt] = useState<number | null>(null)
+  const [codeIssuedAt, setCodeIssuedAt] = useState<number | null>(null)
+  const [signInExpired, setSignInExpired] = useState(false)
+  const [clock, setClock] = useState(() => Date.now())
   const [microsoftBusy, setMicrosoftBusy] = useState(false)
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null)
   const [indexBusy, setIndexBusy] = useState(false)
@@ -37,6 +47,13 @@ export default function Settings() {
 
   const selected = info?.selectedModel ?? 'extractive'
   const webGrant = grants.find((grant) => grant.kind === 'web')
+  const signInRemaining =
+    codeExpiresAt === null ? null : Math.max(0, Math.ceil((codeExpiresAt - clock) / 1000))
+  const signInExpiredNow = signInExpired || signInRemaining === 0
+  const signInClock =
+    signInRemaining === null
+      ? null
+      : `${Math.floor(signInRemaining / 60)}:${String(signInRemaining % 60).padStart(2, '0')}`
 
   useEffect(() => {
     if (!inTauri()) return
@@ -111,13 +128,43 @@ export default function Settings() {
   }, [])
 
   useEffect(() => {
+    if (!inTauri()) return
+    let active = true
+    api
+      .currentSignIn()
+      .then((prompt) => {
+        if (!active || !prompt) return
+        setDeviceCode(prompt)
+        setCodeExpiresAt(Date.now() + Math.max(1, prompt.expiresIn) * 1000)
+        setCodeIssuedAt(Date.now())
+        setClock(Date.now())
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (info?.microsoftClientId) setClientIdDraft(info.microsoftClientId)
+  }, [info?.microsoftClientId])
+
+  useEffect(() => {
+    if (info?.microsoftTenant) setTenantDraft(info.microsoftTenant)
+  }, [info?.microsoftTenant])
+
+  useEffect(() => {
     let active = true
     api.getMicrosoftProfile()
       .then((profile) => {
         if (active) setMicrosoftProfile(profile)
       })
       .catch((cause) => {
-        if (active) setNotice(cause instanceof Error ? cause.message : String(cause))
+        if (!active) return
+        // A stale in-memory token must not leave the button stuck on
+        // "Disconnect" when the only useful action is to connect again.
+        setMicrosoftProfile(null)
+        setNotice(cause instanceof Error ? cause.message : String(cause))
       })
     return () => {
       active = false
@@ -125,11 +172,31 @@ export default function Settings() {
   }, [])
 
   useEffect(() => {
-    if (!deviceCode) return
+    if (!deviceCode || !codeExpiresAt) return
+    setClock(Date.now())
+    const timer = window.setInterval(() => setClock(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [deviceCode, codeExpiresAt])
+
+  useEffect(() => {
+    if (deviceCode && codeExpiresAt && clock >= codeExpiresAt && !signInExpired) {
+      setSignInExpired(true)
+      setNotice('That sign-in code expired. Get a new code without restarting FrontDesk.')
+    }
+  }, [clock, codeExpiresAt, deviceCode, signInExpired])
+
+  useEffect(() => {
+    if (!deviceCode || signInExpired) return
     let active = true
     let timer: ReturnType<typeof setTimeout>
 
     const poll = async () => {
+      if (!active) return
+      if (codeExpiresAt && Date.now() >= codeExpiresAt) {
+        setSignInExpired(true)
+        setNotice('That sign-in code expired. Get a new code without restarting FrontDesk.')
+        return
+      }
       try {
         const result = await api.pollMicrosoftSignIn()
         if (!active) return
@@ -139,6 +206,9 @@ export default function Settings() {
           setMicrosoftProfile(await api.getMicrosoftProfile())
           setMicrosoftChecks(await api.microsoftDiagnostics())
           setDeviceCode(null)
+          setCodeExpiresAt(null)
+          setCodeIssuedAt(null)
+          setSignInExpired(false)
           setMicrosoftBusy(false)
           setNotice('Microsoft account connected. Mail, calendar and OneNote are available.')
           return
@@ -146,14 +216,22 @@ export default function Settings() {
         timer = setTimeout(poll, Math.max(1, result.intervalSeconds) * 1000)
       } catch (cause) {
         if (!active) return
-        setDeviceCode(null)
+        const message = cause instanceof Error ? cause.message : String(cause)
         setMicrosoftBusy(false)
-        setNotice(cause instanceof Error ? cause.message : String(cause))
+        setNotice(message)
+        if (/expired/i.test(message)) {
+          // Keep the prompt visible so "Get a new code" can replace it in place.
+          setSignInExpired(true)
+          return
+        }
+        setDeviceCode(null)
+        setCodeExpiresAt(null)
+        setCodeIssuedAt(null)
         try {
           await api.cancelMicrosoftSignIn()
         } catch (cancelCause) {
           setNotice(
-            `${cause instanceof Error ? cause.message : String(cause)} Sign-in cleanup failed: ${
+            `${message} Sign-in cleanup failed: ${
               cancelCause instanceof Error ? cancelCause.message : String(cancelCause)
             }`,
           )
@@ -166,7 +244,32 @@ export default function Settings() {
       active = false
       clearTimeout(timer)
     }
-  }, [deviceCode, refresh])
+  }, [deviceCode, signInExpired, codeExpiresAt, refresh])
+
+  async function copyToClipboard(value: string): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(value)
+      return true
+    } catch {
+      // Webviews do not always grant the async clipboard API.
+    }
+    try {
+      const area = document.createElement('textarea')
+      area.value = value
+      area.setAttribute('readonly', '')
+      area.style.position = 'fixed'
+      area.style.top = '-1000px'
+      area.style.opacity = '0'
+      document.body.appendChild(area)
+      area.select()
+      area.setSelectionRange(0, value.length)
+      const copied = document.execCommand('copy')
+      area.remove()
+      return copied
+    } catch {
+      return false
+    }
+  }
 
   async function recheckMicrosoft() {
     setChecksBusy(true)
@@ -193,7 +296,21 @@ export default function Settings() {
     }
   }
 
-  async function connectMicrosoft() {
+  async function saveTenant() {
+    setTenantBusy(true)
+    setNotice(null)
+    try {
+      await api.setMicrosoftTenant(tenantDraft.trim() || null)
+      await refresh()
+      setNotice('Microsoft tenant saved.')
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setTenantBusy(false)
+    }
+  }
+
+  async function startMicrosoftSignIn() {
     const clientId =
       clientIdDraft.trim() || import.meta.env.VITE_MICROSOFT_CLIENT_ID?.trim()
     if (!clientId) {
@@ -202,11 +319,25 @@ export default function Settings() {
     }
     setMicrosoftBusy(true)
     setNotice(null)
+    // Clear the old prompt first: otherwise the expiry effect can fire against
+    // the previous code while the new request is in flight.
+    setDeviceCode(null)
+    setCodeExpiresAt(null)
+    setCodeIssuedAt(null)
+    setSignInExpired(false)
     try {
-      setDeviceCode(await api.beginMicrosoftSignIn(clientId))
+      const prompt = await api.beginMicrosoftSignIn(
+        clientId,
+        tenantDraft.trim() || null,
+      )
+      setDeviceCode(prompt)
+      setCodeIssuedAt(Date.now())
+      setCodeExpiresAt(Date.now() + Math.max(1, prompt.expiresIn) * 1000)
+      setClock(Date.now())
     } catch (cause) {
-      setMicrosoftBusy(false)
       setNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setMicrosoftBusy(false)
     }
   }
 
@@ -230,6 +361,9 @@ export default function Settings() {
     try {
       await api.cancelMicrosoftSignIn()
       setDeviceCode(null)
+      setCodeExpiresAt(null)
+      setCodeIssuedAt(null)
+      setSignInExpired(false)
       setMicrosoftBusy(false)
       setNotice('Microsoft sign-in cancelled.')
     } catch (cause) {
@@ -516,16 +650,35 @@ export default function Settings() {
                   : 'Read-only access to mail, calendar and OneNote'}
               </em>
             </span>
-            <button
-              type="button"
-              className="btn btn--ghost btn--sm"
-              disabled={microsoftBusy}
-              onClick={() =>
-                void (microsoftProfile ? disconnectMicrosoft() : connectMicrosoft())
-              }
-            >
-              {microsoftBusy ? 'Connecting…' : microsoftProfile ? 'Disconnect' : 'Connect'}
-            </button>
+            <div className="connectRow__actions">
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                disabled={microsoftBusy || Boolean(deviceCode)}
+                onClick={() =>
+                  void (microsoftProfile ? disconnectMicrosoft() : startMicrosoftSignIn())
+                }
+              >
+                {microsoftBusy
+                  ? 'Working…'
+                  : deviceCode
+                    ? 'Sign-in in progress…'
+                    : microsoftProfile
+                      ? 'Disconnect'
+                      : 'Connect'}
+              </button>
+              {microsoftProfile ? (
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  disabled={microsoftBusy || Boolean(deviceCode)}
+                  onClick={() => void startMicrosoftSignIn()}
+                  title="Start a new device-code sign-in without disconnecting first"
+                >
+                  Reconnect
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className="clientIdRow">
             <label className="fieldLabel" htmlFor="microsoftClientId">
@@ -547,54 +700,131 @@ export default function Settings() {
               {clientIdBusy ? 'Saving…' : 'Save'}
             </button>
           </div>
+          <div className="clientIdRow">
+            <label className="fieldLabel" htmlFor="microsoftTenant">
+              Directory (tenant)
+            </label>
+            <input
+              id="microsoftTenant"
+              value={tenantDraft}
+              onChange={(event) => setTenantDraft(event.target.value)}
+              placeholder="common, contoso.onmicrosoft.com or tenant ID"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={tenantBusy}
+              onClick={() => void saveTenant()}
+            >
+              {tenantBusy ? 'Saving…' : 'Save'}
+            </button>
+          </div>
           <p className="panel__note">
-            Public client ID for device-code sign-in. Official builds include one; self-hosted
-            demos can override it here.
+            Use <code>common</code> for a multi-tenant app registration. A single-tenant app must
+            use its own tenant ID or domain. Sign-in uses a device code that expires after 15
+            minutes; the prompt below always shows the current code and can request a new one.
           </p>
 
-          {deviceCode ? (
-            <div className="authPrompt">
-              <p>
-                Microsoft is waiting for approval. Open the sign-in page in your browser and enter
-                this code:
-              </p>
-              <div className="authPrompt__codeRow">
-                <code className="authPrompt__code">{deviceCode.userCode}</code>
+          {deviceCode ? createPortal(
+            <div
+              className="authModal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="microsoftAuthTitle"
+            >
+            <div className={`authPrompt authModal__card${signInExpiredNow ? ' is-expired' : ''}`}>
+              <h2 id="microsoftAuthTitle">Microsoft sign-in</h2>
+              {signInExpiredNow ? (
+                <p>
+                  This sign-in code has expired. Request a new one here — you do not need to quit
+                  or restart FrontDesk. Old codes and codes from the demo seeder will not work.
+                </p>
+              ) : (
+                <p>
+                  Microsoft is waiting for approval. Open the sign-in page in your browser and
+                  enter this code
+                  {signInClock ? (
+                    <>
+                      {' '}— it expires in <strong>{signInClock}</strong>
+                    </>
+                  ) : null}
+                  : <span className="authPrompt__tenant">tenant {tenantDraft.trim() || 'common'}</span>
+                  {codeIssuedAt ? (
+                    <span className="authPrompt__tenant">
+                      issued {new Date(codeIssuedAt).toLocaleTimeString()}
+                    </span>
+                  ) : null}
+                </p>
+              )}
+              {!signInExpiredNow ? (
+                <div className="authPrompt__codeRow">
+                  <code className="authPrompt__code">{deviceCode.userCode}</code>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => {
+                      void copyToClipboard(deviceCode.userCode).then((copied) =>
+                        setNotice(
+                          copied
+                            ? 'Sign-in code copied.'
+                            : 'Copy failed. Select the code above and copy it manually.',
+                        ),
+                      )
+                    }}
+                  >
+                    Copy code
+                  </button>
+                </div>
+              ) : null}
+              <div className="authPrompt__actions">
+                {!signInExpiredNow ? (
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => {
+                      void copyToClipboard(deviceCode.userCode).then((copied) => {
+                        setNotice(
+                          copied
+                            ? 'Code copied. Paste it into the Microsoft page now — a code from an earlier attempt will be rejected.'
+                            : 'Copy failed. Select the code above, copy it manually, then open the page.',
+                        )
+                        void api.openUrl(
+                          deviceCode.verificationUri.includes('login.microsoft.com/device')
+                            ? `https://microsoft.com/devicelogin?fd=${Date.now()}`
+                            : deviceCode.verificationUri,
+                        )
+                      })
+                    }}
+                  >
+                    Copy code &amp; open sign-in ↗
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(deviceCode.userCode)
-                    setNotice('Sign-in code copied.')
-                  }}
+                  onClick={() => void startMicrosoftSignIn()}
+                  disabled={microsoftBusy}
                 >
-                  Copy code
-                </button>
-              </div>
-              <div className="authPrompt__actions">
-                <button
-                  type="button"
-                  className="btn btn--primary btn--sm"
-                  onClick={() =>
-                    void api.openUrl(
-                      deviceCode.verificationUri.includes('login.microsoft.com/device')
-                        ? 'https://microsoft.com/devicelogin'
-                        : deviceCode.verificationUri,
-                    )
-                  }
-                >
-                  Open Microsoft sign-in ↗
+                  {microsoftBusy ? 'Requesting…' : 'Get a new code'}
                 </button>
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
                   onClick={() => void cancelMicrosoftSignIn()}
                 >
-                  Cancel
+                  {signInExpiredNow ? 'Close' : 'Cancel'}
                 </button>
               </div>
-              <p className="panel__note">Waiting for you to approve FrontDesk in the browser…</p>
+              {!signInExpiredNow ? (
+                <p className="panel__note">
+                  Use the code shown here. A code from an earlier attempt, or from the seed
+                  script, is a different code and will be rejected. Waiting for approval…
+                </p>
+              ) : null}
             </div>
+            </div>,
+            document.body,
           ) : null}
 
           <label className="privateToggle">
@@ -659,6 +889,8 @@ export default function Settings() {
             Each connection has its own permission. Revoke one without touching the others.
           </p>
         </section>
+
+        <PrivacySettings />
 
         <section className="panel" aria-labelledby="models">
           <header className="panel__head">

@@ -59,9 +59,11 @@ export default function RuntimePanel() {
       const next = await api.installRuntime(kind)
       setStatus(next)
       setNotice(
-        kind === 'ocr'
-          ? 'OCR helpers are ready.'
-          : 'llama-server is installed. Ask a question to use it.',
+        kind === 'all'
+          ? 'Local runtime and OCR helpers are ready.'
+          : kind === 'ocr'
+            ? 'OCR helpers are ready.'
+            : 'llama-server is installed. Ask a question to use it.',
       )
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : String(cause))
@@ -91,6 +93,21 @@ export default function RuntimePanel() {
       </p>
 
       {notice ? <p className="notice">{notice}</p> : null}
+
+      <div className="modelActions">
+        <button
+          type="button"
+          className="btn btn--primary btn--sm"
+          disabled={
+            !status ||
+            busy !== null ||
+            (status.llamaInstalled && !status.tools.some((tool) => !tool.installed))
+          }
+          onClick={() => void install('all')}
+        >
+          {busy === 'all' ? 'Installing everything…' : 'Install all helpers'}
+        </button>
+      </div>
 
       {progress ? (
         <p className="notice">
@@ -146,7 +163,11 @@ export default function RuntimePanel() {
               <strong>
                 {tool.label}
                 <span className="tag" style={{ marginInlineStart: 8 }}>
-                  {tool.installed ? 'ready' : 'missing'}
+                  {tool.installed
+                    ? 'ready'
+                    : tool.key.startsWith('pdf')
+                      ? 'optional'
+                      : 'missing'}
                 </span>
               </strong>
               <em>{tool.detail ?? (tool.installed ? 'on PATH' : tool.key.startsWith('pdf') ? 'optional — PDFium fallback' : 'needed for scans')}</em>

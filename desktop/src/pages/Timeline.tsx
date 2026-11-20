@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/ipc'
 import {
@@ -48,6 +48,7 @@ export default function Timeline() {
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [openErrors, setOpenErrors] = useState<Record<string, string>>({})
+  const dayRefs = useRef<Record<string, HTMLElement | null>>({})
 
   useEffect(() => {
     if (rawFilter || !storedFilter || storedFilter === 'all' || !filters.some((item) => item.id === storedFilter)) {
@@ -134,6 +135,21 @@ export default function Timeline() {
       .sort((left, right) => right.date.getTime() - left.date.getTime())
   }, [filter, visibleSources])
 
+  const todayKey = dayKey(new Date())
+
+  function jumpToToday() {
+    const now = new Date()
+    const target =
+      groups.find((group) => group.key === todayKey) ??
+      groups.find((group) => group.date <= now) ??
+      groups[0]
+    if (!target) return
+    dayRefs.current[target.key]?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }
+
   async function open(source: SourceRef) {
     setOpenErrors((current) => {
       const next = { ...current }
@@ -205,6 +221,14 @@ export default function Timeline() {
             {item.label}
           </button>
         ))}
+        <button
+          type="button"
+          className="filter filter--today"
+          onClick={jumpToToday}
+          title="Jump to today"
+        >
+          Today
+        </button>
         <span className="filterRow__meta">
           {searching
             ? 'Searching source contents…'
@@ -215,7 +239,14 @@ export default function Timeline() {
       {groups.length ? (
         <div className="timelineDays">
           {groups.map((group) => (
-            <section key={group.key} className="timelineDay" aria-label={dayLabel(group.date)}>
+            <section
+              key={group.key}
+              ref={(element) => {
+                dayRefs.current[group.key] = element
+              }}
+              className={`timelineDay${group.key === todayKey ? ' is-today' : ''}`}
+              aria-label={dayLabel(group.date)}
+            >
               <header className="timelineDay__head">
                 <h2>{dayLabel(group.date)}</h2>
                 <span>

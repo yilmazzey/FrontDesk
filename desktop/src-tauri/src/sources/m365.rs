@@ -154,51 +154,8 @@ pub async fn list_graph(
                 Err(error) => eprintln!("Calendar unavailable: {error}"),
             },
             "onenote" => {
-                let query = [
-                    ("$top", PAGE_SIZE),
-                    (
-                        "$select",
-                        "id,title,lastModifiedDateTime,links,parentSection",
-                    ),
-                    ("$orderby", "lastModifiedDateTime desc"),
-                ];
-                let pages: GraphCollection<OneNotePage> =
-                    match microsoft::graph_get(state, &token, "/me/onenote/pages", &query).await {
-                        Ok(pages) => pages,
-                        Err(error) => {
-                            eprintln!("OneNote unavailable: {error}");
-                            continue;
-                        }
-                    };
                 sources.extend(
-                    pages
-                        .value
-                        .into_iter()
-                        .filter(|page| {
-                            include_private_onenote
-                                || !page
-                                    .parent_section
-                                    .as_ref()
-                                    .and_then(|section| section.display_name.as_deref())
-                                    .is_some_and(|name| name.to_lowercase().contains("private"))
-                        })
-                        .map(|page| {
-                            let location = page
-                                .links
-                                .and_then(|links| links.one_note_web_url)
-                                .and_then(|link| link.href)
-                                .unwrap_or_else(|| "OneNote".into());
-                            make_source(
-                                grant,
-                                "onenote",
-                                format!("onenote:{}", encode_id(&page.id)),
-                                page.title.unwrap_or_else(|| "Untitled OneNote page".into()),
-                                location,
-                                page.last_modified_date_time.unwrap_or_default(),
-                                &page.id,
-                                Vec::new(),
-                            )
-                        }),
+                    list_onenote_grant(state, &token, grant, include_private_onenote).await,
                 );
             }
             _ => {}
@@ -206,6 +163,76 @@ pub async fn list_graph(
     }
 
     Ok(sources)
+}
+
+async fn list_onenote_grant(
+    state: &MicrosoftState,
+    token: &str,
+    grant: &SourceGrant,
+    include_private_onenote: bool,
+) -> Vec<SourceRef> {
+    let query = [
+        ("$top", PAGE_SIZE),
+        (
+            "$select",
+            "id,title,lastModifiedDateTime,links,parentSection",
+        ),
+        ("$orderby", "lastModifiedDateTime desc"),
+    ];
+    let pages: GraphCollection<OneNotePage> =
+        match microsoft::graph_get(state, token, "/me/onenote/pages", &query).await {
+            Ok(pages) => pages,
+            Err(error) => {
+                eprintln!("OneNote unavailable: {error}");
+                return Vec::new();
+            }
+        };
+    pages
+        .value
+        .into_iter()
+        .filter(|page| {
+            include_private_onenote
+                || !page
+                    .parent_section
+                    .as_ref()
+                    .and_then(|section| section.display_name.as_deref())
+                    .is_some_and(|name| name.to_lowercase().contains("private"))
+        })
+        .map(|page| {
+            let location = page
+                .links
+                .and_then(|links| links.one_note_web_url)
+                .and_then(|link| link.href)
+                .unwrap_or_else(|| "OneNote".into());
+            make_source(
+                grant,
+                "onenote",
+                format!("onenote:{}", encode_id(&page.id)),
+                page.title.unwrap_or_else(|| "Untitled OneNote page".into()),
+                location,
+                page.last_modified_date_time.unwrap_or_default(),
+                &page.id,
+                Vec::new(),
+            )
+        })
+        .collect()
+}
+
+/// OneNote pages only. Used by the people graph so it does not refetch mail
+/// and calendar just to read the notebook.
+pub async fn list_onenote_sources(
+    state: &MicrosoftState,
+    grants: &[SourceGrant],
+    include_private_onenote: bool,
+) -> Vec<SourceRef> {
+    let Ok(Some(token)) = microsoft::get_access_token(state).await else {
+        return Vec::new();
+    };
+    let mut sources = Vec::new();
+    for grant in grants.iter().filter(|grant| grant.kind == "onenote") {
+        sources.extend(list_onenote_grant(state, &token, grant, include_private_onenote).await);
+    }
+    sources
 }
 
 async fn list_mail(

@@ -18,6 +18,7 @@ use crate::index::{IndexHit, IndexStatus};
 use crate::microsoft::{self, MicrosoftState};
 use crate::model;
 use crate::model_download::{self, ModelDownloadState};
+use crate::people_store::{PeopleOverrides, PeopleSnapshot, PersonOverride};
 use crate::retrieve::chunker::{self, Chunk};
 use crate::runtime;
 use crate::sources;
@@ -462,6 +463,73 @@ pub async fn microsoft_diagnostics(
         calendar,
         onenote,
     })
+}
+
+#[tauri::command]
+pub fn people_overrides(state: State<'_, AppState>) -> Result<PeopleOverrides, String> {
+    Ok(state_lock(&state.people)?.get())
+}
+
+#[tauri::command]
+pub fn upsert_person(
+    state: State<'_, AppState>,
+    person: PersonOverride,
+) -> Result<PeopleOverrides, String> {
+    if person.id.trim().is_empty() {
+        return Err("A person id is required.".into());
+    }
+    Ok(state_lock(&state.people)?.upsert(person))
+}
+
+#[tauri::command]
+pub fn remove_person(state: State<'_, AppState>, id: String) -> Result<PeopleOverrides, String> {
+    Ok(state_lock(&state.people)?.remove(&id))
+}
+
+#[tauri::command]
+pub fn export_people_graph(
+    state: State<'_, AppState>,
+    path: String,
+    graph: crate::people_graph::PeopleGraph,
+) -> Result<(), String> {
+    let overrides = state_lock(&state.people)?.get();
+    let snapshot = PeopleSnapshot {
+        version: 1,
+        exported_at: Utc::now().to_rfc3339(),
+        graph,
+        overrides,
+    };
+    let text = serde_json::to_string_pretty(&snapshot)
+        .map_err(|error| format!("Could not build the graph file: {error}"))?;
+    fs::write(&path, text).map_err(|error| format!("Could not save {path}: {error}"))
+}
+
+#[tauri::command]
+pub fn import_people_graph(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<PeopleSnapshot, String> {
+    let text =
+        fs::read_to_string(&path).map_err(|error| format!("Could not read {path}: {error}"))?;
+    let mut snapshot: PeopleSnapshot = serde_json::from_str(&text)
+        .map_err(|error| format!("That file is not a FrontDesk people graph: {error}"))?;
+    if snapshot.version != 1 {
+        return Err(format!(
+            "This graph was saved by a newer version ({}).",
+            snapshot.version
+        ));
+    }
+    state_lock(&state.people)?.replace(snapshot.overrides.clone());
+    snapshot.graph.exported_at = Some(snapshot.exported_at.clone());
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn people_graph(
+    state: State<'_, AppState>,
+    microsoft_state: State<'_, MicrosoftState>,
+) -> Result<crate::people_graph::PeopleGraph, String> {
+    crate::people_graph::build(&state, &microsoft_state).await
 }
 
 #[tauri::command]
@@ -1146,6 +1214,15 @@ fn ensure_default_model(state: &AppState) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn set_microsoft_tenant(
+    state: State<'_, AppState>,
+    tenant: Option<String>,
+) -> Result<AppInfo, String> {
+    state_lock(&state.settings)?.set_microsoft_tenant(tenant.as_deref());
+    app_info(state)
+}
+
+#[tauri::command]
 pub fn set_include_private_onenote(
     state: State<'_, AppState>,
     include: bool,
@@ -1189,6 +1266,7 @@ pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo, String> {
         answer_mode: settings.answer_mode,
         saved_folder: settings.saved_folder,
         microsoft_client_id: settings.microsoft_client_id,
+        microsoft_tenant: settings.microsoft_tenant,
         include_private_onenote: settings.include_private_onenote,
     })
 }

@@ -8,7 +8,10 @@ mod manager;
 mod microsoft;
 pub mod model;
 mod model_download;
+mod people_graph;
+mod people_store;
 mod permissions;
+mod privacy;
 mod retrieve;
 mod runtime;
 mod settings;
@@ -77,10 +80,18 @@ pub fn run() {
             commands::open_external,
             commands::microsoft_diagnostics,
             commands::manager_snapshot,
+            commands::people_graph,
+            commands::people_overrides,
+            commands::upsert_person,
+            commands::remove_person,
+            commands::export_people_graph,
+            commands::import_people_graph,
+            privacy::screen_share_state,
             commands::list_models,
             commands::select_model,
             commands::select_mode,
             commands::set_microsoft_client_id,
+            commands::set_microsoft_tenant,
             commands::set_include_private_onenote,
             commands::warm_model,
             commands::app_info,
@@ -92,6 +103,10 @@ pub fn run() {
             commands::download_model,
             commands::cancel_model_download,
             microsoft::begin_sign_in,
+            microsoft::begin_browser_sign_in,
+            microsoft::poll_browser_sign_in,
+            microsoft::cancel_browser_sign_in,
+            microsoft::current_sign_in,
             microsoft::poll_sign_in,
             microsoft::cancel_sign_in,
             microsoft::disconnect,

@@ -5,6 +5,8 @@ import type {
   AppInfo,
   AuditEntry,
   ChatTurn,
+  BrowserSignInPoll,
+  BrowserSignInPrompt,
   Citation,
   DeviceCodePoll,
   DeviceCodePrompt,
@@ -15,12 +17,17 @@ import type {
   ModelRef,
   MicrosoftProfile,
   OpenLoop,
+  PeopleGraphData,
+  PeopleOverrides,
+  PeopleSnapshot,
+  PersonOverride,
   PersonPulse,
   RuntimeKind,
   RuntimeProgress,
   RuntimeStatus,
   SavedClassification,
   SavedItem,
+  ScreenShareState,
   SearchHit,
   SourceGrant,
   SourceRef,
@@ -46,6 +53,7 @@ let browserGrants: SourceGrant[] = [
 ]
 
 let browserMode: AnswerMode = 'chat'
+let browserOverrides: PeopleOverrides = { people: {} }
 
 function browserSources(): SourceRef[] {
   if (!browserGrants.some((grant) => grant.id === 'fixture:desk')) return []
@@ -351,8 +359,31 @@ export const api = {
     return grant
   },
 
-  beginMicrosoftSignIn: async (clientId: string): Promise<DeviceCodePrompt> => {
-    if (inTauri()) return call<DeviceCodePrompt>('begin_sign_in', { clientId })
+  beginBrowserSignIn: async (
+    clientId: string,
+    tenant: string | null = null,
+  ): Promise<BrowserSignInPrompt> => {
+    if (!inTauri()) throw new Error('Microsoft sign-in needs the desktop app.')
+    return call<BrowserSignInPrompt>('begin_browser_sign_in', { clientId, tenant })
+  },
+
+  pollBrowserSignIn: async (): Promise<BrowserSignInPoll> =>
+    inTauri()
+      ? call<BrowserSignInPoll>('poll_browser_sign_in')
+      : { status: 'idle', error: null },
+
+  cancelBrowserSignIn: async (): Promise<void> => {
+    if (inTauri()) await call<void>('cancel_browser_sign_in')
+  },
+
+  currentSignIn: async (): Promise<DeviceCodePrompt | null> =>
+    inTauri() ? call<DeviceCodePrompt | null>('current_sign_in') : null,
+
+  beginMicrosoftSignIn: async (
+    clientId: string,
+    tenant: string | null = null,
+  ): Promise<DeviceCodePrompt> => {
+    if (inTauri()) return call<DeviceCodePrompt>('begin_sign_in', { clientId, tenant })
     throw new Error('Microsoft sign-in needs the desktop app.')
   },
 
@@ -448,6 +479,62 @@ export const api = {
       ? call<ManagerSnapshot>('manager_snapshot', { selfName: selfName ?? null })
       : browserManagerSnapshot(),
 
+  peopleGraph: async (): Promise<PeopleGraphData> =>
+    inTauri()
+      ? call<PeopleGraphData>('people_graph')
+      : {
+          selfId: '',
+          selfName: '',
+          selfDepartment: '',
+          nodes: [],
+          edges: [],
+          departments: [],
+          scannedMessages: 0,
+          scannedEvents: 0,
+          scannedNotes: 0,
+          source: 'empty',
+          exportedAt: null,
+        },
+
+  peopleOverrides: async (): Promise<PeopleOverrides> =>
+    inTauri()
+      ? call<PeopleOverrides>('people_overrides')
+      : browserOverrides,
+
+  upsertPerson: async (person: PersonOverride): Promise<PeopleOverrides> => {
+    if (inTauri()) return call<PeopleOverrides>('upsert_person', { person })
+    browserOverrides = {
+      people: { ...browserOverrides.people, [person.id]: person },
+    }
+    return browserOverrides
+  },
+
+  removePerson: async (id: string): Promise<PeopleOverrides> => {
+    if (inTauri()) return call<PeopleOverrides>('remove_person', { id })
+    const people = { ...browserOverrides.people }
+    delete people[id]
+    browserOverrides = { people }
+    return browserOverrides
+  },
+
+  exportPeopleGraph: async (
+    path: string,
+    graph: PeopleGraphData,
+  ): Promise<void> => {
+    if (!inTauri()) throw new Error('Export needs the desktop app.')
+    await call<void>('export_people_graph', { path, graph })
+  },
+
+  importPeopleGraph: async (path: string): Promise<PeopleSnapshot> => {
+    if (!inTauri()) throw new Error('Import needs the desktop app.')
+    return call<PeopleSnapshot>('import_people_graph', { path })
+  },
+
+  screenShareState: async (): Promise<ScreenShareState> =>
+    inTauri()
+      ? call<ScreenShareState>('screen_share_state')
+      : { sharing: false, apps: [] },
+
   listModels: async (): Promise<ModelRef[]> =>
     inTauri() ? call<ModelRef[]>('list_models') : [],
 
@@ -488,6 +575,20 @@ export const api = {
       savedFolder: null,
       microsoftClientId: null,
       includePrivateOnenote: include,
+    }
+  },
+
+  setMicrosoftTenant: async (tenant: string | null): Promise<AppInfo> => {
+    if (inTauri()) return call<AppInfo>('set_microsoft_tenant', { tenant })
+    return {
+      dataDir: 'browser://data',
+      modelsDir: 'browser://models',
+      selectedModel: null,
+      answerMode: browserMode,
+      savedFolder: null,
+      microsoftClientId: null,
+      microsoftTenant: tenant,
+      includePrivateOnenote: false,
     }
   },
 

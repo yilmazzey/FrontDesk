@@ -6,14 +6,16 @@ FrontDesk is a Tauri desktop app with a Rust core and a separate web landing pag
 
 - **Manager dashboard** — next meeting prep, open commitments, people catch-up nudges and a short timeline.
 - **Ask** — a conversational assistant with inline `[n]` citations, local files, optional web snippets and a local-clock path.
-- **Timeline** — searchable, filterable history with sticky day headers and likely meeting links.
+- **Timeline** — searchable, filterable history with sticky day headers, a **Today** jump and likely meeting links.
 - **Search** — content search with matched excerpts, people and dates; every result row opens the original.
 - **Saved** — rehydrates Markdown answers from your chosen folder, with category filters and Finder reveal.
-- **Sources** — local folders, PDFs and scans, Outlook mail, Microsoft Calendar and OneNote.
+- **People graph** — cluster colleagues by Microsoft 365 department and job title, with mail signatures as fallback; link them by mail, meetings and names mentioned in messages, Obsidian-style.
+- **Privacy shield** — blur the whole window when a remote-access tool such as AnyDesk or macOS Screen Sharing is active, with an unblur action and `⌘⇧P` shortcut.
+- **Sources** — local folders, PDFs and scans, Outlook mail and Sent Items, Microsoft Calendar and OneNote.
 - **Menu-bar popover** — click the tray icon to see the next three calendar items; its Ask bar opens the main app chat.
 - **Local model** — Extractive mode works instantly; Phi-4 Mini can be downloaded inside the app.
 
-Nothing is synced to a FrontDesk server. Source bodies stay in memory for the duration of a request; the app persists metadata, grants, settings and derived embeddings only. Saved answers are Markdown files you own.
+Nothing is synced to a FrontDesk server. Source metadata, grants, settings and derived embeddings are held while the app is open; the **Resync** button in the title bar re-reads every source, grant and the manager snapshot. Saved answers are Markdown files you own. Source bodies are read at request time and not written to disk.
 
 ### How Ask answers
 
@@ -85,6 +87,28 @@ npm run dev:desktop
 
 Only `dev:tauri` can grant real folders, read files, run OCR and answer from them.
 
+## People graph
+
+Open **People** in the sidebar. FrontDesk reads senders, recipients, calendar attendees and `/me/people` department metadata, then draws a force-directed graph:
+
+- clusters are departments; your team sits in the centre;
+- edge colour is the relationship type — mail, meetings, a name mentioned in a message, or a granted OneNote/local note;
+- node size is interaction weight, so the people you deal with most stand out;
+- click a person for role, department, counts and strongest links, or ask FrontDesk about them;
+- **“Where this comes from”** lists the directory record, mail signature or note behind each role, with an **Open** link to the original;
+- **Edit** or **Add person** writes a local override (role, department, email and a private note) to `people-overrides.json` in the app data folder; **Reset local edits** removes it;
+- **Export** saves the graph plus overrides as JSON; **Import** restores that snapshot later.
+
+The graph is built from Graph metadata and the notes you granted. Overrides and exported snapshots are local files; nothing is written back to Microsoft 365.
+
+Roles and departments come from message signatures and your Microsoft profile. If `People.Read` is later added to the app registration, `/me/people` enriches them automatically; it is not requested by default because the read-only demo registration does not include it.
+
+## Privacy shield
+
+FrontDesk watches for remote-access tools (AnyDesk, TeamViewer, RustDesk, Supremo, Parsec, macOS Screen Sharing, Zoom screen sharing, Microsoft Remote Desktop, Apple Remote Desktop, Horizon, Citrix) and blurs the entire window while one is running. **Unblur this session** restores the app; the blur returns the next time sharing starts. Use the **Privacy** button in the title bar or `⌘⇧P` to blur immediately, and **Settings → Privacy shield** to turn auto-blur off or preview it.
+
+Teams, Zoom and Slack are deliberately not watched because they run all day. The shield is a visual guard only; it does not change storage or network behaviour.
+
 ## Menu-bar popover
 
 The tray icon opens a compact popover with the next three upcoming calendar items. The **Ask FrontDesk…** bar opens the main app directly in chat, and clicking an event opens chat ready to prep for it. Closing the main window keeps FrontDesk available in the tray.
@@ -106,7 +130,7 @@ You can also place a GGUF file in `models/` and select it in Settings. To force 
 
 Official builds include a public-client application ID in `desktop/.env.production`. This is not a secret. You can override it in **Settings → Microsoft account → Microsoft client ID**, or copy `desktop/.env.example` to `desktop/.env.local` and set `VITE_MICROSOFT_CLIENT_ID`.
 
-The Entra app must allow public client / device-code flow and delegated `User.Read`, `Files.Read`, `Mail.Read`, `Mail.Read.Shared`, `Calendars.Read`, `Notes.Read` and `offline_access`. Connect from Settings and follow the browser code prompt. Tokens stay in memory and must be renewed by reconnecting after an app restart.
+The Entra app must allow public client / device-code flow and delegated `User.Read`, `Mail.Read`, `Calendars.Read`, `Notes.Read` and `offline_access`. `Files.Read` and `Mail.Read.Shared` are not requested yet: there is no OneDrive or shared-mailbox connector, and `Mail.Read.Shared` is work/school-only. Use **Settings → Directory (tenant)** if the app is single-tenant; `common` is for multi-tenant apps. Connect from Settings and follow the browser code prompt. Tokens stay in memory and must be renewed by reconnecting after an app restart.
 
 For the full Entra walkthrough, see [MICROSOFT_DEMO_SETUP.md](MICROSOFT_DEMO_SETUP.md).
 
@@ -115,7 +139,7 @@ For the full Entra walkthrough, see [MICROSOFT_DEMO_SETUP.md](MICROSOFT_DEMO_SET
 - Text PDFs are read in-process with pure Rust.
 - Scanned PDFs are rasterized with PDFium and read with Tesseract in the app's runtime cache.
 - Poppler is optional: it is only a text/render fallback.
-- Tesseract can be installed from **Settings → Local runtime** on macOS and Windows; Linux uses the package manager.
+- **Install all helpers** in Settings provisions llama.cpp and, where the platform allows it, Tesseract in one click. FrontDesk also checks `/opt/homebrew/bin` and `/usr/local/bin`, so Homebrew tools are found even when the app is launched from Finder. Poppler remains optional because PDFium renders PDFs.
 
 ## Build, test and lint
 
@@ -167,6 +191,7 @@ Unsigned preview installers may trigger macOS Gatekeeper or Windows SmartScreen.
 - **Port already in use** — stop the other Vite process. The web app uses 5173 and the desktop preview uses 5174.
 - **White or empty desktop window** — run `npm run dev:tauri` from the repo root; the Tauri frontend must be built with the desktop workspace.
 - **Microsoft returns empty mail/calendar/OneNote** — check Settings diagnostics for reachable-empty vs permission errors, and confirm you signed in with the intended account.
+- **Device code expired while the app was open** — Settings keeps the prompt and shows **Get a new code**; no restart needed. **Reconnect** starts a fresh sign-in without disconnecting first.
 - **No model** — use Extractive, download Phi-4 Mini in Settings, or place a `.gguf` in `models/`.
 - **Scan OCR fails** — install Tesseract from Settings → Local runtime; PDFium handles rendering, Poppler is optional.
 - **Clone is still large** — the raw 50 MB GLB was removed from the current tree, but it remains in older Git history. Shrinking clone size further requires a coordinated history rewrite and force-push.

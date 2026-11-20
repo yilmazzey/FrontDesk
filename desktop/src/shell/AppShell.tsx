@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api, inTauri } from '../lib/ipc'
 import { useAccess } from '../state/access'
+import { previewPrivacy } from '../components/PrivacyShield'
 
 const nav = [
   { to: '/', label: 'Dashboard', end: true, glyph: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
   { to: '/timeline', label: 'Timeline', end: false, glyph: 'M12 4.2a7.8 7.8 0 1 0 0 15.6 7.8 7.8 0 0 0 0-15.6ZM12 8v4.4l3 1.8' },
+  { to: '/loops', label: 'Open loops', end: false, glyph: 'M4 12a8 8 0 0 1 13.7-5.7M20 4v5h-5M20 12a8 8 0 0 1-13.7 5.7M4 20v-5h5' },
+  { to: '/people', label: 'People', end: false, glyph: 'M12 6.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM19 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM10.7 5.2 6.4 15M13.3 5.2l4.3 9.8M7.5 17.5h9' },
   { to: '/saved', label: 'Saved', end: false, glyph: 'M6 4h12v16l-6-4-6 4V4Z' },
   { to: '/search', label: 'Search', end: false, glyph: 'M11 4.2a6.8 6.8 0 1 0 0 13.6 6.8 6.8 0 0 0 0-13.6ZM16 16l4 4' },
   { to: '/settings', label: 'Settings', end: false, glyph: 'M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2ZM12 3v2.2M12 18.8V21M4.6 7.8l1.9 1.1M17.5 15.1l1.9 1.1M4.6 16.2l1.9-1.1M17.5 8.9l1.9-1.1' },
@@ -14,6 +17,8 @@ const nav = [
 const titles: Record<string, string> = {
   '/': 'Dashboard',
   '/timeline': 'Timeline',
+  '/loops': 'Open loops',
+  '/people': 'People graph',
   '/saved': 'Saved',
   '/search': 'Search',
   '/settings': 'Settings',
@@ -22,11 +27,12 @@ const titles: Record<string, string> = {
 export function AppShell() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { info, models, grants } = useAccess()
+  const { info, models, grants, resync } = useAccess()
   const [theme, setTheme] = useState<'dark' | 'light'>(
     () => (localStorage.getItem('frontdesk.theme') as 'dark' | 'light') || 'dark',
   )
   const [core, setCore] = useState<'checking' | 'online' | 'browser'>('checking')
+  const [syncing, setSyncing] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('frontdesk.sidebar') === 'collapsed',
   )
@@ -90,6 +96,14 @@ export function AppShell() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         navigate('/search')
+      }
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'p'
+      ) {
+        event.preventDefault()
+        previewPrivacy()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -182,10 +196,40 @@ export function AppShell() {
       <div className="work">
         <header className="titlebar">
           <span className="titlebar__title">{titles[pathname] ?? 'FrontDesk'}</span>
-          <span className="titlebar__status">
-            <span className="titlebar__statusDot" aria-hidden="true" />
-            Local · not synced
-          </span>
+          <div className="titlebar__right">
+            <button
+              type="button"
+              className="titlebar__shield"
+              disabled={syncing}
+              onClick={() => {
+                setSyncing(true)
+                void resync().finally(() => setSyncing(false))
+              }}
+              title="Re-read sources, calendar and mail"
+              aria-label="Resync sources"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />
+              </svg>
+              {syncing ? 'Syncing…' : 'Resync'}
+            </button>
+            <button
+              type="button"
+              className="titlebar__shield"
+              onClick={previewPrivacy}
+              title="Blur FrontDesk now (⌘⇧P)"
+              aria-label="Blur FrontDesk for privacy"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3 4.5 6v5.3c0 4.6 3.2 8.8 7.5 9.9 4.3-1.1 7.5-5.3 7.5-9.9V6L12 3Z" />
+              </svg>
+              Privacy
+            </button>
+            <span className="titlebar__status">
+              <span className="titlebar__statusDot" aria-hidden="true" />
+              Local · not synced
+            </span>
+          </div>
         </header>
 
         <main className="main">

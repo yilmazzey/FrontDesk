@@ -24,6 +24,10 @@ pub struct Settings {
     /// sign in without baking it into the installer at build time.
     #[serde(default)]
     pub microsoft_client_id: Option<String>,
+    /// Entra tenant ID or domain used for device-code sign-in. `common` works
+    /// for multi-tenant apps; a single-tenant app must use its own tenant.
+    #[serde(default)]
+    pub microsoft_tenant: Option<String>,
     /// True once the user explicitly chose a model or Extractive. Automatic
     /// startup selection is skipped afterwards.
     #[serde(default)]
@@ -40,6 +44,7 @@ impl Default for Settings {
             answer_mode: default_mode(),
             saved_folder: None,
             microsoft_client_id: None,
+            microsoft_tenant: None,
             model_choice_explicit: false,
             include_private_onenote: false,
         }
@@ -88,6 +93,14 @@ impl SettingsStore {
 
     pub fn set_include_private_onenote(&mut self, include: bool) {
         self.settings.include_private_onenote = include;
+        self.save();
+    }
+
+    pub fn set_microsoft_tenant(&mut self, tenant: Option<&str>) {
+        self.settings.microsoft_tenant = tenant
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
         self.save();
     }
 
