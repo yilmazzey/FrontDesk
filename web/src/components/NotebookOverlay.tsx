@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useUI } from '../store'
 import NotebookBook from './NotebookBook'
+import { useScreenshotGuard } from '../hooks/useScreenshotGuard'
 import './NotebookOverlay.css'
 
 export function NotebookOverlay() {
@@ -9,6 +10,15 @@ export function NotebookOverlay() {
   const closeNotebook = useUI((state) => state.closeNotebook)
   const open = mode === 'notebook'
   const closeRef = useRef<HTMLButtonElement>(null)
+  const [manualHidden, setManualHidden] = useState(false)
+  const { guarded, release } = useScreenshotGuard(open)
+  const photosHidden = guarded || manualHidden
+
+  useEffect(() => {
+    if (open) return
+    setManualHidden(false)
+    release()
+  }, [open, release])
 
   useEffect(() => {
     if (!open) return
@@ -24,12 +34,34 @@ export function NotebookOverlay() {
 
   return (
     <div
-      className="notebookOverlay"
+      className={`notebookOverlay${photosHidden ? ' is-photos-hidden' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label="FrontDesk notebook"
       onClick={closeNotebook}
     >
+      <button
+        type="button"
+        className="notebookOverlay__privacy"
+        onClick={(event) => {
+          event.stopPropagation()
+          if (photosHidden) {
+            setManualHidden(false)
+            release()
+          } else {
+            setManualHidden(true)
+          }
+        }}
+        aria-pressed={manualHidden}
+        title="Blur the profile photos, for example before taking a screenshot"
+      >
+        {photosHidden ? 'Show photos' : 'Hide photos'}
+      </button>
+      {guarded && !manualHidden ? (
+        <span className="notebookOverlay__guard" role="status">
+          Photos hidden
+        </span>
+      ) : null}
       <button
         type="button"
         className="notebookOverlay__close"
