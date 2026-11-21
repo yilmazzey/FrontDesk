@@ -36,6 +36,13 @@ pub fn run() {
             runtime::init(&data_dir);
             app.manage(state::AppState::new(data_dir, models_dir));
             app.manage(microsoft::MicrosoftState::default());
+            let keep_signed_in = app
+                .state::<state::AppState>()
+                .settings
+                .lock()
+                .map(|settings| settings.get().keep_microsoft_signed_in)
+                .unwrap_or(false);
+            microsoft::set_keep_signed_in(keep_signed_in);
             app.manage(model_download::ModelDownloadState::default());
             tray::setup(app)?;
             Ok(())
@@ -92,6 +99,7 @@ pub fn run() {
             commands::select_mode,
             commands::set_microsoft_client_id,
             commands::set_microsoft_tenant,
+            commands::set_keep_microsoft_signed_in,
             commands::set_include_private_onenote,
             commands::warm_model,
             commands::app_info,

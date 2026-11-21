@@ -1214,6 +1214,20 @@ fn ensure_default_model(state: &AppState) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn set_keep_microsoft_signed_in(
+    state: State<'_, AppState>,
+    microsoft_state: State<'_, MicrosoftState>,
+    enabled: bool,
+) -> Result<AppInfo, String> {
+    state_lock(&state.settings)?.set_keep_microsoft_signed_in(enabled);
+    crate::microsoft::set_keep_signed_in(enabled);
+    if enabled {
+        crate::microsoft::persist_current_session(&microsoft_state);
+    }
+    app_info(state)
+}
+
+#[tauri::command]
 pub fn set_microsoft_tenant(
     state: State<'_, AppState>,
     tenant: Option<String>,
@@ -1267,6 +1281,7 @@ pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo, String> {
         saved_folder: settings.saved_folder,
         microsoft_client_id: settings.microsoft_client_id,
         microsoft_tenant: settings.microsoft_tenant,
+        keep_microsoft_signed_in: settings.keep_microsoft_signed_in,
         include_private_onenote: settings.include_private_onenote,
     })
 }

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>FrontDesk</title>
+  </head>
+  <body>
+    <script>
+      try {
+        sessionStorage.setItem(
+          'fd:redirect',
+          location.pathname + location.search + location.hash,
+        )
+      } catch {
+        /* storage can be unavailable */
+      }
+      location.replace('/FrontDesk/')
+    </script>
+  </body>
+</html>

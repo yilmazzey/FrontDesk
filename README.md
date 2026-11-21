@@ -130,7 +130,7 @@ You can also place a GGUF file in `models/` and select it in Settings. To force 
 
 Official builds include a public-client application ID in `desktop/.env.production`. This is not a secret. You can override it in **Settings → Microsoft account → Microsoft client ID**, or copy `desktop/.env.example` to `desktop/.env.local` and set `VITE_MICROSOFT_CLIENT_ID`.
 
-The Entra app must allow public client / device-code flow and delegated `User.Read`, `Mail.Read`, `Calendars.Read`, `Notes.Read` and `offline_access`. `Files.Read` and `Mail.Read.Shared` are not requested yet: there is no OneDrive or shared-mailbox connector, and `Mail.Read.Shared` is work/school-only. Use **Settings → Directory (tenant)** if the app is single-tenant; `common` is for multi-tenant apps. Connect from Settings and follow the browser code prompt. Tokens stay in memory and must be renewed by reconnecting after an app restart.
+The Entra app must allow public client / device-code flow and delegated `User.Read`, `Mail.Read`, `Calendars.Read`, `Notes.Read` and `offline_access`. `Files.Read` and `Mail.Read.Shared` are not requested yet: there is no OneDrive or shared-mailbox connector, and `Mail.Read.Shared` is work/school-only. Use **Settings → Directory (tenant)** if the app is single-tenant; `common` is for multi-tenant apps. Connect from Settings with the device code. Tokens stay in memory by default; enable **Stay signed in** to store only the read-only refresh token in the macOS Keychain so you do not sign in on every launch.
 
 For the full Entra walkthrough, see [MICROSOFT_DEMO_SETUP.md](MICROSOFT_DEMO_SETUP.md).
 
@@ -184,6 +184,8 @@ Unsigned preview installers may trigger macOS Gatekeeper or Windows SmartScreen.
 - The semantic index stores metadata and derived embeddings, not note text.
 - Audit records which source was read, never what it said.
 - Microsoft requests are read-only and can be revoked independently.
+- The refresh token is kept in memory by default. **Stay signed in** optionally stores it in the macOS Keychain; source text is never written there.
+- Sources and the people graph are cached in memory while the app is open; **Resync** re-reads them.
 - Conversation history lives in React memory and disappears on restart.
 
 ## Troubleshooting
@@ -193,7 +195,7 @@ Unsigned preview installers may trigger macOS Gatekeeper or Windows SmartScreen.
 - **Microsoft returns empty mail/calendar/OneNote** — check Settings diagnostics for reachable-empty vs permission errors, and confirm you signed in with the intended account.
 - **Device code expired while the app was open** — Settings keeps the prompt and shows **Get a new code**; no restart needed. **Reconnect** starts a fresh sign-in without disconnecting first.
 - **No model** — use Extractive, download Phi-4 Mini in Settings, or place a `.gguf` in `models/`.
-- **Scan OCR fails** — install Tesseract from Settings → Local runtime; PDFium handles rendering, Poppler is optional.
+- **Scan OCR fails** — use **Install all helpers** in Settings → Local runtime; FrontDesk finds Homebrew tools under `/opt/homebrew/bin` even when launched from Finder. PDFium handles rendering, Poppler is optional.
 - **Clone is still large** — the raw 50 MB GLB was removed from the current tree, but it remains in older Git history. Shrinking clone size further requires a coordinated history rewrite and force-push.
 
 ## Team

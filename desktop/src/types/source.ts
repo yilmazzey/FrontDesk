@@ -100,6 +100,7 @@ export type AppInfo = {
   savedFolder: string | null
   microsoftClientId: string | null
   microsoftTenant?: string | null
+  keepMicrosoftSignedIn?: boolean
   includePrivateOnenote: boolean
 }
 

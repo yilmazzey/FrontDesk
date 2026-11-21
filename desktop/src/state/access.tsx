@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from '../lib/ipc'
+import { clearPeopleCache } from './peopleCache'
 import type {
   AnswerMode,
   AppInfo,
@@ -67,6 +68,10 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       setModels(nextModels)
       setInfo(nextInfo)
       setError(null)
+      clearPeopleCache()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('frontdesk-people-invalidate'))
+      }
 
       // Keep the last good snapshot if the live scan fails; navigation must
       // never blank the dashboard while the app is open.

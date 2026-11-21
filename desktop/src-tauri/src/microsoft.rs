@@ -7,7 +7,10 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::{Duration, Instant},
 };
 use tauri::State;
@@ -95,6 +98,84 @@ struct AuthTokens {
     refresh_token: Option<String>,
     expires_at: Instant,
 }
+
+static KEEP_SIGNED_IN: AtomicBool = AtomicBool::new(false);
+static RESTORE_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+const KEYCHAIN_SERVICE: &str = "studio.frontdesk.desktop";
+const KEYCHAIN_ACCOUNT: &str = "microsoft-refresh-token";
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedSession {
+    client_id: String,
+    tenant: String,
+    refresh_token: String,
+}
+
+pub fn set_keep_signed_in(enabled: bool) {
+    KEEP_SIGNED_IN.store(enabled, Ordering::Relaxed);
+    if !enabled {
+        clear_saved_session();
+    }
+}
+
+pub fn persist_current_session(state: &MicrosoftState) {
+    if !KEEP_SIGNED_IN.load(Ordering::Relaxed) {
+        return;
+    }
+    if let Ok(tokens) = state.tokens.lock() {
+        if let Some(tokens) = tokens.as_ref() {
+            if let Some(refresh) = tokens.refresh_token.as_deref() {
+                let _ = save_session(&SavedSession {
+                    client_id: tokens.client_id.clone(),
+                    tenant: tokens.tenant.clone(),
+                    refresh_token: refresh.to_string(),
+                });
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn keychain_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+        .map_err(|error| format!("macOS Keychain is unavailable: {error}"))
+}
+
+#[cfg(target_os = "macos")]
+fn save_session(session: &SavedSession) -> Result<(), String> {
+    let payload = serde_json::to_string(session)
+        .map_err(|error| format!("Could not encode the sign-in session: {error}"))?;
+    keychain_entry()?
+        .set_password(&payload)
+        .map_err(|error| format!("Could not save sign-in to the Keychain: {error}"))
+}
+
+#[cfg(target_os = "macos")]
+fn load_session() -> Option<SavedSession> {
+    let payload = keychain_entry().ok()?.get_password().ok()?;
+    serde_json::from_str(&payload).ok()
+}
+
+#[cfg(target_os = "macos")]
+fn clear_saved_session() {
+    if let Ok(entry) = keychain_entry() {
+        let _ = entry.delete_credential();
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn save_session(_session: &SavedSession) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn load_session() -> Option<SavedSession> {
+    None
+}
+
+#[cfg(not(target_os = "macos"))]
+fn clear_saved_session() {}
 
 #[derive(Deserialize)]
 struct DeviceCodeResponse {
@@ -436,6 +517,17 @@ pub fn begin_browser_sign_in(
                                                             tokens.expires_in.unwrap_or(3600),
                                                         ),
                                                 };
+                                                if KEEP_SIGNED_IN.load(Ordering::Relaxed) {
+                                                    if let Some(refresh) =
+                                                        refreshed.refresh_token.as_deref()
+                                                    {
+                                                        let _ = save_session(&SavedSession {
+                                                            client_id: client_id.clone(),
+                                                            tenant: tenant.clone(),
+                                                            refresh_token: refresh.to_string(),
+                                                        });
+                                                    }
+                                                }
                                                 if let Ok(mut store) = tokens_store.lock() {
                                                     *store = Some(refreshed);
                                                 }
@@ -601,6 +693,7 @@ pub async fn poll_sign_in(state: State<'_, MicrosoftState>) -> Result<DeviceCode
             refresh_token: result.refresh_token,
             expires_at: Instant::now() + Duration::from_secs(expires_in),
         });
+    persist_current_session(&state);
     log_sign_in(&format!("connected tenant={}", flow.tenant));
     clear_flow(&state)?;
 
@@ -619,6 +712,8 @@ pub fn disconnect(state: State<'_, MicrosoftState>) -> Result<(), String> {
 
 pub(crate) fn clear_auth(state: &MicrosoftState) -> Result<(), String> {
     clear_flow(state)?;
+    clear_saved_session();
+    RESTORE_ATTEMPTED.store(false, Ordering::Relaxed);
     *state
         .tokens
         .lock()
@@ -636,35 +731,19 @@ pub async fn get_profile(state: State<'_, MicrosoftState>) -> Result<Option<Grap
     Ok(Some(profile))
 }
 
-pub(crate) async fn get_access_token(state: &MicrosoftState) -> Result<Option<String>, String> {
-    let tokens = state
-        .tokens
-        .lock()
-        .map_err(|_| "Microsoft authentication state is unavailable.".to_string())?
-        .clone();
-    let Some(tokens) = tokens else {
-        return Ok(None);
-    };
-
-    if Instant::now() + Duration::from_secs(60) < tokens.expires_at {
-        return Ok(Some(tokens.access_token));
-    }
-
-    let Some(refresh_token) = tokens.refresh_token else {
-        *state
-            .tokens
-            .lock()
-            .map_err(|_| "Microsoft authentication state is unavailable.".to_string())? = None;
-        return Err("Microsoft sign-in expired. Connect the account again.".to_string());
-    };
-
+async fn refresh_session(
+    state: &MicrosoftState,
+    client_id: &str,
+    tenant: &str,
+    refresh_token: &str,
+) -> Result<AuthTokens, String> {
     let response = state
         .client
-        .post(tenant_url(&tokens.tenant, "token"))
+        .post(tenant_url(tenant, "token"))
         .form(&[
             ("grant_type", "refresh_token"),
-            ("client_id", tokens.client_id.as_str()),
-            ("refresh_token", refresh_token.as_str()),
+            ("client_id", client_id),
+            ("refresh_token", refresh_token),
             ("scope", SCOPES),
         ])
         .send()
@@ -677,34 +756,105 @@ pub(crate) async fn get_access_token(state: &MicrosoftState) -> Result<Option<St
         .map_err(|error| format!("Could not read token refresh response: {error}"))?;
     let result: TokenResponse = serde_json::from_str(&body)
         .map_err(|_| format!("Microsoft returned an invalid token response ({status})."))?;
-
     if !status.is_success() {
-        *state
-            .tokens
-            .lock()
-            .map_err(|_| "Microsoft authentication state is unavailable.".to_string())? = None;
         return Err(result
             .error_description
             .or(result.error)
             .unwrap_or_else(|| format!("Microsoft sign-in refresh failed ({status}).")));
     }
-
     let access_token = result
         .access_token
         .ok_or_else(|| "Microsoft refresh did not return an access token.".to_string())?;
-    let refreshed_tokens = AuthTokens {
-        client_id: tokens.client_id,
-        tenant: tokens.tenant,
-        access_token: access_token.clone(),
-        refresh_token: result.refresh_token.or(Some(refresh_token)),
+    Ok(AuthTokens {
+        client_id: client_id.to_string(),
+        tenant: tenant.to_string(),
+        access_token,
+        refresh_token: result
+            .refresh_token
+            .or_else(|| Some(refresh_token.to_string())),
         expires_at: Instant::now() + Duration::from_secs(result.expires_in.unwrap_or(3600)),
+    })
+}
+
+async fn restore_saved_session(
+    state: &MicrosoftState,
+    saved: SavedSession,
+) -> Result<Option<String>, String> {
+    let tokens = refresh_session(state, &saved.client_id, &saved.tenant, &saved.refresh_token)
+        .await
+        .inspect_err(|error| {
+            // Keep the saved session on transient/network errors. Only a
+            // definitive grant failure should force a new sign-in.
+            let lower = error.to_lowercase();
+            if lower.contains("invalid_grant")
+                || lower.contains("expired")
+                || lower.contains("revoked")
+                || lower.contains("interaction_required")
+            {
+                clear_saved_session();
+            }
+        })?;
+    let access_token = tokens.access_token.clone();
+    *state
+        .tokens
+        .lock()
+        .map_err(|_| "Microsoft authentication state is unavailable.".to_string())? = Some(tokens);
+    persist_current_session(state);
+    Ok(Some(access_token))
+}
+
+pub(crate) async fn get_access_token(state: &MicrosoftState) -> Result<Option<String>, String> {
+    let tokens = state
+        .tokens
+        .lock()
+        .map_err(|_| "Microsoft authentication state is unavailable.".to_string())?
+        .clone();
+    let Some(tokens) = tokens else {
+        // Nothing in memory. If the user opted in, try the Keychain once per
+        // process so a revoked token cannot cause repeated prompts.
+        if KEEP_SIGNED_IN.load(Ordering::Relaxed)
+            && !RESTORE_ATTEMPTED.swap(true, Ordering::Relaxed)
+        {
+            if let Some(saved) = load_session() {
+                return restore_saved_session(state, saved).await;
+            }
+        }
+        return Ok(None);
     };
+
+    if Instant::now() + Duration::from_secs(60) < tokens.expires_at {
+        return Ok(Some(tokens.access_token));
+    }
+
+    let Some(refresh_token) = tokens.refresh_token else {
+        *state
+            .tokens
+            .lock()
+            .map_err(|_| "Microsoft authentication state is unavailable.".to_string())? = None;
+        clear_saved_session();
+        return Err("Microsoft sign-in expired. Connect the account again.".to_string());
+    };
+
+    let refreshed = match refresh_session(state, &tokens.client_id, &tokens.tenant, &refresh_token)
+        .await
+    {
+        Ok(tokens) => tokens,
+        Err(error) => {
+            *state
+                .tokens
+                .lock()
+                .map_err(|_| "Microsoft authentication state is unavailable.".to_string())? = None;
+            clear_saved_session();
+            return Err(error);
+        }
+    };
+    let access_token = refreshed.access_token.clone();
     *state
         .tokens
         .lock()
         .map_err(|_| "Microsoft authentication state is unavailable.".to_string())? =
-        Some(refreshed_tokens);
-
+        Some(refreshed);
+    persist_current_session(state);
     Ok(Some(access_token))
 }
 

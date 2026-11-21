@@ -578,6 +578,21 @@ export const api = {
     }
   },
 
+  setKeepMicrosoftSignedIn: async (enabled: boolean): Promise<AppInfo> => {
+    if (inTauri()) return call<AppInfo>('set_keep_microsoft_signed_in', { enabled })
+    return {
+      dataDir: 'browser://data',
+      modelsDir: 'browser://models',
+      selectedModel: null,
+      answerMode: browserMode,
+      savedFolder: null,
+      microsoftClientId: null,
+      microsoftTenant: null,
+      keepMicrosoftSignedIn: enabled,
+      includePrivateOnenote: false,
+    }
+  },
+
   setMicrosoftTenant: async (tenant: string | null): Promise<AppInfo> => {
     if (inTauri()) return call<AppInfo>('set_microsoft_tenant', { tenant })
     return {

@@ -18,6 +18,18 @@
     <meta property="og:type" content="website" />
   </head>
   <body>
+    <script>
+      // Restore a deep link captured by 404.html on GitHub Pages.
+      try {
+        const saved = sessionStorage.getItem('fd:redirect')
+        if (saved) {
+          sessionStorage.removeItem('fd:redirect')
+          history.replaceState(null, '', saved)
+        }
+      } catch {
+        /* storage can be unavailable */
+      }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -28,6 +28,10 @@ pub struct Settings {
     /// for multi-tenant apps; a single-tenant app must use its own tenant.
     #[serde(default)]
     pub microsoft_tenant: Option<String>,
+    /// Store the read-only refresh token in the macOS Keychain so the user
+    /// does not have to sign in on every launch. Off by default.
+    #[serde(default)]
+    pub keep_microsoft_signed_in: bool,
     /// True once the user explicitly chose a model or Extractive. Automatic
     /// startup selection is skipped afterwards.
     #[serde(default)]
@@ -45,6 +49,7 @@ impl Default for Settings {
             saved_folder: None,
             microsoft_client_id: None,
             microsoft_tenant: None,
+            keep_microsoft_signed_in: false,
             model_choice_explicit: false,
             include_private_onenote: false,
         }
@@ -93,6 +98,11 @@ impl SettingsStore {
 
     pub fn set_include_private_onenote(&mut self, include: bool) {
         self.settings.include_private_onenote = include;
+        self.save();
+    }
+
+    pub fn set_keep_microsoft_signed_in(&mut self, enabled: bool) {
+        self.settings.keep_microsoft_signed_in = enabled;
         self.save();
     }
 
