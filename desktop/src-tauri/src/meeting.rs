@@ -1151,6 +1151,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn resamples_48k_and_44k_to_16k() {
+        for input in [48_000u32, 44_100] {
+            let mut resampler = MonoResampler::new(input, SAMPLE_RATE);
+            let mut output = Vec::new();
+            for _ in 0..input {
+                resampler.push(0.0, &mut output);
+            }
+            let expected = SAMPLE_RATE as i64;
+            let actual = output.len() as i64;
+            assert!(
+                (actual - expected).abs() <= 2,
+                "expected about {expected} samples from {input} Hz, got {actual}"
+            );
+        }
+    }
+
+    #[test]
     fn accepts_a_whisper_model_when_provided() {
         let Some(model) = std::env::var_os("FRONTDESK_WHISPER_TEST_MODEL") else {
             return;
