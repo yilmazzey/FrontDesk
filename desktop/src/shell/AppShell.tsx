@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api, inTauri } from '../lib/ipc'
 import { useAccess } from '../state/access'
 import { previewPrivacy } from '../components/PrivacyShield'
+import LineSidebar from '../components/LineSidebar'
 
 const nav = [
   { to: '/', label: 'Dashboard', end: true, glyph: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
@@ -33,6 +34,7 @@ export function AppShell() {
   )
   const [core, setCore] = useState<'checking' | 'online' | 'browser'>('checking')
   const [syncing, setSyncing] = useState(false)
+  const [navHover, setNavHover] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('frontdesk.sidebar') === 'collapsed',
   )
@@ -110,6 +112,15 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey)
   }, [navigate])
 
+  const activeIndex = Math.max(
+    0,
+    nav.findIndex((item) =>
+      item.end
+        ? pathname === item.to
+        : pathname === item.to || pathname.startsWith(`${item.to}/`),
+    ),
+  )
+
   const selected = info?.selectedModel
     ? models.find((model) => model.id === info.selectedModel)?.name ?? info.selectedModel
     : 'Extractive'
@@ -135,21 +146,29 @@ export function AppShell() {
           </button>
         </div>
 
-        <nav className="sidebar__nav" aria-label="Primary">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              title={item.label}
-              className={({ isActive }) => `navItem${isActive ? ' is-active' : ''}`}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d={item.glyph} />
-              </svg>
-              <span className="navItem__label">{item.label}</span>
-            </NavLink>
-          ))}
+        <nav
+          className="sidebar__nav"
+          aria-label="Primary"
+          onPointerEnter={() => setNavHover(true)}
+          onPointerLeave={() => setNavHover(false)}
+          onFocus={() => setNavHover(true)}
+          onBlur={() => setNavHover(false)}
+        >
+          <LineSidebar
+            items={nav.map((item) => item.label)}
+            activeIndex={activeIndex}
+            accentColor="var(--amber)"
+            textColor="rgba(251,244,233,0.58)"
+            markerColor="rgba(251,244,233,0.2)"
+            proximityRadius={92}
+            maxShift={16}
+            markerLength={26}
+            markerGap={4}
+            itemGap={16}
+            fontSize={0.82}
+            smoothing={120}
+            onItemClick={(index) => navigate(nav[index].to)}
+          />
         </nav>
 
         <div className="sidebar__foot">
@@ -193,7 +212,7 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className="work">
+      <div className={`work${navHover ? ' is-dimmed' : ''}`}>
         <header className="titlebar">
           <span className="titlebar__title">{titles[pathname] ?? 'FrontDesk'}</span>
           <div className="titlebar__right">

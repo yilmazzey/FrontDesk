@@ -1,0 +1,166 @@
+.line-sidebar {
+  --accent-color: var(--amber);
+  --text-color: var(--ink-faint);
+  --marker-color: rgba(251, 244, 233, 0.2);
+  --marker-length: 26px;
+  --marker-gap: 4px;
+  --tick-scale: 0.55;
+  --max-shift: 16px;
+  --item-gap: 16px;
+  --font-size: 0.82rem;
+  --smoothing: 120ms;
+
+  position: relative;
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  isolation: isolate;
+}
+
+/* Darken the panel behind the line nav while the pointer is on it, so the
+   marker lines and the active accent read clearly. */
+.line-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: -12px -16px -12px calc(-1 * (var(--marker-length) + var(--marker-gap)) - 12px);
+  z-index: -1;
+  border-radius: 12px;
+  background: linear-gradient(
+    90deg,
+    rgba(6, 5, 4, 0.62) 0%,
+    rgba(6, 5, 4, 0.26) 62%,
+    rgba(6, 5, 4, 0) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.line-sidebar:hover::before,
+.line-sidebar:focus-within::before {
+  opacity: 1;
+}
+
+.line-sidebar--markers {
+  padding-left: calc(var(--marker-length) + var(--marker-gap));
+}
+
+.line-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--item-gap);
+  margin: 0;
+  padding: 0.75rem 0;
+  list-style: none;
+  width: 100%;
+}
+
+.line-sidebar__item {
+  position: relative;
+  cursor: pointer;
+  outline: none;
+}
+
+.line-sidebar__item::before {
+  content: '';
+  position: absolute;
+  inset: -6px -40px -6px -52px;
+}
+
+.line-sidebar__item:focus-visible .line-sidebar__label {
+  outline: 1px solid var(--accent-color);
+  outline-offset: 5px;
+  border-radius: 3px;
+}
+
+.line-sidebar__label {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  color: color-mix(
+    in srgb,
+    var(--accent-color) calc(var(--effect, 0) * 100%),
+    var(--text-color)
+  );
+  font-family: var(--sans);
+  font-size: var(--font-size);
+  line-height: 1.2;
+  transform: translateX(calc(var(--effect, 0) * var(--max-shift)));
+}
+
+.line-sidebar__index {
+  margin-right: 0.55rem;
+  opacity: calc(0.52 + var(--effect, 0) * 0.48);
+  color: var(--text-color);
+  font-family: var(--mono);
+  font-size: 0.72em;
+  letter-spacing: 0.02em;
+}
+
+.line-sidebar__marker {
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * var(--marker-length) - var(--marker-gap));
+  height: 1px;
+  width: var(--marker-length);
+  background-color: color-mix(
+    in srgb,
+    var(--accent-color) calc(var(--effect, 0) * 100%),
+    var(--marker-color)
+  );
+  transform: translateY(-50%) scaleX(calc(0.7 + var(--effect, 0) * 0.5));
+  transform-origin: left center;
+}
+
+.line-sidebar--markers .line-sidebar__item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: calc(100% + var(--item-gap) / 2);
+  left: calc(-1 * var(--marker-length) - var(--marker-gap));
+  height: 1px;
+  width: calc(var(--marker-length) * var(--tick-scale));
+  background-color: var(--marker-color);
+  opacity: 0.45;
+  transform: translateY(-50%);
+}
+
+.line-sidebar--scale-tick .line-sidebar__item:not(:last-child)::after {
+  transform-origin: left center;
+  transform: translateY(-50%) scaleX(calc(0.7 + var(--effect, 0) * 0.6));
+}
+
+/* Collapsed rail: keep the index numbers as the compact navigation. */
+.app--rail .line-sidebar {
+  padding-left: 0;
+  --max-shift: 0px;
+}
+
+.app--rail .line-sidebar__text,
+.app--rail .line-sidebar__marker,
+.app--rail .line-sidebar__item::after {
+  display: none;
+}
+
+.app--rail .line-sidebar__index {
+  margin-right: 0;
+  font-size: 0.78rem;
+}
+
+.app--rail .line-sidebar__list {
+  padding: 0.4rem 0;
+}
+
+/* The active route is always fully emphasised, even when the window is in the
+   background and requestAnimationFrame is throttled. */
+.line-sidebar__item[aria-current='page'] .line-sidebar__label {
+  color: var(--accent-color);
+  transform: translateX(var(--max-shift));
+}
+
+.line-sidebar__item[aria-current='page'] .line-sidebar__index {
+  opacity: 1;
+}
+
+.line-sidebar__item[aria-current='page'] .line-sidebar__marker {
+  background-color: var(--accent-color);
+  transform: translateY(-50%) scaleX(1.2);
+}
