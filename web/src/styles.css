@@ -2668,10 +2668,10 @@ a {
 }
 
 .rates {
-  width: 100%;
+  width: calc(100% - 10px);
+  margin: 2px 0 0 10px;
   border-collapse: collapse;
   table-layout: fixed;
-  margin-top: 2px;
 }
 
 .rates th,
