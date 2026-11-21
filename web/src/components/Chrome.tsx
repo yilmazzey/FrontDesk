@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { site } from '../config'
+import HackathonMark from './HackathonMark'
 import { useUI, type NotebookSection } from '../store'
 
 const Arrow = () => (
@@ -58,17 +59,14 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <button type="button" className="wordmark" onClick={() => openSection('about')}>
+      <button type="button" className="wordmark" onClick={() => openSection('anika')}>
         <span className="wordmark__dot" aria-hidden="true" />
         <span className="wordmark__text">{site.wordmark}</span>
       </button>
 
       <nav className="topbar__nav" aria-label="Sections">
-        <button type="button" onClick={() => openSection('about')}>
+        <button type="button" onClick={() => openSection('anika')}>
           About
-        </button>
-        <button type="button" onClick={() => openSection('pricing')}>
-          Pricing
         </button>
         <button type="button" onClick={() => openSection('privacy')}>
           Privacy
@@ -94,19 +92,13 @@ export function Hero() {
   return (
     <section className="hero" aria-label="Introduction">
       <p className="hero__event">
-        <span className="hero__eventDot" aria-hidden="true" />
-        Pfizer &amp; Newpage Solutions Hackathon Challenge
-      </p>
-
-      <p className="hero__eyebrow">
-        <span className="hero__spark" aria-hidden="true" />
-        A workspace that stays out of the way
+        <HackathonMark />
       </p>
 
       <h1 className="hero__title">
-        Everything within reach.
+        Second brain for managers:
         <br />
-        <em>Nothing</em> in the way.
+        <em className="hero__hand">A workspace that stays out of the way</em>
       </h1>
     </section>
   )

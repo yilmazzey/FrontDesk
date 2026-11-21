@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { site } from '../config'
+import HackathonMark from '../components/HackathonMark'
 
 const VERSION = __APP_VERSION__
-const BASE = 'https://github.com/yilmazzey/FrontDesk/releases/latest/download'
+const BASE =
+  import.meta.env.VITE_DOWNLOAD_BASE?.trim() ||
+  'https://github.com/yilmazzey/FrontDesk/releases/latest/download'
 const assets = {
   'mac-arm': { file: `FrontDesk_${VERSION}_aarch64.dmg`, label: 'macOS (Apple Silicon)' },
   'mac-intel': { file: `FrontDesk_${VERSION}_x64.dmg`, label: 'macOS (Intel)' },
@@ -23,11 +25,11 @@ function detectPlatform(): AssetKey {
 }
 
 const downloads = [
-  ['macOS · Apple Silicon', '.dmg · ~4 MB', 'mac-arm'],
-  ['macOS · Intel', '.dmg · ~4 MB', 'mac-intel'],
-  ['Windows 10/11 · 64-bit', '.exe · ~6 MB', 'windows'],
-  ['Linux · 64-bit AppImage', '~15 MB · no install', 'linux'],
-  ['Linux · Debian / Ubuntu', '.deb · ~6 MB', null],
+  ['macOS · Apple Silicon', '.dmg', 'mac-arm'],
+  ['macOS · Intel', '.dmg', 'mac-intel'],
+  ['Windows 10/11 · 64-bit', '.exe', 'windows'],
+  ['Linux · 64-bit AppImage', 'AppImage · no install', 'linux'],
+  ['Linux · Debian / Ubuntu', '.deb', null],
   ['llama-server (auto-installed)', '~16 MB · in-app', null],
   ['Local model (optional)', 'GGUF · 2.3 GB', null],
 ] as const
@@ -58,12 +60,12 @@ export default function MonitorPage() {
     <main className="monitorPage">
       <div className="monitorDownload">
         <div className="monitorDownload__intro">
-          <p className="monitorDownload__eyebrow">{site.hackathon} · Desktop</p>
+          <p className="monitorDownload__eyebrow"><HackathonMark compact suffix="Desktop" /></p>
 
           <h1 className="monitorDownload__title">
             Take the desk
             <br />
-            <em>with you.</em>
+            <em className="monitorDownload__hand">with you.</em>
           </h1>
 
           <p className="monitorDownload__lede">
@@ -117,11 +119,12 @@ export default function MonitorPage() {
           </div>
 
           <p className="monitorDownload__notice">
-            Installed, the app is about 14 MB. On first model use it downloads and unpacks{' '}
+            Installed, the app is about 55 MB. On first model use it downloads and unpacks{' '}
             <code>llama-server</code> into its own app-data folder — no Homebrew or PATH step. Text
             PDFs are read in-process; OCR for scans offers a one-click helper install. Add a GGUF
             model only if you want generative answers, otherwise FrontDesk answers extractively
-            from your files.
+            from your files. Meeting notes use an optional 57 MB Whisper model that is the same on
+            macOS, Windows and Linux.
           </p>
         </div>
       </div>

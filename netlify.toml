@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build:web"
+  publish = "web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# The landing page uses BrowserRouter; serve index.html for /monitor and
+# other client-side routes.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
