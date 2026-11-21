@@ -1,5 +1,9 @@
 # Demo mail seeder (standalone)
 
+> **Legacy:** this Kestrel mailbox story is not used by the current demo. See
+> [`docs/demo/ASSETS.md`](../../docs/demo/ASSETS.md) for the Zeynep Yılmaz /
+> Anika Srivastava copy.
+
 This folder is **not used by the FrontDesk app** and has nothing to do with
 Settings → Connect. It is a standalone utility that writes the demo mailbox.
 

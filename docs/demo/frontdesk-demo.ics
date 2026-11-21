@@ -1,0 +1,16 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//FrontDesk Demo//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:frontdesk-launch-review-20261123@frontdesk.demo
+DTSTAMP:20261121T170000Z
+DTSTART:20261123T100000
+DTEND:20261123T104500
+SUMMARY:Launch review — Zeynep Yılmaz & Anika Srivastava
+DESCRIPTION:Agenda:\n- Revised launch scope (Zeynep)\n- Vendor shortlist and costs (Anika)\n- Pilot sites and phase 2 gate\n- Legal: data-processing addendum (DPA)\n- Budget sign-off date
+LOCATION:Microsoft Teams
+ATTENDEE;CN=Anika Srivastava;ROLE=REQ-PARTICIPANT:mailto:anika.srivastava@example.com
+END:VEVENT
+END:VCALENDAR

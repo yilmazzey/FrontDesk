@@ -1,5 +1,7 @@
 # Microsoft demo setup — step by step
 
+> **Current demo:** use [`docs/demo/ASSETS.md`](docs/demo/ASSETS.md) and [`docs/demo/DEMO-SCRIPT.md`](docs/demo/DEMO-SCRIPT.md). The cast is **Zeynep Yılmaz** and **Anika Srivastava**. The pricing/Ada story below is legacy setup context, not the current demo data.
+
 This is the checklist for the **dedicated Microsoft account + Entra app registration** used by the FrontDesk desktop demo.
 
 Target time: **60–90 minutes** for the full setup.  
