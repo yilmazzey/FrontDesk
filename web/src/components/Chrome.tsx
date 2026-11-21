@@ -93,15 +93,10 @@ export function Hero() {
         Pfizer &amp; Newpage Solutions Hackathon Challenge
       </p>
 
-      <p className="hero__eyebrow">
-        <span className="hero__spark" aria-hidden="true" />
-        A workspace that stays out of the way
-      </p>
-
       <h1 className="hero__title">
-        Everything within reach.
+        Second brain for managers:
         <br />
-        <em>Nothing</em> in the way.
+        <em>A workspace that stays out of the way</em>
       </h1>
     </section>
   )

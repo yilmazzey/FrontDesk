@@ -79,9 +79,7 @@ export default function Search() {
       <header className="pageHead pageHead--tight">
         <div>
           <p className="eyebrow">Files on the desk</p>
-          <h1 className="pageTitle">
-            Browse what you've <em>allowed.</em>
-          </h1>
+          <h1 className="pageTitle">Search</h1>
           <p className="pageLede pageLede--tight">
             Search the contents of notes, scans, mail, calendar and OneNote. No answers here —{' '}
             <Link to="/" state={{ focusAsk: true }}>ask the assistant</Link> when you want one.

@@ -156,6 +156,11 @@ export function AppShell() {
         >
           <LineSidebar
             items={nav.map((item) => item.label)}
+            icons={nav.map((item) => (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d={item.glyph} />
+              </svg>
+            ))}
             activeIndex={activeIndex}
             accentColor="var(--amber)"
             textColor="rgba(251,244,233,0.58)"

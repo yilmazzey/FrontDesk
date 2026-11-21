@@ -171,9 +171,7 @@ export default function Timeline() {
       <header className="pageHead pageHead--tight">
         <div>
           <p className="eyebrow">Timeline</p>
-          <h1 className="pageTitle">
-            Everything you <em>already know.</em>
-          </h1>
+          <h1 className="pageTitle">Timeline</h1>
           <p className="pageLede pageLede--tight">
             Meetings, notes, mail and scans grouped by the day they happened. Search the contents
             here, or use the full Search view for a deeper pass. Nothing is copied.

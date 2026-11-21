@@ -164,3 +164,38 @@
   background-color: var(--accent-color);
   transform: translateY(-50%) scaleX(1.2);
 }
+
+.line-sidebar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 0.55rem;
+  color: inherit;
+  opacity: calc(0.55 + var(--effect, 0) * 0.45);
+}
+
+.line-sidebar__icon svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.line-sidebar__item[aria-current='page'] .line-sidebar__icon {
+  opacity: 1;
+}
+
+.app--rail .line-sidebar__icon {
+  margin-right: 0;
+}
+
+/* Icon and label share a centre line; the index style is kept for contexts
+   that use numbers instead of icons. */
+.line-sidebar__label {
+  align-items: center;
+}

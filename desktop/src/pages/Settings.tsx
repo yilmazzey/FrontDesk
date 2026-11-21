@@ -559,9 +559,7 @@ export default function Settings() {
       <header className="pageHead pageHead--tight">
         <div>
           <p className="eyebrow">Preferences</p>
-          <h1 className="pageTitle">
-            Yours to <em>configure.</em>
-          </h1>
+          <h1 className="pageTitle">Settings</h1>
         </div>
       </header>
 

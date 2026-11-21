@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from 'react'
 import './LineSidebar.css'
 
@@ -19,6 +20,7 @@ const FALLOFF_CURVES: Record<Falloff, (progress: number) => number> = {
 
 type Props = {
   items: string[]
+  icons?: ReactNode[]
   accentColor?: string
   textColor?: string
   markerColor?: string
@@ -41,6 +43,7 @@ type Props = {
 
 export default function LineSidebar({
   items,
+  icons,
   accentColor = '#ffb45c',
   textColor = 'rgba(251,244,233,0.58)',
   markerColor = 'rgba(251,244,233,0.2)',
@@ -210,7 +213,11 @@ export default function LineSidebar({
               <span className="line-sidebar__marker" aria-hidden="true" />
             ) : null}
             <span className="line-sidebar__label">
-              {showIndex ? (
+              {icons?.[index] ? (
+                <span className="line-sidebar__icon" aria-hidden="true">
+                  {icons[index]}
+                </span>
+              ) : showIndex ? (
                 <span className="line-sidebar__index">
                   {String(index + 1).padStart(2, '0')}
                 </span>
