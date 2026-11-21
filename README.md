@@ -200,7 +200,7 @@ Unsigned preview installers may trigger macOS Gatekeeper or Windows SmartScreen.
 - Sources and the people graph are cached in memory while the app is open; **Resync** re-reads them.
 - Conversation history lives in React memory and disappears on restart.
 - Meeting audio is temporary: it is deleted after a successful transcription and never leaves the machine. Only the transcript and notes remain.
-- The About notebook hides the two profile photos when it sees a screenshot shortcut or the page loses focus, and offers a **Hide photos** control as the guaranteed fallback. Browsers cannot reliably detect every screenshot tool, so the manual control is the dependable option.
+- The About notebook hides the two profile photos when it sees a screenshot shortcut or the page loses focus. Browsers cannot reliably detect every screenshot tool, so this is best-effort protection.
 
 ## Troubleshooting
 
