@@ -193,7 +193,10 @@ fn valid_model(path: &Path) -> bool {
     if file.read_exact(&mut magic).is_err() {
         return false;
     }
-    &magic == b"ggml" || &magic == b"GGUF"
+    matches!(
+        &magic,
+        b"ggml" | b"lmgg" | b"GGUF" | b"ggmf" | b"fmgg" | b"FUGU"
+    )
 }
 
 fn safe_id(id: &str) -> bool {
@@ -1146,6 +1149,17 @@ pub fn meeting_reveal(state: State<'_, AppState>, id: String) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accepts_a_whisper_model_when_provided() {
+        let Some(model) = std::env::var_os("FRONTDESK_WHISPER_TEST_MODEL") else {
+            return;
+        };
+        assert!(
+            valid_model(Path::new(&model)),
+            "the whisper model should pass magic and size validation"
+        );
+    }
 
     #[test]
     fn transcribes_a_small_file_when_fixtures_are_provided() {
