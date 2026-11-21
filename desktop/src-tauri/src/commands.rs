@@ -816,7 +816,7 @@ pub fn save_answer(
     Ok(path)
 }
 
-fn write_saved_answer(
+pub(crate) fn write_saved_answer(
     folder: &str,
     classification: &str,
     title: &str,

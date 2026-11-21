@@ -13,6 +13,11 @@ import type {
   Excerpt,
   IndexStatus,
   ManagerSnapshot,
+  MeetingRecord,
+  MeetingStarted,
+  MeetingStatus,
+  MeetingStopped,
+  MeetingSummary,
   MicrosoftDiagnostics,
   ModelRef,
   MicrosoftProfile,
@@ -731,5 +736,57 @@ export const api = {
 
   hideTrayPopover: async (): Promise<void> => {
     if (inTauri()) await call<void>('hide_tray_popover')
+  },
+
+  meetingStatus: async (): Promise<MeetingStatus> =>
+    inTauri()
+      ? call<MeetingStatus>('meeting_status')
+      : {
+          recording: false,
+          activeId: null,
+          startedAt: null,
+          processingId: null,
+          phase: 'idle',
+          modelInstalled: false,
+          modelSizeMb: 57,
+          modelPath: 'browser://whisper',
+          micAvailable: false,
+          llmAvailable: false,
+        },
+
+  meetingInstallModel: async (): Promise<string> => {
+    if (inTauri()) return call<string>('meeting_install_model')
+    throw new Error('The transcription model download needs the desktop app.')
+  },
+
+  meetingStart: async (): Promise<MeetingStarted> => {
+    if (inTauri()) return call<MeetingStarted>('meeting_start')
+    throw new Error('Meeting recording needs the desktop app.')
+  },
+
+  meetingStop: async (): Promise<MeetingStopped> => {
+    if (inTauri()) return call<MeetingStopped>('meeting_stop')
+    throw new Error('Meeting recording needs the desktop app.')
+  },
+
+  meetingProcess: async (id: string): Promise<void> => {
+    if (inTauri()) await call<void>('meeting_process', { id })
+    else throw new Error('Meeting transcription needs the desktop app.')
+  },
+
+  meetingList: async (): Promise<MeetingSummary[]> =>
+    inTauri() ? call<MeetingSummary[]>('meeting_list') : [],
+
+  meetingGet: async (id: string): Promise<MeetingRecord> => {
+    if (inTauri()) return call<MeetingRecord>('meeting_get', { id })
+    throw new Error('Meeting notes need the desktop app.')
+  },
+
+  meetingDelete: async (id: string): Promise<void> => {
+    if (inTauri()) await call<void>('meeting_delete', { id })
+  },
+
+  meetingReveal: async (id: string): Promise<void> => {
+    if (inTauri()) await call<void>('meeting_reveal', { id })
   },
 }

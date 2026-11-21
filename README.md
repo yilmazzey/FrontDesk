@@ -9,6 +9,7 @@ FrontDesk is a Tauri desktop app with a Rust core and a separate web landing pag
 - **Timeline** — searchable, filterable history with sticky day headers, a **Today** jump and likely meeting links.
 - **Search** — content search with matched excerpts, people and dates; every result row opens the original.
 - **Saved** — rehydrates Markdown answers from your chosen folder, with category filters and Finder reveal.
+- **Meetings** — records the microphone locally, transcribes with Whisper on this Mac and writes notes with the local model. Audio is deleted after transcription; notes are kept in the app and, when a saved folder is configured, as Markdown.
 - **People graph** — cluster colleagues by Microsoft 365 department and job title, with mail signatures as fallback; link them by mail, meetings and names mentioned in messages, Obsidian-style.
 - **Privacy shield** — blur the whole window when a remote-access tool such as AnyDesk or macOS Screen Sharing is active, with an unblur action and `⌘⇧P` shortcut.
 - **Sources** — local folders, PDFs and scans, Outlook mail and Sent Items, Microsoft Calendar and OneNote.
@@ -126,6 +127,17 @@ For generative answers, open **Settings → Models & answer style** and choose *
 
 You can also place a GGUF file in `models/` and select it in Settings. To force the extractive path during a demo, choose **Extractive** as the answer adapter.
 
+## Meetings
+
+**Meetings** records from the current microphone, resamples to 16 kHz mono and keeps the WAV only until transcription finishes. Whisper base runs locally with Metal acceleration; the model is a one-time **57 MB** download from the Meetings page. The transcript is then passed to the selected local model, which writes **Summary**, **Decisions**, **Action items** and **Open questions**. Long meetings are summarised in parts and combined.
+
+- Microphone only. In a headphones meeting this captures your side, not the other participants.
+- The first recording asks for macOS microphone access. If it is denied, re-enable FrontDesk in **System Settings → Privacy & Security → Microphone**.
+- If no local model is installed, the transcript is still saved.
+- If a saved folder is configured, a Markdown copy is written there as a **Briefing** and appears on the Saved page.
+- Audio is deleted after a successful transcription; the transcript and notes stay in the app's `meetings/` folder. A failed transcription keeps the audio so it can be retried.
+- All processing is local. No meeting bot joins the call and nothing is uploaded.
+
 ## Microsoft Graph
 
 Official builds include a public-client application ID in `desktop/.env.production`. This is not a secret. You can override it in **Settings → Microsoft account → Microsoft client ID**, or copy `desktop/.env.example` to `desktop/.env.local` and set `VITE_MICROSOFT_CLIENT_ID`.
@@ -187,6 +199,7 @@ Unsigned preview installers may trigger macOS Gatekeeper or Windows SmartScreen.
 - The refresh token is kept in memory by default. **Stay signed in** optionally stores it in the macOS Keychain; source text is never written there.
 - Sources and the people graph are cached in memory while the app is open; **Resync** re-reads them.
 - Conversation history lives in React memory and disappears on restart.
+- Meeting audio is temporary: it is deleted after a successful transcription and never leaves the machine. Only the transcript and notes remain.
 
 ## Troubleshooting
 
@@ -195,6 +208,7 @@ Unsigned preview installers may trigger macOS Gatekeeper or Windows SmartScreen.
 - **Microsoft returns empty mail/calendar/OneNote** — check Settings diagnostics for reachable-empty vs permission errors, and confirm you signed in with the intended account.
 - **Device code expired while the app was open** — Settings keeps the prompt and shows **Get a new code**; no restart needed. **Reconnect** starts a fresh sign-in without disconnecting first.
 - **No model** — use Extractive, download Phi-4 Mini in Settings, or place a `.gguf` in `models/`.
+- **Meeting recording is silent or empty** — grant FrontDesk microphone access in **System Settings → Privacy & Security → Microphone**, then restart the app. The Meetings page also offers the 57 MB Whisper model download.
 - **Scan OCR fails** — use **Install all helpers** in Settings → Local runtime; FrontDesk finds Homebrew tools under `/opt/homebrew/bin` even when launched from Finder. PDFium handles rendering, Poppler is optional.
 - **Clone is still large** — the raw 50 MB GLB was removed from the current tree, but it remains in older Git history. Shrinking clone size further requires a coordinated history rewrite and force-push.
 

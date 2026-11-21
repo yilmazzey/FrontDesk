@@ -5,6 +5,7 @@ pub mod contracts;
 mod embedding;
 mod index;
 mod manager;
+mod meeting;
 mod microsoft;
 pub mod model;
 mod model_download;
@@ -110,6 +111,15 @@ pub fn run() {
             commands::install_runtime,
             commands::download_model,
             commands::cancel_model_download,
+            meeting::meeting_status,
+            meeting::meeting_install_model,
+            meeting::meeting_start,
+            meeting::meeting_stop,
+            meeting::meeting_process,
+            meeting::meeting_list,
+            meeting::meeting_get,
+            meeting::meeting_delete,
+            meeting::meeting_reveal,
             microsoft::begin_sign_in,
             microsoft::begin_browser_sign_in,
             microsoft::poll_browser_sign_in,
