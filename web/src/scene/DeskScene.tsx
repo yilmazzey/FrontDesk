@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { Canvas, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer } from '@react-three/drei'
@@ -11,6 +11,7 @@ import { LivingDesk } from './LivingDesk'
 
 type Props = {
   onOpenApp: () => void
+  paused?: boolean
 }
 
 function Ready() {
@@ -111,10 +112,13 @@ function Desk() {
   )
 }
 
-export function DeskScene({ onOpenApp }: Props) {
+export function DeskScene({ onOpenApp, paused = false }: Props) {
   const hover = useUI((s) => s.hover)
   const theme = useUI((s) => s.theme)
   const light = theme === 'light'
+  const [hidden, setHidden] = useState(
+    typeof document === 'undefined' ? false : document.hidden,
+  )
 
   useEffect(() => {
     document.body.style.cursor = hover ? 'pointer' : ''
@@ -123,10 +127,19 @@ export function DeskScene({ onOpenApp }: Props) {
     }
   }, [hover])
 
+  // Do not keep a WebGL scene rendering in a background tab or after the
+  // visitor has scrolled past the desk. This is the largest thermal cost on
+  // the landing page.
+  useEffect(() => {
+    const onVisibility = () => setHidden(document.hidden)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+
   return (
     <Canvas
       shadows
-      frameloop="always"
+      frameloop={paused || hidden ? 'never' : 'always'}
       // Measure the untransformed box so a transient CSS transform on an
       // ancestor cannot make the canvas resize mid-scroll.
       resize={{ offsetSize: true }}

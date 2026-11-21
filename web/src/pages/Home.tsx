@@ -88,7 +88,7 @@ export default function Home() {
             </div>
           }
         >
-          <DeskScene onOpenApp={onOpenApp} />
+          <DeskScene onOpenApp={onOpenApp} paused={deskGone} />
         </ErrorBoundary>
         <div className="stage__scrim" aria-hidden="true" />
       </motion.div>
