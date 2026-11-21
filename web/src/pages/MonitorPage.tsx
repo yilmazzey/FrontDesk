@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { site } from '../config'
 
 const VERSION = __APP_VERSION__
-const BASE = 'https://github.com/yilmazzey/FrontDesk/releases/latest/download'
+const BASE =
+  import.meta.env.VITE_DOWNLOAD_BASE?.trim() ||
+  'https://github.com/yilmazzey/FrontDesk/releases/latest/download'
 const assets = {
   'mac-arm': { file: `FrontDesk_${VERSION}_aarch64.dmg`, label: 'macOS (Apple Silicon)' },
   'mac-intel': { file: `FrontDesk_${VERSION}_x64.dmg`, label: 'macOS (Intel)' },

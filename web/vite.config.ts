@@ -12,6 +12,7 @@ export default defineConfig({
   plugins: [react()],
   define: { __APP_VERSION__: JSON.stringify(rootPackage.version) },
   server: { port: 5173 },
+  preview: { port: 4173, allowedHosts: true },
   build: {
     target: 'es2020',
     chunkSizeWarningLimit: 1200,
