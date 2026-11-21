@@ -6,6 +6,7 @@ import type {
   MeetingRecord,
   MeetingStatus,
   MeetingSummary,
+  RuntimeProgress,
 } from '../types/source'
 
 function formatDuration(seconds: number): string {
@@ -89,6 +90,9 @@ export default function Meetings() {
   const [progress, setProgress] = useState<MeetingProgress | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [installing, setInstalling] = useState(false)
+  const [notesModelBusy, setNotesModelBusy] = useState(false)
+  const [notesModelProgress, setNotesModelProgress] = useState<RuntimeProgress | null>(null)
+  const [notesModelNotice, setNotesModelNotice] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     const [nextStatus, nextMeetings] = await Promise.all([
@@ -138,6 +142,29 @@ export default function Meetings() {
 
   useEffect(() => {
     if (!inTauri()) return
+    let stop: (() => void) | undefined
+    let cancelled = false
+    void api
+      .onRuntimeProgress((next) => {
+        if (next.kind !== 'model') return
+        setNotesModelProgress(next)
+        if (next.phase === 'done') {
+          setNotesModelBusy(false)
+          void refresh()
+        }
+      })
+      .then((unlisten) => {
+        if (cancelled) unlisten()
+        else stop = unlisten
+      })
+    return () => {
+      cancelled = true
+      stop?.()
+    }
+  }, [refresh])
+
+  useEffect(() => {
+    if (!inTauri()) return
     let disposed = false
     let unlisten: (() => void) | undefined
     void import('@tauri-apps/api/event').then(async ({ listen }) => {
@@ -176,6 +203,27 @@ export default function Meetings() {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setInstalling(false)
+    }
+  }
+
+  async function downloadNotesModel() {
+    setNotesModelBusy(true)
+    setNotesModelNotice(null)
+    setNotesModelProgress({
+      kind: 'model',
+      phase: 'download',
+      message: 'Starting the Phi-4 Mini download…',
+      downloaded: 0,
+      total: 0,
+    })
+    try {
+      await api.downloadModel()
+      setNotesModelNotice('Phi-4 Mini is installed and ready for notes.')
+      await refresh()
+    } catch (cause) {
+      setNotesModelNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setNotesModelBusy(false)
     }
   }
 
@@ -322,6 +370,58 @@ export default function Meetings() {
         </section>
       ) : null}
 
+      {status && !status.llmAvailable && inTauri() ? (
+        <section className="panel meetingSetup meetingModelSetup">
+          <div>
+            <p className="sectionLabel">Notes model</p>
+            <h3>Phi-4 Mini for written notes</h3>
+            <p>
+              The transcript is still saved without it. Download the 2.3 GB local model once to
+              get summaries, decisions and action items on this computer.
+            </p>
+            {notesModelNotice ? <p className="meetingHint">{notesModelNotice}</p> : null}
+          </div>
+          <div className="meetingSetup__actions">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={notesModelBusy}
+              onClick={() => void downloadNotesModel()}
+            >
+              {notesModelBusy ? 'Downloading…' : 'Download notes model'}
+            </button>
+            {notesModelBusy && notesModelProgress ? (
+              <div className="meetingProgress">
+                <div className="meetingProgress__bar">
+                  <span
+                    style={{
+                      width: `${
+                        notesModelProgress.total > 0
+                          ? Math.min(
+                              100,
+                              Math.round(
+                                (notesModelProgress.downloaded / notesModelProgress.total) * 100,
+                              ),
+                            )
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <p>
+                  {notesModelProgress.message}
+                  {notesModelProgress.total > 0
+                    ? ` · ${Math.round(notesModelProgress.downloaded / 1048576)} / ${Math.round(
+                        notesModelProgress.total / 1048576,
+                      )} MB`
+                    : ''}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       <section className={`panel meetingRecorder${recording ? ' is-recording' : ''}`}>
         <div className="meetingRecorder__main">
           <button
@@ -367,8 +467,8 @@ export default function Meetings() {
             ) : null}
             {status && !status.llmAvailable ? (
               <p className="meetingHint">
-                No local model is installed. The transcript will still be saved. Add a model in
-                Settings to generate written notes.
+                No local model is installed. The transcript will still be saved. Download the
+                notes model above, or add a GGUF in Settings, to generate written notes.
               </p>
             ) : null}
           </div>

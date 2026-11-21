@@ -133,7 +133,7 @@ You can also place a GGUF file in `models/` and select it in Settings. To force 
 
 - Microphone only. In a headphones meeting this captures your side, not the other participants.
 - The first recording asks for microphone access. On macOS enable FrontDesk in **System Settings → Privacy & Security → Microphone**; on Windows use **Settings → Privacy & security → Microphone**; on Linux check the PulseAudio/PipeWire input permissions.
-- If no local model is installed, the transcript is still saved.
+- If no local language model is installed, use **Download notes model** on the Meetings page (Phi-4 Mini, 2.3 GB), or add a `.gguf` in Settings. The transcript is still saved either way.
 - If a saved folder is configured, a Markdown copy is written there as a **Briefing** and appears on the Saved page.
 - Audio is deleted after a successful transcription; the transcript and notes stay in the app's `meetings/` folder. A failed transcription keeps the audio so it can be retried.
 - All processing is local. No meeting bot joins the call and nothing is uploaded.
