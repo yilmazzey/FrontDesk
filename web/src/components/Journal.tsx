@@ -28,9 +28,7 @@ export function Journal() {
         </button>
 
         <nav className="journal__nav" aria-label="Sections">
-          <button type="button" onClick={() => open('anika')}>
-            About
-          </button>
+          <Link to="/about">About</Link>
           <button type="button" onClick={() => open('privacy')}>
             Privacy
           </button>
@@ -57,9 +55,7 @@ export function Journal() {
         </div>
 
         <nav className="journal__footNav" aria-label="Footer">
-          <button type="button" onClick={() => open('anika')}>
-            About
-          </button>
+          <Link to="/about">About</Link>
           <button type="button" onClick={() => open('privacy')}>
             Privacy
           </button>

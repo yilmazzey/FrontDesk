@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Home from './pages/Home'
 import MonitorPage from './pages/MonitorPage'
+import AboutPage from './pages/AboutPage'
 import { THEME_KEY, useUI } from './store'
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/monitor" element={<MonitorPage />} />
+      <Route path="/about" element={<AboutPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

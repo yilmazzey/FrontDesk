@@ -64,9 +64,7 @@ export function TopBar() {
       </button>
 
       <nav className="topbar__nav" aria-label="Sections">
-        <button type="button" onClick={() => openSection('anika')}>
-          About
-        </button>
+        <Link to="/about">About</Link>
         <button type="button" onClick={() => openSection('privacy')}>
           Privacy
         </button>
