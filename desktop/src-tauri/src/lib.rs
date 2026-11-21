@@ -5,6 +5,7 @@ pub mod contracts;
 mod embedding;
 mod index;
 mod manager;
+mod meeting;
 mod microsoft;
 pub mod model;
 mod model_download;
@@ -36,6 +37,13 @@ pub fn run() {
             runtime::init(&data_dir);
             app.manage(state::AppState::new(data_dir, models_dir));
             app.manage(microsoft::MicrosoftState::default());
+            let keep_signed_in = app
+                .state::<state::AppState>()
+                .settings
+                .lock()
+                .map(|settings| settings.get().keep_microsoft_signed_in)
+                .unwrap_or(false);
+            microsoft::set_keep_signed_in(keep_signed_in);
             app.manage(model_download::ModelDownloadState::default());
             tray::setup(app)?;
             Ok(())
@@ -92,6 +100,7 @@ pub fn run() {
             commands::select_mode,
             commands::set_microsoft_client_id,
             commands::set_microsoft_tenant,
+            commands::set_keep_microsoft_signed_in,
             commands::set_include_private_onenote,
             commands::warm_model,
             commands::app_info,
@@ -102,6 +111,16 @@ pub fn run() {
             commands::install_runtime,
             commands::download_model,
             commands::cancel_model_download,
+            meeting::meeting_status,
+            meeting::meeting_install_model,
+            meeting::meeting_start,
+            meeting::meeting_stop,
+            meeting::meeting_process,
+            meeting::meeting_regenerate_notes,
+            meeting::meeting_list,
+            meeting::meeting_get,
+            meeting::meeting_delete,
+            meeting::meeting_reveal,
             microsoft::begin_sign_in,
             microsoft::begin_browser_sign_in,
             microsoft::poll_browser_sign_in,

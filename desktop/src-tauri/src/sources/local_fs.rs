@@ -116,7 +116,8 @@ fn one_file(path: &Path, grant: &SourceGrant) -> Option<SourceRef> {
 }
 
 /// Fetch the original text at query time. PDFs use their embedded text layer;
-/// images are OCR'd locally with Tesseract. Nothing is persisted.
+/// images use Apple Vision on macOS (printed and handwritten) with Tesseract as
+/// the fallback. Nothing is persisted.
 pub fn read_text(path: &str) -> Result<String, String> {
     let path = Path::new(path);
     let ext = path
@@ -154,9 +155,7 @@ pub fn read_text(path: &str) -> Result<String, String> {
             // No embedded text layer: rasterise page by page and OCR locally.
             ocr_pdf(path)
         }
-        "png" | "jpg" | "jpeg" | "webp" | "tif" | "tiff" | "bmp" => {
-            run_tool("tesseract", &[path.to_string_lossy().as_ref(), "stdout"])
-        }
+        "png" | "jpg" | "jpeg" | "webp" | "tif" | "tiff" | "bmp" => ocr_image(path),
         _ => Err(format!("Unsupported source type: .{ext}")),
     }
 }
@@ -209,10 +208,7 @@ fn ocr_pdf_pdfium(path: &Path, dir: &Path) -> Result<String, String> {
         let rgba = bitmap.as_rgba_bytes();
         let page_path = dir.join(format!("page-{index:04}.ppm"));
         write_ppm(&page_path, &rgba, width, height)?;
-        text.push_str(&run_tool(
-            "tesseract",
-            &[page_path.to_string_lossy().as_ref(), "stdout"],
-        )?);
+        text.push_str(&ocr_image(&page_path)?);
         text.push('\u{0c}');
     }
     Ok(text)
@@ -251,13 +247,66 @@ fn ocr_pdf_poppler(path: &Path, dir: &Path) -> Result<String, String> {
 
     let mut text = String::new();
     for page in pages {
-        text.push_str(&run_tool(
-            "tesseract",
-            &[page.to_string_lossy().as_ref(), "stdout"],
-        )?);
+        text.push_str(&ocr_image(&page)?);
         text.push('\u{0c}');
     }
     Ok(text)
+}
+
+/// OCR one image. macOS Vision understands both printed and handwritten text
+/// and needs no extra model download; Tesseract remains the fallback on other
+/// platforms or when Vision returns nothing.
+fn ocr_image(path: &Path) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        match macos_vision_ocr(path) {
+            Ok(text) if !text.trim().is_empty() => return Ok(text),
+            _ => {}
+        }
+    }
+    run_tool("tesseract", &[path.to_string_lossy().as_ref(), "stdout"])
+}
+
+#[cfg(target_os = "macos")]
+fn macos_vision_ocr(path: &Path) -> Result<String, String> {
+    use objc2::AnyThread;
+    use objc2_foundation::{NSArray, NSDictionary, NSString, NSURL};
+    use objc2_vision::{
+        VNImageRequestHandler, VNRecognizeTextRequest, VNRequestTextRecognitionLevel,
+    };
+
+    unsafe {
+        let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
+        let options = NSDictionary::new();
+        let handler = VNImageRequestHandler::initWithURL_options(
+            VNImageRequestHandler::alloc(),
+            &url,
+            &options,
+        );
+        let request = VNRecognizeTextRequest::init(VNRecognizeTextRequest::alloc());
+        request.setRecognitionLevel(VNRequestTextRecognitionLevel::Accurate);
+        request.setUsesLanguageCorrection(true);
+        request.setAutomaticallyDetectsLanguage(true);
+        let requests = NSArray::from_slice(&[request.as_ref()]);
+        handler
+            .performRequests_error(&requests)
+            .map_err(|error| format!("Apple Vision OCR failed: {error}"))?;
+
+        let Some(results) = request.results() else {
+            return Ok(String::new());
+        };
+        let mut lines = Vec::new();
+        for observation in results.iter() {
+            let candidates = observation.topCandidates(1);
+            if let Some(text) = candidates.firstObject() {
+                let line = text.string().to_string();
+                if !line.trim().is_empty() {
+                    lines.push(line);
+                }
+            }
+        }
+        Ok(lines.join("\n"))
+    }
 }
 
 fn run_tool(program: &str, args: &[&str]) -> Result<String, String> {

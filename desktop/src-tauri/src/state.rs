@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use crate::audit::AuditLog;
 use crate::embedding::Embedder;
 use crate::index::IndexStore;
+use crate::meeting::MeetingState;
 use crate::people_store::PeopleStore;
 use crate::permissions::PermissionStore;
 use crate::settings::SettingsStore;
@@ -17,6 +18,7 @@ pub struct AppState {
     pub audit: Mutex<AuditLog>,
     pub index: Option<IndexStore>,
     pub embedder: Embedder,
+    pub meetings: MeetingState,
 }
 
 impl AppState {
@@ -28,6 +30,7 @@ impl AppState {
             audit: Mutex::new(AuditLog::new(&data_dir)),
             index: IndexStore::open(&data_dir).ok(),
             embedder: Embedder::new(data_dir.join("embedding-model")),
+            meetings: MeetingState::default(),
             data_dir,
             models_dir,
         }

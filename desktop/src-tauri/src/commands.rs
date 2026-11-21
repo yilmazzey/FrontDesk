@@ -816,7 +816,7 @@ pub fn save_answer(
     Ok(path)
 }
 
-fn write_saved_answer(
+pub(crate) fn write_saved_answer(
     folder: &str,
     classification: &str,
     title: &str,
@@ -1203,14 +1203,43 @@ pub fn select_model(state: State<'_, AppState>, id: Option<String>) -> Result<Ap
 fn ensure_default_model(state: &AppState) -> Result<(), String> {
     let mut store = state_lock(&state.settings)?;
     let settings = store.get();
-    if settings.model_choice_explicit || settings.selected_model.is_some() {
+    if let Some(selected) = settings.selected_model.as_deref() {
+        if model::path_for(&state.models_dir, selected).is_some() {
+            return Ok(());
+        }
+        // The selected GGUF was moved or deleted. Forgetting it is better than
+        // showing a model that cannot be loaded (and failing later in Ask or
+        // meeting notes).
+        let replacement = model::list(&state.models_dir)
+            .first()
+            .map(|item| item.id.clone());
+        store.auto_select_model(replacement);
         return Ok(());
     }
-    let models = model::list(&state.models_dir);
-    if let Some(first) = models.first() {
-        store.auto_select_model(Some(first.id.clone()));
+    if settings.model_choice_explicit {
+        return Ok(());
+    }
+    let first = model::list(&state.models_dir)
+        .first()
+        .map(|item| item.id.clone());
+    if first.is_some() {
+        store.auto_select_model(first);
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn set_keep_microsoft_signed_in(
+    state: State<'_, AppState>,
+    microsoft_state: State<'_, MicrosoftState>,
+    enabled: bool,
+) -> Result<AppInfo, String> {
+    state_lock(&state.settings)?.set_keep_microsoft_signed_in(enabled);
+    crate::microsoft::set_keep_signed_in(enabled);
+    if enabled {
+        crate::microsoft::persist_current_session(&microsoft_state);
+    }
+    app_info(state)
 }
 
 #[tauri::command]
@@ -1267,6 +1296,7 @@ pub fn app_info(state: State<'_, AppState>) -> Result<AppInfo, String> {
         saved_folder: settings.saved_folder,
         microsoft_client_id: settings.microsoft_client_id,
         microsoft_tenant: settings.microsoft_tenant,
+        keep_microsoft_signed_in: settings.keep_microsoft_signed_in,
         include_private_onenote: settings.include_private_onenote,
     })
 }
