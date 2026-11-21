@@ -151,9 +151,9 @@ For the full Entra walkthrough, see [MICROSOFT_DEMO_SETUP.md](MICROSOFT_DEMO_SET
 ## OCR and PDFs
 
 - Text PDFs are read in-process with pure Rust.
-- Scanned PDFs are rasterized with PDFium and read with Tesseract in the app's runtime cache.
+- Scanned PDFs are rasterized with PDFium and read on-device. macOS uses **Apple Vision**, which handles both printed and handwritten notes; Tesseract remains the fallback on other platforms and for printed text.
 - Poppler is optional: it is only a text/render fallback.
-- **Install all helpers** in Settings provisions llama.cpp and, where the platform allows it, Tesseract in one click. FrontDesk also checks `/opt/homebrew/bin` and `/usr/local/bin`, so Homebrew tools are found even when the app is launched from Finder. Poppler remains optional because PDFium renders PDFs.
+- **Install all helpers** in Settings provisions llama.cpp and, where the platform allows it, Tesseract in one click. On macOS, Apple Vision means handwriting OCR does not need Tesseract. FrontDesk also checks `/opt/homebrew/bin` and `/usr/local/bin`, so Homebrew tools are found even when the app is launched from Finder. Poppler remains optional because PDFium renders PDFs.
 
 ## Build, test and lint
 
