@@ -219,6 +219,10 @@ export default function SwipeRow({
 
   const down = (e) => {
     if (disabled || n === 0 || phase !== 'idle' || grip.current || e.button !== 0) return
+    // Never capture the pointer for a control inside the row. Otherwise the
+    // row gets pointerup and the button never receives its click.
+    const target = e.target as HTMLElement | null
+    if (target?.closest('button, a, input, textarea, select, [role="button"]')) return
     x.stop()
     heading.current = null
     grip.current = {
