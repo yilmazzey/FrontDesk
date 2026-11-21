@@ -1,306 +1,325 @@
 import * as THREE from 'three'
 
 /**
- * A warm little workspace painted into a canvas and used as the monitor's
- * screen. It deliberately shares its type, palette and ruled lines with the
- * printed sheet further down the page, so the close-up feels like the same
- * product rather than a generic dashboard.
+ * The monitor in the landing-page desk shows the real FrontDesk manager
+ * dashboard, painted into a canvas as a filled mockup. The data is the Kestrel
+ * demo story so the screen matches the product rather than a generic
+ * workspace.
  */
 export function createScreenTexture(): THREE.CanvasTexture {
-  const width = 1024
-  const height = 640
+  const width = 1280
+  const height = 800
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
 
   const ctx = canvas.getContext('2d')!
-  const cream = '#efe2cd'
-  const muted = '#9c8b74'
-  const faint = 'rgba(239,226,205,0.11)'
-  const amber = '#e6a35f'
-  const sage = '#9dbb95'
-  const panel = '#1b1610'
   const bg = '#120f0b'
+  const sidebar = '#0c0a09'
+  const panel = '#17140f'
+  const panel2 = '#1c1812'
+  const cream = '#fbf4e9'
+  const dim = 'rgba(251,244,233,0.78)'
+  const faint = 'rgba(251,244,233,0.52)'
+  const line = 'rgba(244,236,225,0.13)'
+  const amber = '#ffb45c'
+  const sage = '#9dbb95'
+  const teal = '#6fb3a8'
 
-  ctx.fillStyle = bg
-  ctx.fillRect(0, 0, width, height)
+  const serif = 'Georgia, "Times New Roman", serif'
+  const sans = '-apple-system, system-ui, sans-serif'
+  const mono = 'ui-monospace, Menlo, monospace'
 
-  // warm pool of light from the left
-  const glow = ctx.createRadialGradient(120, 40, 10, 120, 40, 520)
-  glow.addColorStop(0, 'rgba(230,163,95,0.15)')
-  glow.addColorStop(1, 'rgba(230,163,95,0)')
-  ctx.fillStyle = glow
-  ctx.fillRect(0, 0, width, height)
+  const label = (text: string, x: number, y: number, color = faint, size = 8) => {
+    ctx.fillStyle = color
+    ctx.font = `${size}px ${mono}`
+    try {
+      ;(ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing =
+        '1.4px'
+    } catch {
+      /* older canvas */
+    }
+    ctx.fillText(text, x, y)
+    try {
+      ;(ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing =
+        '0px'
+    } catch {
+      /* older canvas */
+    }
+  }
 
-  // ---- top bar -------------------------------------------------------
-  ctx.fillStyle = 'rgba(10,8,6,0.72)'
-  ctx.fillRect(0, 0, width, 52)
-  ctx.strokeStyle = 'rgba(239,226,205,0.09)'
-  ctx.beginPath()
-  ctx.moveTo(0, 52.5)
-  ctx.lineTo(width, 52.5)
-  ctx.stroke()
-
-  ctx.fillStyle = amber
-  ctx.beginPath()
-  ctx.arc(30, 26, 4.5, 0, Math.PI * 2)
-  ctx.fill()
-
-  ctx.fillStyle = cream
-  ctx.font = 'italic 19px Georgia, "Times New Roman", serif'
-  ctx.fillText('FrontDesk.', 44, 33)
-
-  ctx.font = '10px ui-monospace, Menlo, monospace'
-  ctx.fillStyle = muted
-  ctx.fillText('W O R K S P A C E', 154, 30)
-
-  const nav = ['Desk', 'Work', 'Notes', 'Focus']
-  nav.forEach((label, i) => {
-    ctx.fillStyle = i === 0 ? cream : muted
-    ctx.font = `${i === 0 ? '600' : '400'} 11px -apple-system, system-ui, sans-serif`
-    ctx.fillText(label, 650 + i * 66, 30)
-  })
-
-  // ---- left rail -----------------------------------------------------
-  ctx.fillStyle = 'rgba(8,6,4,0.55)'
-  ctx.fillRect(0, 52, 186, height - 52)
-  ctx.strokeStyle = 'rgba(239,226,205,0.07)'
-  ctx.beginPath()
-  ctx.moveTo(186.5, 52)
-  ctx.lineTo(186.5, height)
-  ctx.stroke()
-
-  ctx.font = '9px ui-monospace, Menlo, monospace'
-  ctx.fillStyle = muted
-  ctx.fillText('T O D A Y', 24, 88)
-
-  const today = [
-    ['Deep work', '2h 10m'],
-    ['Reviews', '40m'],
-    ['Notes', '12'],
-  ]
-  today.forEach(([label, value], i) => {
-    const y = 118 + i * 34
-    ctx.fillStyle = i === 0 ? cream : 'rgba(239,226,205,0.62)'
-    ctx.font = '11.5px -apple-system, system-ui, sans-serif'
-    ctx.fillText(label, 24, y)
-    ctx.fillStyle = muted
-    ctx.font = '10px ui-monospace, Menlo, monospace'
-    ctx.textAlign = 'right'
-    ctx.fillText(value, 162, y)
+  const text = (
+    value: string,
+    x: number,
+    y: number,
+    font: string,
+    color = cream,
+    align: CanvasTextAlign = 'left',
+  ) => {
+    ctx.fillStyle = color
+    ctx.font = font
+    ctx.textAlign = align
+    ctx.fillText(value, x, y)
     ctx.textAlign = 'left'
-    ctx.strokeStyle = 'rgba(239,226,205,0.05)'
+  }
+
+  const dot = (x: number, y: number, color: string, r = 3) => {
+    ctx.fillStyle = color
     ctx.beginPath()
-    ctx.moveTo(24, y + 13)
-    ctx.lineTo(162, y + 13)
-    ctx.stroke()
-  })
-
-  ctx.strokeStyle = 'rgba(239,226,205,0.07)'
-  ctx.beginPath()
-  ctx.moveTo(24, 246)
-  ctx.lineTo(162, 246)
-  ctx.stroke()
-
-  ctx.fillStyle = muted
-  ctx.font = '9px ui-monospace, Menlo, monospace'
-  ctx.fillText('P R O J E C T S', 24, 276)
-
-  const projects = ['Landing page', 'Pricing', 'Notebook', 'Archive']
-  projects.forEach((label, i) => {
-    const y = 302 + i * 28
-    ctx.fillStyle = i === 0 ? amber : 'rgba(239,226,205,0.5)'
-    ctx.beginPath()
-    ctx.arc(27, y - 4, 2.2, 0, Math.PI * 2)
+    ctx.arc(x, y, r, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = i === 0 ? cream : 'rgba(239,226,205,0.62)'
-    ctx.font = '11px -apple-system, system-ui, sans-serif'
-    ctx.fillText(label, 40, y)
-  })
+  }
 
-  // ---- main heading --------------------------------------------------
-  ctx.fillStyle = muted
-  ctx.font = '9px ui-monospace, Menlo, monospace'
-  ctx.fillText('T H U R S D A Y ,   1 2   N O V E M B E R', 220, 92)
-
-  ctx.fillStyle = cream
-  ctx.font = '400 35px Georgia, "Times New Roman", serif'
-  ctx.fillText('Good evening, Zeynep.', 220, 134)
-
-  ctx.fillStyle = 'rgba(239,226,205,0.55)'
-  ctx.font = '11.5px -apple-system, system-ui, sans-serif'
-  ctx.fillText('Three things open. Nothing on fire.', 220, 156)
-
-  // ---- focus timer card ---------------------------------------------
-  ctx.fillStyle = panel
-  round(ctx, 220, 186, 356, 168, 10)
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(239,226,205,0.08)'
-  round(ctx, 220, 186, 356, 168, 10)
-  ctx.stroke()
-
-  ctx.fillStyle = muted
-  ctx.font = '9px ui-monospace, Menlo, monospace'
-  ctx.fillText('F O C U S   B L O C K', 244, 216)
-
-  ctx.fillStyle = cream
-  ctx.font = '400 56px Georgia, "Times New Roman", serif'
-  ctx.fillText('41:00', 244, 278)
-
-  ctx.fillStyle = muted
-  ctx.font = '10.5px -apple-system, system-ui, sans-serif'
-  ctx.fillText('Tighten the hero copy', 244, 302)
-
-  // progress rule
-  ctx.fillStyle = 'rgba(239,226,205,0.12)'
-  ctx.fillRect(244, 322, 306, 2)
-  ctx.fillStyle = amber
-  ctx.fillRect(244, 322, 196, 2)
-
-  // a wax-seal-ish play mark
-  ctx.fillStyle = 'rgba(230,163,95,0.16)'
-  ctx.beginPath()
-  ctx.arc(530, 322, 18, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.fillStyle = amber
-  ctx.beginPath()
-  ctx.moveTo(525, 315)
-  ctx.lineTo(538, 322)
-  ctx.lineTo(525, 329)
-  ctx.closePath()
-  ctx.fill()
-
-  // ---- chart card ----------------------------------------------------
-  ctx.fillStyle = panel
-  round(ctx, 596, 186, 404, 168, 10)
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(239,226,205,0.08)'
-  round(ctx, 596, 186, 404, 168, 10)
-  ctx.stroke()
-
-  ctx.fillStyle = cream
-  ctx.font = '12px -apple-system, system-ui, sans-serif'
-  ctx.fillText('This week', 620, 214)
-  ctx.fillStyle = muted
-  ctx.font = '9px ui-monospace, Menlo, monospace'
-  ctx.textAlign = 'right'
-  ctx.fillText('6.4 H', 976, 214)
-  ctx.textAlign = 'left'
-
-  const pts = [0.26, 0.34, 0.3, 0.42, 0.38, 0.55, 0.62]
-  const x0 = 622
-  const y0 = 318
-  const w = 352
-  const h = 84
-  const point = (i: number) => ({ x: x0 + (w / (pts.length - 1)) * i, y: y0 - h * pts[i] })
-
-  ctx.strokeStyle = 'rgba(239,226,205,0.06)'
-  for (let i = 0; i <= 2; i++) {
-    const y = y0 - (h / 2) * i
-    ctx.beginPath()
-    ctx.moveTo(x0, y)
-    ctx.lineTo(x0 + w, y)
+  const card = (x: number, y: number, w: number, h: number, r = 12) => {
+    ctx.fillStyle = panel
+    round(ctx, x, y, w, h, r)
+    ctx.fill()
+    ctx.strokeStyle = line
+    round(ctx, x, y, w, h, r)
     ctx.stroke()
   }
 
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, width, height)
+
+  const glow = ctx.createRadialGradient(220, 40, 10, 220, 40, 720)
+  glow.addColorStop(0, 'rgba(255,180,92,0.10)')
+  glow.addColorStop(1, 'rgba(255,180,92,0)')
+  ctx.fillStyle = glow
+  ctx.fillRect(0, 0, width, height)
+
+  // ---- sidebar -------------------------------------------------------
+  ctx.fillStyle = sidebar
+  ctx.fillRect(0, 0, 232, height)
+  ctx.strokeStyle = line
   ctx.beginPath()
-  ctx.moveTo(point(0).x, point(0).y)
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(point(i).x, point(i).y)
-  ctx.strokeStyle = amber
-  ctx.lineWidth = 2
-  ctx.lineJoin = 'round'
+  ctx.moveTo(232.5, 0)
+  ctx.lineTo(232.5, height)
+  ctx.stroke()
+
+  dot(26, 30, amber, 3.5)
+  text('FrontDesk.', 38, 36, `italic 19px ${serif}`)
+  label('DESKTOP', 154, 33, faint, 6.5)
+
+  const nav = [
+    ['Dashboard', true],
+    ['Timeline', false],
+    ['Open loops', false],
+    ['People', false],
+    ['Saved', false],
+    ['Search', false],
+    ['Settings', false],
+  ]
+  nav.forEach(([name, active], index) => {
+    const y = 88 + index * 32
+    if (active) {
+      ctx.fillStyle = 'rgba(255,180,92,0.10)'
+      round(ctx, 12, y - 19, 208, 26, 6)
+      ctx.fill()
+      ctx.fillStyle = amber
+      ctx.fillRect(12, y - 19, 2, 26)
+    }
+    text(
+      String(name),
+      28,
+      y,
+      `${active ? '600' : '400'} 11.5px ${sans}`,
+      active ? cream : dim,
+    )
+  })
+
+  ctx.strokeStyle = line
+  ctx.beginPath()
+  ctx.moveTo(24, 332)
+  ctx.lineTo(208, 332)
+  ctx.stroke()
+
+  label('LOCAL MODEL', 26, 360, faint, 7)
+  text('Phi-4 Mini', 26, 384, `12px ${sans}`, cream)
+  label('LOCAL CORE · ONLINE', 26, 404, faint, 6.5)
+  label('1 GRANT ACTIVE', 26, 424, faint, 6.5)
+  label('FRONTDESK 0.1.0', 26, 780, 'rgba(251,244,233,0.28)', 6.5)
+
+  // ---- titlebar ------------------------------------------------------
+  ctx.fillStyle = 'rgba(10,8,6,0.55)'
+  ctx.fillRect(233, 0, width - 233, 46)
+  ctx.strokeStyle = line
+  ctx.beginPath()
+  ctx.moveTo(233, 46.5)
+  ctx.lineTo(width, 46.5)
+  ctx.stroke()
+  label('DASHBOARD', 756, 28, faint, 8)
+  ctx.textAlign = 'right'
+  dot(1180, 26, '#8fb177', 2.5)
+  label('LOCAL · NOT SYNCED', 1244, 28, faint, 7)
+  ctx.textAlign = 'left'
+
+  // ---- date + ask bar ------------------------------------------------
+  label('THURSDAY, 19 NOVEMBER', 268, 84, faint, 8.5)
+
+  ctx.fillStyle = panel2
+  round(ctx, 268, 102, 976, 48, 24)
+  ctx.fill()
+  ctx.strokeStyle = line
+  round(ctx, 268, 102, 976, 48, 24)
+  ctx.stroke()
+
+  ctx.strokeStyle = faint
+  ctx.lineWidth = 1.3
+  ctx.beginPath()
+  ctx.arc(294, 124, 5.5, 0, Math.PI * 2)
+  ctx.moveTo(298, 129)
+  ctx.lineTo(303, 134)
   ctx.stroke()
   ctx.lineWidth = 1
 
-  const last = point(pts.length - 1)
-  ctx.fillStyle = bg
-  ctx.beginPath()
-  ctx.arc(last.x, last.y, 5, 0, Math.PI * 2)
+  text('Ask FrontDesk… anything about your week', 314, 130, `12.5px ${sans}`, dim)
+  ctx.fillStyle = 'rgba(251,244,233,0.08)'
+  round(ctx, 1168, 114, 58, 24, 6)
   ctx.fill()
-  ctx.fillStyle = amber
-  ctx.beginPath()
-  ctx.arc(last.x, last.y, 2.6, 0, Math.PI * 2)
-  ctx.fill()
+  label('⌘ J', 1186, 130, faint, 7.5)
 
-  ;['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach((day, i) => {
-    ctx.fillStyle = 'rgba(239,226,205,0.33)'
-    ctx.font = '8px ui-monospace, Menlo, monospace'
-    ctx.fillText(day, x0 + (w / 6) * i - 2, 334)
+  // ---- next up -------------------------------------------------------
+  card(268, 168, 470, 208)
+  label('NEXT UP', 288, 194, amber, 7.5)
+  ctx.textAlign = 'right'
+  label('MON 23 NOV · 10:00', 718, 194, faint, 7.5)
+  ctx.textAlign = 'left'
+
+  text('Kestrel Launch Readiness', 288, 224, `400 21px ${serif}`)
+  text('Steering', 288, 248, `400 21px ${serif}`)
+  text('Microsoft Teams · 1 hour', 288, 270, `10px ${sans}`, faint)
+
+  const people = [
+    ['HW', 'Hannah'],
+    ['AO', 'Anika'],
+    ['ZN', 'Zeynep'],
+    ['DH', 'Damla'],
+  ]
+  let chipX = 288
+  people.forEach(([initials, name]) => {
+    const w = 28 + String(name).length * 6.4 + 18
+    ctx.fillStyle = 'rgba(251,244,233,0.06)'
+    round(ctx, chipX, 288, w, 26, 13)
+    ctx.fill()
+    ctx.strokeStyle = line
+    round(ctx, chipX, 288, w, 26, 13)
+    ctx.stroke()
+    dot(chipX + 13, 301, amber, 8)
+    text(String(initials), chipX + 13, 304, `600 7px ${mono}`, bg, 'center')
+    text(String(name), chipX + 26, 305, `9px ${sans}`, dim)
+    chipX += w + 8
   })
-
-  // ---- task list -----------------------------------------------------
-  ctx.fillStyle = panel
-  round(ctx, 220, 376, 780, 214, 10)
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(239,226,205,0.08)'
-  round(ctx, 220, 376, 780, 214, 10)
-  ctx.stroke()
 
   ctx.fillStyle = cream
-  ctx.font = '12px -apple-system, system-ui, sans-serif'
-  ctx.fillText('Up next', 244, 404)
-
-  ctx.fillStyle = muted
-  ctx.font = '9px ui-monospace, Menlo, monospace'
+  round(ctx, 288, 330, 154, 30, 15)
+  ctx.fill()
+  label('PREP ME FOR THIS', 302, 349, '#241d16', 7)
   ctx.textAlign = 'right'
-  ctx.fillText('3  O P E N', 976, 404)
+  text('In 2 days', 718, 350, `9px ${sans}`, faint, 'right')
   ctx.textAlign = 'left'
 
-  const tasks = [
-    ['Tighten the hero copy', 'Landing page', 'due Fri', true],
-    ['Ship the pricing page', 'Pricing', 'today', false],
-    ['Reply to Mira', 'Notebook', 'today', false],
+  // ---- open loops ----------------------------------------------------
+  card(754, 168, 490, 208)
+  label('OPEN LOOPS', 774, 194, amber, 7.5)
+  ctx.textAlign = 'right'
+  label('4 FOUND  →', 1224, 194, faint, 7.5)
+  ctx.textAlign = 'left'
+
+  const loopGroup = (
+    y: number,
+    title: string,
+    color: string,
+    rows: Array<[string, string]>,
+  ) => {
+    dot(778, y - 3, color, 2.5)
+    label(title, 790, y, color, 7)
+    rows.forEach(([row, date], index) => {
+      const rowY = y + 22 + index * 22
+      text(row, 790, rowY, `10.5px ${sans}`, cream)
+      ctx.textAlign = 'right'
+      text(date, 1224, rowY, `8px ${mono}`, faint, 'right')
+      ctx.textAlign = 'left'
+    })
+  }
+
+  loopGroup(222, 'I OWE 2', amber, [
+    ['Bring the claim 4 rationale', '26 Oct'],
+    ['Send Anika the variant trade-off', '19 Nov'],
+  ])
+  loopGroup(292, 'WAITING ON 2', sage, [
+    ['Medical sign-off on wording', '3 Nov'],
+    ["Hannah's OK on the £18.4k PO", '12 Nov'],
+  ])
+
+  // ---- people --------------------------------------------------------
+  card(268, 390, 976, 136)
+  label('PEOPLE', 288, 414, faint, 7.5)
+  ctx.textAlign = 'right'
+  label('2 DUE FOR A CATCH-UP', 1224, 414, faint, 7.5)
+  ctx.textAlign = 'left'
+
+  const peopleCards = [
+    ['HW', 'Hannah Whitcombe', 'Met 3 days ago', false],
+    ['AO', 'Anika Okafor', 'Due for a catch-up', true],
+    ['ZN', 'Dr Zeynep Nair', 'Due for a catch-up', true],
+    ['DH', 'Damla Hartley', 'Met 5 days ago', false],
+    ['TW', 'Tomasz Wrona', 'Met 2 weeks ago', false],
   ]
-  tasks.forEach(([task, project, due, done], i) => {
-    const y = 434 + i * 50
-    ctx.strokeStyle = done ? sage : 'rgba(239,226,205,0.24)'
-    ctx.lineWidth = 1.2
-    round(ctx, 244, y - 11, 16, 16, 4)
+  peopleCards.forEach(([initials, name, status, due], index) => {
+    const x = 288 + index * 191
+    ctx.fillStyle = panel2
+    round(ctx, x, 426, 181, 80, 10)
+    ctx.fill()
+    ctx.strokeStyle = line
+    round(ctx, x, 426, 181, 80, 10)
     ctx.stroke()
-    if (done) {
-      ctx.strokeStyle = sage
-      ctx.beginPath()
-      ctx.moveTo(248, y - 3)
-      ctx.lineTo(252, y + 2)
-      ctx.lineTo(257, y - 7)
-      ctx.stroke()
-    }
-    ctx.lineWidth = 1
-
-    ctx.fillStyle = done ? 'rgba(239,226,205,0.38)' : cream
-    ctx.font = '12px -apple-system, system-ui, sans-serif'
-    ctx.fillText(String(task), 276, y + 1)
-
-    ctx.fillStyle = muted
-    ctx.font = '9px ui-monospace, Menlo, monospace'
-    ctx.fillText(String(project).toUpperCase(), 650, y + 1)
-
-    ctx.fillStyle = String(due) === 'today' ? amber : muted
-    ctx.textAlign = 'right'
-    ctx.fillText(String(due), 976, y + 1)
-    ctx.textAlign = 'left'
-
-    if (i < tasks.length - 1) {
-      ctx.strokeStyle = 'rgba(239,226,205,0.06)'
-      ctx.beginPath()
-      ctx.moveTo(244, y + 24)
-      ctx.lineTo(976, y + 24)
-      ctx.stroke()
+    dot(x + 24, 454, due ? amber : teal, 14)
+    text(String(initials), x + 24, 457, `600 10px ${mono}`, bg, 'center')
+    text(String(name), x + 46, 450, `10.5px ${sans}`, cream)
+    text(String(status), x + 46, 468, `8.5px ${sans}`, due ? amber : faint)
+    if (due) {
+      ctx.fillStyle = 'rgba(255,180,92,0.12)'
+      round(ctx, x + 140, 438, 28, 14, 7)
+      ctx.fill()
+      label('DUE', x + 146, 448, amber, 6)
     }
   })
 
-  // ---- footer note ---------------------------------------------------
-  ctx.fillStyle = 'rgba(239,226,205,0.32)'
-  ctx.font = 'italic 12px Georgia, "Times New Roman", serif'
-  ctx.fillText('“The desk is a place, not a feed.”', 220, 620)
-
-  ctx.fillStyle = faint
-  ctx.font = '9px ui-monospace, Menlo, monospace'
+  // ---- timeline ------------------------------------------------------
+  card(268, 542, 976, 210)
+  label('TIMELINE', 288, 566, faint, 7.5)
   ctx.textAlign = 'right'
-  ctx.fillText('LOCAL  ·  14:32', 976, 620)
+  label('THIS WEEK', 1224, 566, faint, 7.5)
   ctx.textAlign = 'left'
 
-  // very light scanline so the glass reads as glass
+  ctx.strokeStyle = 'rgba(244,236,225,0.10)'
+  ctx.beginPath()
+  ctx.moveTo(300, 590)
+  ctx.lineTo(300, 730)
+  ctx.stroke()
+
+  const events = [
+    ['12 NOV', 'Launch comms date — moving to 9 Feb', 'Damla Hartley · Mail', amber],
+    ['17 NOV', 'Claim 4 pub — quick update', 'Zeynep Nair · Mail', amber],
+    ['19 NOV', 'Northlight v3 timings', 'Lena Fischer · Mail', amber],
+    ['19 NOV', 'Kestrel core team weekly', 'Calendar · Meeting', teal],
+  ]
+  events.forEach(([date, title, meta, color], index) => {
+    const y = 598 + index * 36
+    dot(300, y - 4, String(color), 3)
+    text(String(date), 288, y, `7px ${mono}`, faint, 'right')
+    text(String(title), 320, y, `10.5px ${sans}`, cream)
+    text(String(meta), 320, y + 14, `8px ${sans}`, faint)
+  })
+
+  // ---- footer --------------------------------------------------------
+  text('“The desk is a place, not a feed.”', 268, 782, `italic 11px ${serif}`, 'rgba(251,244,233,0.34)')
+  ctx.textAlign = 'right'
+  label('LOCAL · 14:32', 1244, 782, 'rgba(251,244,233,0.30)', 7)
+  ctx.textAlign = 'left'
+
+  // glass
   ctx.fillStyle = 'rgba(0,0,0,0.07)'
   for (let y = 0; y < height; y += 3) ctx.fillRect(0, y, width, 1)
 
