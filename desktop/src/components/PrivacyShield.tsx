@@ -31,9 +31,10 @@ export function previewPrivacy() {
  *
  * macOS does not expose a public "am I being shared?" API to every app, so we
  * watch for remote-access tools (AnyDesk, TeamViewer, RustDesk, macOS Screen
- * Sharing, …) and blur the whole window while one is running. Meeting apps are
- * deliberately excluded because Teams/Zoom/Slack run all day. The overlay has
- * an always-available unblur action, and Settings has a preview button.
+ * Sharing, …) and blur the whole window while one is running. Microsoft Teams
+ * is watched only while a meeting or sharing window is open; it runs all day,
+ * so the process alone is not a signal. The overlay has an always-available
+ * unblur action, and Settings has a preview button.
  */
 export default function PrivacyShield() {
   const [state, setState] = useState<ScreenShareState>({ sharing: false, apps: [] })
@@ -113,7 +114,7 @@ export default function PrivacyShield() {
           </svg>
           Privacy
         </span>
-        <h2>FrontDesk is hidden while your screen is shared</h2>
+        <h2>FrontDesk is hidden while someone can see your screen</h2>
         <p>
           <strong>{apps}</strong> appears to be active. The window is blurred so
           mail, notes and answers cannot leak into a call or remote session.
@@ -143,8 +144,8 @@ export default function PrivacyShield() {
           ) : null}
         </div>
         <p className="privacyShield__note">
-          The blur returns automatically the next time a remote-access tool starts.
-          Turn it off in Settings → Privacy.
+          The blur returns automatically the next time a share or Teams meeting
+          starts. Turn it off in Settings → Privacy.
         </p>
       </div>
     </div>

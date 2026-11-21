@@ -42,6 +42,8 @@ whisper-rs = { version = "0.13", features = ["raw-api", "metal"] }
 objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-vision = { version = "0.3", features = ["VNRecognizeTextRequest", "VNRequestHandler", "VNObservation", "VNRequest", "VNDefines"] }
+core-foundation = "0.10"
+core-graphics = "0.25"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 whisper-rs = { version = "0.13", features = ["raw-api"] }

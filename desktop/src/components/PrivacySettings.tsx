@@ -37,7 +37,7 @@ export default function PrivacySettings() {
           Privacy shield
         </h2>
         <span className="panel__meta">
-          {state.sharing ? 'Remote access detected' : 'Watching for remote access'}
+          {state.sharing ? 'Share or meeting detected' : 'Watching for screen sharing'}
         </span>
       </header>
 
@@ -54,8 +54,8 @@ export default function PrivacySettings() {
         <span>
           <strong>Blur FrontDesk during screen sharing</strong>
           <em>
-            Covers the whole window when AnyDesk, TeamViewer, RustDesk, macOS Screen
-            Sharing, Zoom screen sharing or a similar tool is active.
+            Covers the whole window during AnyDesk, TeamViewer, RustDesk, macOS Screen
+            Sharing, Zoom screen sharing, a Microsoft Teams meeting or a similar session.
           </em>
         </span>
       </label>
@@ -69,7 +69,7 @@ export default function PrivacySettings() {
           {state.sharing
             ? `Detected: ${state.apps.join(', ')}`
             : inTauri()
-              ? 'No remote-access tool detected'
+              ? 'No screen share or Teams meeting detected'
               : 'Detection runs in the desktop app'}
         </span>
       </div>
@@ -81,9 +81,10 @@ export default function PrivacySettings() {
       </div>
 
       <p className="panel__note panel__note--quiet">
-        Teams, Zoom and Slack are not watched because they run all day. If you share
-        from one of them, use the preview button or the shield shortcut to cover the
-        window first. The shield never changes what FrontDesk stores.
+        Microsoft Teams is watched only while a meeting window is open or its
+        video-capture helper is active, not while it is simply running. Zoom is
+        watched only for its screen-share host; Slack is not watched. The shield
+        never changes what FrontDesk stores.
       </p>
     </section>
   )

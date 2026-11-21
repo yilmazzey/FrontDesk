@@ -33,7 +33,7 @@ FrontDesk is a Tauri desktop app with a Rust core. It reads only the sources you
 - **People graph** — departments, roles and relationship strength from Microsoft 365, mail signatures and notes.
 - **Saved** — save answers as Markdown in a folder you own, with category filters and Finder reveal.
 - **Meetings** — record the microphone, transcribe locally with Whisper and write notes with the local model. Audio is deleted after transcription.
-- **Privacy shield** — blurs the whole window when a remote-access tool is detected, or with `⌘⇧P`.
+- **Privacy shield** — blurs the whole window during a remote-access session or a Microsoft Teams meeting, or with `⌘⇧P`.
 - **Sources** — local folders, PDFs, handwritten scans via Apple Vision, Outlook, Calendar and OneNote.
 - **Menu bar & local model** — next three calendar items from the tray; Phi-4 Mini runs locally, or use Extractive mode with no model.
 
