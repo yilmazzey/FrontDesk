@@ -5558,3 +5558,29 @@ input {
     opacity: 1;
   }
 }
+
+/* Light theme: the native HUD material leaves a dark strip behind the custom
+   titlebar. Paint the bar with the paper colour and use dark ink instead. */
+[data-theme='light'] .titlebar {
+  background: var(--paper);
+  color: var(--ink-dark);
+}
+
+[data-theme='light'][data-runtime='tauri'] .titlebar {
+  background: rgba(247, 241, 228, 0.92);
+}
+
+[data-theme='light'] .titlebar__title,
+[data-theme='light'] .titlebar__status {
+  color: rgba(29, 23, 17, 0.62);
+}
+
+[data-theme='light'] .titlebar__shield {
+  border-color: rgba(29, 23, 17, 0.18);
+  color: rgba(29, 23, 17, 0.68);
+}
+
+[data-theme='light'] .titlebar__shield:hover {
+  border-color: var(--amber);
+  color: var(--ink-dark);
+}

@@ -98,7 +98,7 @@ export function Hero() {
       <h1 className="hero__title">
         Second brain for managers:
         <br />
-        <em>A workspace that stays out of the way</em>
+        <em className="hero__hand">A workspace that stays out of the way</em>
       </h1>
     </section>
   )

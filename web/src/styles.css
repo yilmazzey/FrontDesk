@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Embolism Spark';
+  src: url('./assets/fonts/Embolism-Spark.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ==========================================================================
    FrontDesk — desk landing page
    ========================================================================== */
@@ -420,6 +428,13 @@ a {
 .hero__title em {
   font-style: italic;
   color: var(--amber-soft);
+}
+
+.hero__title em.hero__hand {
+  font-family: 'Embolism Spark', var(--serif);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.005em;
 }
 
 .hero__sub {
