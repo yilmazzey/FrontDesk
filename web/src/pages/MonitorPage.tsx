@@ -65,7 +65,7 @@ export default function MonitorPage() {
           <h1 className="monitorDownload__title">
             Take the desk
             <br />
-            <em>with you.</em>
+            <em className="monitorDownload__hand">with you.</em>
           </h1>
 
           <p className="monitorDownload__lede">

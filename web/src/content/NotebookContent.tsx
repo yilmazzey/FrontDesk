@@ -24,15 +24,15 @@ const team: Record<
     first: 'Anika',
     last: 'Srivastava',
     initials: 'AS',
-    role: 'MSc Engineering · University of Bristol',
+    role: 'MSc Engineering with AI · University of Bristol',
     email: 'anika.s.2026@bristol.ac.uk',
     linkedin: 'https://www.linkedin.com/in/anika-srivastava-00b032229/',
     intro:
       'Anika works where product design meets applied machine learning. She studied computer science and AI before moving to Bristol for her MSc.',
     background:
-      'MSc Engineering at the University of Bristol. Previous work spans computer science, AI and machine learning, with a focus on Python and applied models.',
+      'MSc Engineering with AI at the University of Bristol. Previous work spans computer science, AI and machine learning, with a focus on Python and applied models.',
     work:
-      'On FrontDesk she shaped the interface and visual system, from the landing page to the desktop shell.',
+      'On FrontDesk she shaped the interface and visual system, and handled the Microsoft authentication and app-registration setup.',
   },
   zeynep: {
     first: 'Zeynep',
@@ -103,7 +103,7 @@ export function PrivacySection() {
       <h2 className="leaf__title">
         Privacy,
         <br />
-        <em>by architecture.</em>
+        <em className="leaf__hand">by architecture.</em>
       </h2>
 
       <p className="leaf__standfirst">

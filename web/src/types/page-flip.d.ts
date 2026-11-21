@@ -14,5 +14,9 @@ declare module 'page-flip' {
     getPageCount(): number
     getCurrentPageIndex(): number
     getOrientation(): 'portrait' | 'landscape'
+    on(
+      event: 'flip',
+      callback: (event: { data: number; object: PageFlip }) => void,
+    ): void
   }
 }

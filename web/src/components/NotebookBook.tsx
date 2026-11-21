@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { PageFlip } from 'page-flip'
 import { AboutPerson, PrivacySection } from '../content/NotebookContent'
@@ -58,6 +58,7 @@ function pageForSection(section: NotebookSection) {
 export default function NotebookBook({ section }: { section: NotebookSection }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const flipRef = useRef<PageFlip | null>(null)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     const host = hostRef.current
@@ -75,13 +76,13 @@ export default function NotebookBook({ section }: { section: NotebookSection }) 
       const pages = mount.querySelectorAll<HTMLElement>('.notebookBook__page')
       if (!pages.length) return
       flip = new PageFlip(mount, {
-        width: 440,
-        height: 690,
+        width: 420,
+        height: 600,
         size: 'stretch',
-        minWidth: 320,
-        maxWidth: 480,
-        minHeight: 520,
-        maxHeight: 760,
+        minWidth: 300,
+        maxWidth: 440,
+        minHeight: 420,
+        maxHeight: 620,
         showCover: true,
         usePortrait: true,
         startPage: pageForSection(section),
@@ -94,6 +95,7 @@ export default function NotebookBook({ section }: { section: NotebookSection }) 
       })
       flip.loadFromHTML(pages)
       flipRef.current = flip
+      setReady(true)
     }, 0)
 
     const onKey = (event: KeyboardEvent) => {
@@ -112,6 +114,7 @@ export default function NotebookBook({ section }: { section: NotebookSection }) 
     return () => {
       window.clearTimeout(timer)
       window.removeEventListener('keydown', onKey)
+      setReady(false)
       flipRef.current = null
       root.unmount()
       flip?.destroy()
@@ -123,5 +126,53 @@ export default function NotebookBook({ section }: { section: NotebookSection }) 
     flipRef.current?.turnToPage(pageForSection(section))
   }, [section])
 
-  return <div className="notebookBook" ref={hostRef} />
+  const turn = (direction: 'prev' | 'next') => {
+    const flip = flipRef.current
+    if (!flip) return
+    const before = flip.getCurrentPageIndex()
+    if (direction === 'next') flip.flipNext()
+    else flip.flipPrev()
+    // Some WebViews ignore the corner animation when the call comes from a
+    // button rather than a pointer gesture. Fall back to a direct spread turn.
+    window.setTimeout(() => {
+      if (flip.getCurrentPageIndex() === before) {
+        const step = flip.getOrientation() === 'portrait' ? 1 : 2
+        const page =
+          direction === 'next'
+            ? Math.min(before + step, flip.getPageCount() - 1)
+            : Math.max(before - step, 0)
+        flip.turnToPage(page)
+      }
+    }, 950)
+  }
+
+  return (
+    <div className="notebookBook">
+      <div className="notebookBook__host" ref={hostRef} />
+      <button
+        type="button"
+        className="notebookBook__nav notebookBook__nav--prev"
+        disabled={!ready}
+        onClick={(event) => {
+          event.stopPropagation()
+          turn('prev')
+        }}
+        aria-label="Previous page"
+      >
+        ←
+      </button>
+      <button
+        type="button"
+        className="notebookBook__nav notebookBook__nav--next"
+        disabled={!ready}
+        onClick={(event) => {
+          event.stopPropagation()
+          turn('next')
+        }}
+        aria-label="Next page"
+      >
+        →
+      </button>
+    </div>
+  )
 }

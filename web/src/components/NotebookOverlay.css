@@ -34,7 +34,9 @@
 }
 
 .notebookOverlay__book {
-  width: 100%;
+  display: flex;
+  justify-content: center;
+  width: min(96vw, 1040px, calc((100vh - 100px) * 1.45));
   max-height: calc(100vh - 96px);
 }
 
