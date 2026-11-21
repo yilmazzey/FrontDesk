@@ -4077,3 +4077,13 @@ a.monitorDownload__row:hover {
   font-weight: 400;
   letter-spacing: 0.005em;
 }
+
+.aboutPerson__portrait img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  filter: saturate(0.98) contrast(1.02);
+}

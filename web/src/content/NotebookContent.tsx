@@ -1,4 +1,6 @@
 import { site } from '../config'
+import anikaPhoto from '../assets/people/anika.jpg'
+import zeynepPhoto from '../assets/people/zeynep.jpg'
 
 /* ------------------------------------------------------------------ */
 /* About                                                               */
@@ -12,6 +14,7 @@ const team: Record<
     first: string
     last: string
     initials: string
+    photo: string
     role: string
     email: string
     linkedin: string
@@ -24,6 +27,7 @@ const team: Record<
     first: 'Anika',
     last: 'Srivastava',
     initials: 'AS',
+    photo: anikaPhoto,
     role: 'MSc Engineering with AI · University of Bristol',
     email: 'anika.s.2026@bristol.ac.uk',
     linkedin: 'https://www.linkedin.com/in/anika-srivastava-00b032229/',
@@ -38,6 +42,7 @@ const team: Record<
     first: 'Zeynep',
     last: 'Yılmaz',
     initials: 'ZY',
+    photo: zeynepPhoto,
     role: 'MSc Engineering with AI · University of Bristol',
     email: 'sn26265@bristol.ac.uk',
     linkedin: 'https://www.linkedin.com/in/yilmazzey/',
@@ -57,8 +62,8 @@ export function AboutPerson({ person }: { person: PersonKey }) {
       <p className="leaf__kicker">{person === 'anika' ? '01 · About us' : '02 · About us'}</p>
 
       <div className="aboutPerson__head">
-        <div className="aboutPerson__portrait" aria-hidden="true">
-          <span>{profile.initials}</span>
+        <div className="aboutPerson__portrait aboutPerson__portrait--photo" aria-hidden="true">
+          <img src={profile.photo} alt="" />
         </div>
         <div className="aboutPerson__intro">
           <h2 className="leaf__title">
