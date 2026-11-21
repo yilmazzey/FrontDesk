@@ -96,9 +96,45 @@ export function AboutPerson({ person }: { person: PersonKey }) {
 /* Privacy                                                             */
 /* ------------------------------------------------------------------ */
 
+const clauses = [
+  {
+    title: 'What the app reads',
+    body: 'Only the sources you grant: local folders, Outlook mail, the Microsoft calendar and OneNote. Microsoft Graph access is read-only and can be revoked from Settings at any time.',
+  },
+  {
+    title: 'What stays on this machine',
+    body: 'Source text is read when you ask a question and is not copied into the app data folder. FrontDesk stores grant metadata, settings and a local semantic index of derived embeddings. Saved answers are written only to the folder you choose, as Markdown.',
+  },
+  {
+    title: 'What can leave the machine',
+    body: 'Microsoft Graph requests go to Microsoft with your read-only token. If you enable web search, the question alone is sent to Bing; notes, mail, calendar and OneNote content are never included. The language model runs locally. No source content is sent to a hosted model.',
+  },
+  {
+    title: 'Sign-in and tokens',
+    body: 'Access tokens are held in memory. The optional Stay signed in setting stores only a read-only refresh token in the macOS Keychain, never source content. Disconnecting or turning the setting off removes it.',
+  },
+  {
+    title: 'Your controls',
+    body: 'Revoke a grant, hide private OneNote sections, turn web search off, delete the app data folder or disconnect Microsoft at any time. The audit log records which source was read, never what it contained.',
+  },
+]
+
+function ClauseList({ from, to }: { from: number; to: number }) {
+  return (
+    <ol className={`clauses${from > 0 ? ' clauses--continued' : ''}`}>
+      {clauses.slice(from, to).map((clause) => (
+        <li key={clause.title}>
+          <h3>{clause.title}</h3>
+          <p>{clause.body}</p>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 export function PrivacySection() {
   return (
-    <article className="leaf">
+    <article className="leaf leaf--privacy">
       <p className="leaf__kicker">03 · Privacy</p>
       <h2 className="leaf__title">
         Privacy,
@@ -108,57 +144,35 @@ export function PrivacySection() {
 
       <p className="leaf__standfirst">
         FrontDesk is a local-first desktop app. There is no FrontDesk account, no FrontDesk cloud
-        and no analytics service in the loop. This page describes every place data can go.
+        and no analytics service in the loop.
       </p>
 
-      <ol className="clauses">
-        <li>
-          <h3>What the app reads</h3>
-          <p>
-            Only the sources you grant: local folders, Outlook mail, the Microsoft calendar and
-            OneNote. Microsoft Graph access is read-only and can be revoked from Settings at any
-            time.
-          </p>
-        </li>
-        <li>
-          <h3>What stays on this machine</h3>
-          <p>
-            Source text is read when you ask a question and is not copied into the app data folder.
-            FrontDesk stores grant metadata, settings and a local semantic index of derived
-            embeddings. Saved answers are written only to the folder you choose, as Markdown.
-          </p>
-        </li>
-        <li>
-          <h3>What can leave the machine</h3>
-          <p>
-            Microsoft Graph requests go to Microsoft with your read-only token. If you enable web
-            search, the question alone is sent to Bing; notes, mail, calendar and OneNote content
-            are never included. The language model runs locally. No source content is sent to a
-            hosted model.
-          </p>
-        </li>
-        <li>
-          <h3>Sign-in and tokens</h3>
-          <p>
-            Access tokens are held in memory. The optional Stay signed in setting stores only a
-            read-only refresh token in the macOS Keychain, never source content. Disconnecting or
-            turning the setting off removes it.
-          </p>
-        </li>
-        <li>
-          <h3>Your controls</h3>
-          <p>
-            Revoke a grant, hide private OneNote sections, turn web search off, delete the app data
-            folder or disconnect Microsoft at any time. The audit log records which source was
-            read, never what it contained.
-          </p>
-        </li>
-      </ol>
+      <ClauseList from={0} to={2} />
+
+      <div className="leaf__folio">
+        <span>Continued overleaf</span>
+        <span>03</span>
+      </div>
+    </article>
+  )
+}
+
+export function PrivacyContinued() {
+  return (
+    <article className="leaf leaf--privacy">
+      <p className="leaf__kicker">03 · Privacy · continued</p>
+
+      <ClauseList from={2} to={5} />
 
       <p className="leaf__small">
         Questions about data handling: <a href="mailto:sn26265@bristol.ac.uk">sn26265@bristol.ac.uk</a>.
         Last updated {site.updated}.
       </p>
+
+      <div className="leaf__folio">
+        <span>Privacy</span>
+        <span>04</span>
+      </div>
     </article>
   )
 }

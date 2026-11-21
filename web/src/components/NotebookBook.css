@@ -8,7 +8,7 @@
 
 .notebookBook__page {
   box-sizing: border-box;
-  overflow: hidden auto;
+  overflow: hidden;
   background:
     radial-gradient(110% 80% at 100% 0%, rgba(255, 255, 255, 0.6), transparent 54%),
     linear-gradient(200deg, #f8f2e4 0%, #f2e8d5 62%, #ecdfc8 100%);
@@ -124,6 +124,28 @@
 
 .notebookBook__page .aboutPerson__facts p {
   font-size: 10px;
+}
+
+.notebookBook__page .clauses {
+  margin-top: 8px;
+}
+
+.notebookBook__page .clauses li {
+  margin-bottom: 10px;
+  padding-left: 26px;
+}
+
+.notebookBook__page .clauses h3 {
+  font-size: 13.5px;
+}
+
+.notebookBook__page .clauses p {
+  font-size: 10.2px;
+  line-height: 1.55;
+}
+
+.notebookBook__page .leaf--privacy {
+  padding-bottom: 18px;
 }
 
 .notebookBook__contact {

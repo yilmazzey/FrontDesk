@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { PageFlip } from 'page-flip'
-import { AboutPerson, PrivacySection } from '../content/NotebookContent'
+import { AboutPerson, PrivacyContinued, PrivacySection } from '../content/NotebookContent'
 import type { NotebookSection } from '../store'
 import './NotebookBook.css'
 
@@ -17,7 +17,7 @@ function BookPages() {
         <ul className="notebookBook__toc">
           <li><span>Anika Srivastava</span><b>01</b></li>
           <li><span>Zeynep Yılmaz</span><b>02</b></li>
-          <li><span>Privacy</span><b>03</b></li>
+          <li><span>Privacy</span><b>03–04</b></li>
         </ul>
         <span className="notebookBook__hint">Turn the page →</span>
       </div>
@@ -32,6 +32,10 @@ function BookPages() {
 
       <div className="notebookBook__page" data-density="soft">
         <PrivacySection />
+      </div>
+
+      <div className="notebookBook__page" data-density="soft">
+        <PrivacyContinued />
       </div>
 
       <div className="notebookBook__page notebookBook__page--back" data-density="hard">
