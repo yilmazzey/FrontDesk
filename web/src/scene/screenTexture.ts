@@ -314,7 +314,7 @@ export function createScreenTexture(): THREE.CanvasTexture {
   })
 
   // ---- footer --------------------------------------------------------
-  text('“The desk is a place, not a feed.”', 268, 782, `italic 11px ${serif}`, 'rgba(251,244,233,0.34)')
+  text('Kestrel demo · local-first', 268, 782, `italic 11px ${serif}`, 'rgba(251,244,233,0.34)')
   ctx.textAlign = 'right'
   label('LOCAL · 14:32', 1244, 782, 'rgba(251,244,233,0.30)', 7)
   ctx.textAlign = 'left'

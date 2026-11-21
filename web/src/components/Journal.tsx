@@ -22,17 +22,14 @@ export function Journal() {
   return (
     <div className="journal">
       <header className="journal__bar">
-        <button type="button" className="journal__mark" onClick={() => open('about')}>
+        <button type="button" className="journal__mark" onClick={() => open('anika')}>
           <span className="journal__markDot" aria-hidden="true" />
           {site.wordmark}
         </button>
 
         <nav className="journal__nav" aria-label="Sections">
-          <button type="button" onClick={() => open('about')}>
+          <button type="button" onClick={() => open('anika')}>
             About
-          </button>
-          <button type="button" onClick={() => open('pricing')}>
-            Pricing
           </button>
           <button type="button" onClick={() => open('privacy')}>
             Privacy
@@ -60,11 +57,8 @@ export function Journal() {
         </div>
 
         <nav className="journal__footNav" aria-label="Footer">
-          <button type="button" onClick={() => open('about')}>
+          <button type="button" onClick={() => open('anika')}>
             About
-          </button>
-          <button type="button" onClick={() => open('pricing')}>
-            Pricing
           </button>
           <button type="button" onClick={() => open('privacy')}>
             Privacy

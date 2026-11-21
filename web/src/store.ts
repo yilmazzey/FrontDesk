@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type NotebookSection = 'about' | 'pricing' | 'privacy'
+export type NotebookSection = 'anika' | 'zeynep' | 'privacy'
 export type SceneMode = 'desk' | 'notebook' | 'entering'
 export type Theme = 'dark' | 'light'
 
@@ -60,7 +60,7 @@ export const useUI = create<Store>((set) => ({
   enterApp: () => set({ mode: 'entering', hover: null }),
   resetMode: () => set({ mode: 'desk', hover: null }),
 
-  section: 'about',
+  section: 'anika',
   setSection: (section) => set({ section }),
 
   hover: null,

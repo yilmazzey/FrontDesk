@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'framer-motion'
 import { useUI, type NotebookSection } from '../store'
-import { AboutSection, PricingSection, PrivacySection } from '../content/NotebookContent'
+import { AboutPerson, PrivacySection } from '../content/NotebookContent'
 
 const SECTIONS: {
   id: NotebookSection
@@ -18,14 +18,14 @@ const SECTIONS: {
   page: number
   blurb: string
 }[] = [
-  { id: 'about', index: '01', title: 'About us', page: 3, blurb: 'Who is behind the desk' },
-  { id: 'pricing', index: '02', title: 'Pricing', page: 7, blurb: 'Three plans, no surprises' },
-  { id: 'privacy', index: '03', title: 'Privacy', page: 11, blurb: 'What we collect, and why' },
+  { id: 'anika', index: '01', title: 'Anika Srivastava', page: 3, blurb: 'Product and interface' },
+  { id: 'zeynep', index: '02', title: 'Zeynep Yılmaz', page: 5, blurb: 'Local-first engineering' },
+  { id: 'privacy', index: '03', title: 'Privacy', page: 9, blurb: 'How the app handles data' },
 ]
 
 const SECTION_TITLES: Record<NotebookSection, string> = {
-  about: 'About FrontDesk',
-  pricing: 'Pricing',
+  anika: 'Anika Srivastava',
+  zeynep: 'Zeynep Yılmaz',
   privacy: 'Privacy',
 }
 
@@ -36,9 +36,9 @@ const PAGE_OF = Object.fromEntries(SECTIONS.map((s) => [s.id, s.page])) as Recor
 const ORDER = SECTIONS.map((s) => s.id)
 
 function SectionView({ section }: { section: NotebookSection }) {
-  if (section === 'pricing') return <PricingSection />
   if (section === 'privacy') return <PrivacySection />
-  return <AboutSection />
+  if (section === 'zeynep') return <AboutPerson person="zeynep" />
+  return <AboutPerson person="anika" />
 }
 
 /* ------------------------------------------------------------------ */
@@ -596,11 +596,6 @@ export function NotebookOverlay() {
                   </button>
                 ))}
               </nav>
-
-              <figure className="flipbook__quote">
-                <blockquote>“The best interface is the one you forget you're using.”</blockquote>
-                <figcaption>desk note no. 4</figcaption>
-              </figure>
 
               <footer className="flipbook__leftFoot">
                 <button type="button" className="flipbook__back" onClick={closeNotebook}>

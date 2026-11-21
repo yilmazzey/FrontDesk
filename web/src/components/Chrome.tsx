@@ -58,17 +58,14 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <button type="button" className="wordmark" onClick={() => openSection('about')}>
+      <button type="button" className="wordmark" onClick={() => openSection('anika')}>
         <span className="wordmark__dot" aria-hidden="true" />
         <span className="wordmark__text">{site.wordmark}</span>
       </button>
 
       <nav className="topbar__nav" aria-label="Sections">
-        <button type="button" onClick={() => openSection('about')}>
+        <button type="button" onClick={() => openSection('anika')}>
           About
-        </button>
-        <button type="button" onClick={() => openSection('pricing')}>
-          Pricing
         </button>
         <button type="button" onClick={() => openSection('privacy')}>
           Privacy

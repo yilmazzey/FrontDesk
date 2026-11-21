@@ -8,7 +8,7 @@ export const site = {
   tagline: 'A calmer place to work.',
   hackathon: 'Pfizer & Newpage Solutions Hackathon Challenge',
   appHref: '/monitor',
-  contactEmail: 'hello@frontdesk.studio',
+  contactEmail: 'sn26265@bristol.ac.uk',
   updated: 'November 2026',
 } as const
 
@@ -21,8 +21,9 @@ export const framing = {
    * applied along this view ray on top of the authored pose.
    */
   desk: {
-    position: [1.222, 1.648, 1.306] as [number, number, number],
-    target: [0.396, 1.144, 0.116] as [number, number, number],
+    // Nudged slightly right in frame; the camera pans left by the same amount.
+    position: [1.18, 1.648, 1.306] as [number, number, number],
+    target: [0.34, 1.144, 0.116] as [number, number, number],
     fov: 35,
   },
   notebook: {
