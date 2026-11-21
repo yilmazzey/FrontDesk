@@ -114,18 +114,41 @@ pub fn generate(
     user: &str,
     history: &[ChatTurn],
 ) -> Result<String, String> {
+    generate_with_temperature(models_dir, id, system, user, history, 0.1)
+}
+
+/// Deterministic generation for verification passes, where sampling only adds
+/// noise to a YES/NO judgement.
+pub fn verify(
+    models_dir: &Path,
+    id: &str,
+    system: &str,
+    user: &str,
+    history: &[ChatTurn],
+) -> Result<String, String> {
+    generate_with_temperature(models_dir, id, system, user, history, 0.0)
+}
+
+fn generate_with_temperature(
+    models_dir: &Path,
+    id: &str,
+    system: &str,
+    user: &str,
+    history: &[ChatTurn],
+    temperature: f32,
+) -> Result<String, String> {
     let path = path_for(models_dir, id).ok_or_else(|| format!("Model not found: {id}"))?;
 
     match ensure_server() {
         Ok(()) => {
             let name = ensure_model(&path)?;
-            generate_ollama(&name, system, user, history)
+            generate_ollama(&name, system, user, history, temperature)
         }
         Err(ollama_error) => {
             ensure_llama_fallback();
             if llama_available() {
                 let base = ensure_llama(&path)?;
-                generate_llama(&base, system, user, history)
+                generate_llama(&base, system, user, history, temperature)
             } else {
                 Err(ollama_error)
             }
@@ -153,6 +176,7 @@ fn generate_ollama(
     system: &str,
     user: &str,
     history: &[ChatTurn],
+    temperature: f32,
 ) -> Result<String, String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(300))
@@ -163,7 +187,7 @@ fn generate_ollama(
         "model": model,
         "messages": chat_messages(system, user, history),
         "stream": false,
-        "options": { "temperature": 0.1, "num_ctx": 8192, "num_predict": 512 }
+        "options": { "temperature": temperature, "num_ctx": 8192, "num_predict": 512 }
     });
 
     let response = client
@@ -308,6 +332,7 @@ fn generate_llama(
     system: &str,
     user: &str,
     history: &[ChatTurn],
+    temperature: f32,
 ) -> Result<String, String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(300))
@@ -317,7 +342,7 @@ fn generate_llama(
     let body = json!({
         "model": "frontdesk-local",
         "messages": chat_messages(system, user, history),
-        "temperature": 0.1,
+        "temperature": temperature,
         "max_tokens": 512,
         "stream": false
     });

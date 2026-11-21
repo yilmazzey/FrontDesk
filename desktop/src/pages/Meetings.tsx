@@ -93,6 +93,8 @@ export default function Meetings() {
   const [notesModelBusy, setNotesModelBusy] = useState(false)
   const [notesModelProgress, setNotesModelProgress] = useState<RuntimeProgress | null>(null)
   const [notesModelNotice, setNotesModelNotice] = useState<string | null>(null)
+  const [savingNotes, setSavingNotes] = useState(false)
+  const [saveNotice, setSaveNotice] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     const [nextStatus, nextMeetings] = await Promise.all([
@@ -109,6 +111,7 @@ export default function Meetings() {
       const record = await api.meetingGet(id)
       setSelected(record)
       setTab('notes')
+      setSaveNotice(null)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     }
@@ -289,6 +292,36 @@ export default function Meetings() {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function saveNotes() {
+    if (!selected || !selected.notes.trim()) return
+    setSavingNotes(true)
+    setError(null)
+    setSaveNotice(null)
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog')
+      const base =
+        selected.title
+          .replace(/[^\w\s-]+/g, '')
+          .trim()
+          .replace(/\s+/g, '-')
+          .toLowerCase() || 'meeting-notes'
+      const path = await save({
+        title: 'Save meeting notes',
+        defaultPath: `${base}.md`,
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      })
+      if (!path) return
+      const updated = await api.meetingSave(selected.id, path)
+      setSelected(updated)
+      setSaveNotice(`Saved to ${path}`)
+      await refresh()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setSavingNotes(false)
     }
   }
 
@@ -504,6 +537,7 @@ export default function Meetings() {
       ) : null}
 
       {error ? <p className="notice notice--bad">{error}</p> : null}
+      {saveNotice ? <p className="notice">{saveNotice}</p> : null}
 
       {selected ? (
         <section className="panel meetingDetail">
@@ -521,6 +555,14 @@ export default function Meetings() {
             <div className="meetingDetail__actions">
               <button type="button" className="btn btn--ghost btn--sm" onClick={() => setSelected(null)}>
                 Close
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                disabled={!selected.notes.trim() || savingNotes}
+                onClick={() => void saveNotes()}
+              >
+                {savingNotes ? 'Saving…' : 'Save notes'}
               </button>
               {selected.savedPath ? (
                 <button

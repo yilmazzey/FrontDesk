@@ -3496,9 +3496,472 @@ a {
   color: rgba(36, 29, 22, 0.42);
 }
 
+.journal__galleryMapCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: center;
+  margin: clamp(10px, 1.6vh, 16px) auto 0;
+  padding: 10px 16px;
+  border: 1px solid rgba(90, 60, 30, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 250, 240, 0.55);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.journal__galleryMapCta:hover {
+  border-color: rgba(90, 60, 30, 0.55);
+  background: rgba(255, 250, 240, 0.9);
+  transform: translateY(-1px);
+}
+
 @media (max-width: 720px) {
   .journal__galleryStage {
     height: clamp(320px, calc(100dvh - 240px), 620px);
+  }
+}
+
+/* ---- Interactive data-map overlay --------------------------------------- */
+
+.diagramOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: clamp(10px, 2vw, 28px);
+  background: rgba(17, 14, 10, 0.74);
+  backdrop-filter: blur(10px);
+}
+
+.diagramOverlay__panel {
+  display: flex;
+  flex-direction: column;
+  width: min(1500px, 96vw);
+  height: min(94dvh, 1000px);
+  overflow: hidden;
+  border: 1px solid rgba(90, 60, 30, 0.28);
+  border-radius: 18px;
+  background: var(--paper-3);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.4);
+  color: var(--ink-dark);
+}
+
+.diagramOverlay__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(90, 60, 30, 0.18);
+  background: var(--paper);
+}
+
+.diagramOverlay__kicker {
+  margin: 0 0 2px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8a571c;
+}
+
+.diagramOverlay__head h3 {
+  margin: 0;
+  font-family: 'Iowan Old Style', Palatino, Georgia, serif;
+  font-size: clamp(18px, 2.2vw, 28px);
+  font-weight: 400;
+}
+
+.diagramOverlay__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.diagramOverlay__actions a {
+  padding-bottom: 2px;
+  border-bottom: 1px solid currentColor;
+  color: #8a571c;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.diagramOverlay__close {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(90, 60, 30, 0.25);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-dark);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.diagramOverlay__frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: var(--paper-3);
+}
+
+@media (max-width: 720px) {
+  .diagramOverlay {
+    padding: 0;
+  }
+
+  .diagramOverlay__panel {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .diagramOverlay__actions a {
+    display: none;
+  }
+}
+
+/* ---- Feature presentation overlay --------------------------------------- */
+
+.presentationOverlay {
+  width: min(1120px, 94vw);
+  height: auto;
+  max-height: 90dvh;
+}
+
+.presentationOverlay__tagline {
+  margin: 2px 0 0;
+  color: #8a571c;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.presentationOverlay__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(18px, 3vw, 34px);
+}
+
+.presentationOverlay__lead {
+  max-width: 68ch;
+  margin: 0 0 20px;
+  color: var(--ink-dark-dim);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.presentationOverlay__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.presentationOverlay__list li {
+  position: relative;
+  padding-left: 19px;
+  color: var(--ink-dark);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.presentationOverlay__list li::before {
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b27324;
+  content: '';
+}
+
+.presentationOverlay__metric {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 24px;
+  padding: 12px 16px;
+  border: 1px solid rgba(90, 60, 30, 0.22);
+  border-radius: 12px;
+  background: var(--paper);
+}
+
+.presentationOverlay__metric span {
+  color: var(--ink-dark-dim);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.presentationOverlay__metric strong {
+  color: #8a571c;
+  font-family: 'Iowan Old Style', Palatino, Georgia, serif;
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.presentationOverlay__note {
+  max-width: 68ch;
+  margin: 22px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(90, 60, 30, 0.16);
+  color: var(--ink-dark-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.featuresGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.featureCard {
+  padding: 15px 16px;
+  border: 1px solid rgba(90, 60, 30, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 250, 240, 0.5);
+}
+
+.featureCard header {
+  margin-bottom: 7px;
+}
+
+.featureCard__tagline {
+  margin: 0 0 2px;
+  color: #8a571c;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.featureCard h4 {
+  margin: 0;
+  color: var(--ink-dark);
+  font-family: 'Iowan Old Style', Palatino, Georgia, serif;
+  font-size: 19px;
+  font-weight: 400;
+}
+
+.featureCard__description {
+  margin: 0 0 8px;
+  color: var(--ink-dark-dim);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.featureCard ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.featureCard li {
+  position: relative;
+  padding-left: 12px;
+  color: var(--ink-dark);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.featureCard li::before {
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #b27324;
+  content: '';
+}
+
+.featureCard__metric {
+  display: inline-block;
+  margin-top: 9px;
+  color: #8a571c;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.presentationOverlay__performance {
+  display: grid;
+  gap: 18px;
+}
+
+.perfGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.perfCard {
+  padding: 16px;
+  border: 1px solid rgba(90, 60, 30, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 250, 240, 0.5);
+}
+
+.perfCard--wide {
+  margin-top: 0;
+}
+
+.perfCard header {
+  margin-bottom: 14px;
+}
+
+.perfCard__kicker {
+  margin: 0 0 2px;
+  color: #8a571c;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.perfCard h4 {
+  margin: 0;
+  color: var(--ink-dark);
+  font-family: 'Iowan Old Style', Palatino, Georgia, serif;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.perfBars {
+  display: grid;
+  gap: 11px;
+}
+
+.perfBar {
+  display: grid;
+  grid-template-areas:
+    'label track value'
+    'label detail detail';
+  grid-template-columns: 82px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 3px 10px;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.perfBar__label {
+  grid-area: label;
+  color: var(--ink-dark-dim);
+}
+
+.perfBar__track {
+  grid-area: track;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(90, 60, 30, 0.12);
+}
+
+.perfBar__track i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #b27324, #8a571c);
+}
+
+.perfBar strong {
+  grid-area: value;
+  color: var(--ink-dark);
+  font-size: 11px;
+  text-align: right;
+}
+
+.perfBar em {
+  grid-area: detail;
+  color: var(--ink-dark-dim);
+  font-style: normal;
+  opacity: 0.72;
+}
+
+.perfDisk {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.perfDisk div {
+  padding-top: 9px;
+  border-top: 1px solid rgba(90, 60, 30, 0.16);
+}
+
+.perfDisk dt {
+  color: var(--ink-dark-dim);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.perfDisk dd {
+  margin: 3px 0 0;
+  color: var(--ink-dark);
+  font-family: 'Iowan Old Style', Palatino, Georgia, serif;
+  font-size: 19px;
+}
+
+.presentationOverlay__method {
+  display: grid;
+  gap: 8px;
+  color: var(--ink-dark-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.presentationOverlay__method p {
+  margin: 0;
+}
+
+.presentationOverlay__method code {
+  margin: 0 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+@media (max-width: 720px) {
+  .presentationOverlay {
+    width: 100%;
+    max-height: none;
+    height: 100%;
+    border-radius: 0;
+  }
+
+  .perfGrid,
+  .featuresGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .presentationOverlay__body {
+    padding: 18px;
   }
 }
 

@@ -29,3 +29,7 @@ web/assets/*.glb
 # Python bytecode from demo scripts
 __pycache__/
 *.pyc
+
+# Local presentation artifacts and dev logs
+.archify/
+web/.vite-dev.log

@@ -1862,6 +1862,15 @@ input {
   overflow-wrap: anywhere;
 }
 
+.sourceItem__ref {
+  margin: 2px 0 0;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 7.5px;
+  opacity: 0.72;
+  overflow-wrap: anywhere;
+}
+
 .sourceItem__more {
   margin-top: 6px;
 }

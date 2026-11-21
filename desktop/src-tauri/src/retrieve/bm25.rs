@@ -9,20 +9,132 @@ pub struct Scored {
 }
 
 const STOPWORDS: &[&str] = &[
-    "the", "a", "an", "and", "or", "but", "if", "then", "than", "that", "this", "these", "those",
-    "is", "are", "was", "were", "be", "been", "being", "to", "of", "in", "on", "for", "with", "as",
-    "by", "at", "from", "it", "its", "i", "you", "we", "they", "he", "she", "do", "does", "did",
-    "what", "which", "who", "when", "where", "why", "how", "about", "can", "could", "should",
-    "would", "will", "shall", "may", "might", "must", "have", "has", "had", "not", "no", "yes",
-    "me", "my", "our", "your", "their", "there", "here", "so", "very", "just", "also", "any",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "than",
+    "that",
+    "this",
+    "these",
+    "those",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "to",
+    "of",
+    "in",
+    "on",
+    "for",
+    "with",
+    "as",
+    "by",
+    "at",
+    "from",
+    "it",
+    "its",
+    "i",
+    "you",
+    "we",
+    "they",
+    "he",
+    "she",
+    "do",
+    "does",
+    "did",
+    "what",
+    "which",
+    "who",
+    "when",
+    "where",
+    "why",
+    "how",
+    "about",
+    "can",
+    "could",
+    "should",
+    "would",
+    "will",
+    "shall",
+    "may",
+    "might",
+    "must",
+    "have",
+    "has",
+    "had",
+    "not",
+    "no",
+    "yes",
+    "me",
+    "my",
+    "our",
+    "your",
+    "their",
+    "there",
+    "here",
+    "so",
+    "very",
+    "just",
+    "also",
+    "any",
+    // Contraction fragments left behind by tokenisation ("you're" → you/re).
+    "re",
+    "ve",
+    "ll",
+    // Conversational framing that should not count as evidence.
+    "catch",
+    "up",
+    "tell",
+    "explain",
+    "describe",
+    "give",
+    "show",
+    "list",
+    "summarize",
+    "summarise",
+    "please",
+];
+
+/// Hyphenated and spaced compounds are collapsed before tokenising. Without
+/// this, "sign-off" becomes ["sign", "off"] and matches every unrelated
+/// "sign-in" notification in the mailbox.
+const COMPOUNDS: &[(&str, &str)] = &[
+    ("one on one", "oneonone"),
+    ("one-on-one", "oneonone"),
+    ("1 on 1", "oneonone"),
+    ("1-on-1", "oneonone"),
+    ("1:1", "oneonone"),
+    ("sign-off", "signoff"),
+    ("sign off", "signoff"),
+    ("sign-in", "signin"),
+    ("sign in", "signin"),
+    ("sign-up", "signup"),
+    ("sign up", "signup"),
+    ("follow-up", "followup"),
+    ("follow up", "followup"),
+    ("check-in", "checkin"),
+    ("check in", "checkin"),
+    ("roll-out", "rollout"),
+    ("roll out", "rollout"),
+    ("opt-in", "optin"),
+    ("opt in", "optin"),
+    ("set-up", "setup"),
+    ("set up", "setup"),
 ];
 
 fn tokens(text: &str) -> Vec<String> {
-    let normalized = text
-        .to_lowercase()
-        .replace("1:1", "oneonone")
-        .replace("1-on-1", "oneonone")
-        .replace("1 on 1", "oneonone");
+    let mut normalized = text.to_lowercase();
+    for (from, to) in COMPOUNDS {
+        normalized = normalized.replace(from, to);
+    }
     normalized
         .split(|c: char| !c.is_alphanumeric())
         .filter(|t| {
@@ -107,4 +219,54 @@ pub fn search(question: &str, chunks: &[Chunk], limit: usize) -> Vec<Scored> {
 
 pub fn content_words(text: &str) -> Vec<String> {
     tokens(text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::retrieve::chunker::Chunk;
+
+    fn chunk(id: &str, text: &str) -> Chunk {
+        Chunk {
+            source_id: id.into(),
+            source_type: "file".into(),
+            title: "Fixture".into(),
+            location: "part 1".into(),
+            origin: "/tmp/fixture.md".into(),
+            timestamp: "2026-11-14T00:00:00Z".into(),
+            text: text.into(),
+        }
+    }
+
+    #[test]
+    fn hyphenated_compounds_do_not_collide() {
+        let sign_off = tokens("Waiting on Priya for the budget sign-off");
+        assert!(sign_off.contains(&"signoff".to_string()));
+        assert!(!sign_off.contains(&"sign".to_string()));
+
+        let sign_in = tokens("New sign-in detected for your Microsoft account");
+        assert!(sign_in.contains(&"signin".to_string()));
+        assert!(!sign_in.contains(&"sign".to_string()));
+    }
+
+    #[test]
+    fn sign_off_question_does_not_retrieve_sign_in_mail() {
+        let note = chunk(
+            "file:note",
+            "Waiting on Priya for the budget sign-off. Follow up with Marcus by Monday.",
+        );
+        let security = chunk(
+            "mail:security",
+            "We detected a new sign-in to your Microsoft account.",
+        );
+
+        let hits = search(
+            "Catch me up on: Waiting on Priya for the budget sign-off",
+            &[note, security],
+            6,
+        );
+
+        assert_eq!(hits.len(), 1, "only the sign-off note should match");
+        assert_eq!(hits[0].chunk.source_id, "file:note");
+    }
 }

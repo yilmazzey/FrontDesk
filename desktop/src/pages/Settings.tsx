@@ -1203,7 +1203,8 @@ export default function Settings() {
             <span className="panel__meta">Metadata only</span>
           </header>
           <p className="panel__note">
-            FrontDesk records that a source was read, never what it said.
+            Records retrieved chunk locations, answer provenance and which sources were read —
+            never chunk text or source content.
           </p>
           <div className="modelActions">
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => void loadAudit()}>
@@ -1217,14 +1218,22 @@ export default function Settings() {
           </div>
           {showAudit ? (
             <ul className="auditList">
-              {audit.map((entry, index) => (
-                <li key={`${entry.at}-${index}`}>
-                  <span className="tag">{entry.action}</span>
-                  <span>{entry.sourceId ?? entry.scope ?? '—'}</span>
-                  <em>{new Date(entry.at).toLocaleString()}</em>
-                </li>
-              ))}
-              {!audit.length ? <li className="emptyRow">No reads yet.</li> : null}
+              {audit.map((entry, index) => {
+                const detail = entry.detail
+                const label = detail?.summary
+                  ? detail.summary
+                  : detail?.location
+                    ? `${detail.location}${detail.rank ? ` · rank ${detail.rank}` : ''}`
+                    : entry.sourceId ?? entry.scope ?? '—'
+                return (
+                  <li key={`${entry.at}-${index}`}>
+                    <span className="tag">{entry.action}</span>
+                    <span>{label}</span>
+                    <em>{new Date(entry.at).toLocaleString()}</em>
+                  </li>
+                )
+              })}
+              {!audit.length ? <li className="emptyRow">No activity yet.</li> : null}
             </ul>
           ) : null}
         </section>

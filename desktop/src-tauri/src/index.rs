@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -5,10 +6,16 @@ use rusqlite::{params, Connection};
 use serde::Serialize;
 
 use crate::contracts::SourceRef;
+use crate::retrieve::bm25;
 use crate::retrieve::chunker::Chunk;
 
 const EMBEDDING_MODEL: &str = "all-MiniLM-L6-v2";
-const MIN_SIMILARITY: f32 = 0.42;
+/// Cosine similarity floor for candidate selection. Below this, all-MiniLM
+/// scores are mostly incidental word overlap rather than relevance.
+const MIN_SIMILARITY: f32 = 0.50;
+/// Keep only semantic candidates close to the best hit. A single weak hit must
+/// not drag a dozen unrelated sources into the answer context.
+const RELATIVE_SIMILARITY: f32 = 0.75;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -254,16 +261,18 @@ impl IndexStore {
                 .partial_cmp(&left.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
+        if let Some(top) = hits.first().map(|hit| hit.score) {
+            let floor = (top * RELATIVE_SIMILARITY).max(MIN_SIMILARITY);
+            hits.retain(|hit| hit.score >= floor);
+        }
         hits.truncate(limit);
         Ok(hits)
     }
 
     pub fn search_keywords(&self, query: &str, limit: usize) -> Result<Vec<KeywordHit>, String> {
-        let lower = query.to_lowercase();
-        let tokens = lower
-            .split(|character: char| !character.is_alphanumeric())
-            .filter(|token| token.len() > 2)
-            .collect::<Vec<_>>();
+        // Use the same tokenisation as BM25 so "sign-off" never matches
+        // "sign-in" in a title, and stop words do not select every source.
+        let tokens = bm25::content_words(query);
         if tokens.is_empty() {
             return Ok(Vec::new());
         }
@@ -290,19 +299,19 @@ impl IndexStore {
         for row in rows {
             let (source_id, title, location, people) =
                 row.map_err(|error| format!("Could not read a metadata row: {error}"))?;
-            let title = title.to_lowercase();
-            let location = location.to_lowercase();
-            let people = people.to_lowercase();
+            let title: HashSet<String> = bm25::content_words(&title).into_iter().collect();
+            let location: HashSet<String> = bm25::content_words(&location).into_iter().collect();
+            let people: HashSet<String> = bm25::content_words(&people).into_iter().collect();
             let mut score = 0.0;
             for token in &tokens {
                 if title.contains(token) {
                     score += 4.0;
                 }
-                if location.contains(token) {
-                    score += 2.0;
-                }
                 if people.contains(token) {
-                    score += 1.0;
+                    score += 3.0;
+                }
+                if location.contains(token) {
+                    score += 1.5;
                 }
             }
             if score > 0.0 {

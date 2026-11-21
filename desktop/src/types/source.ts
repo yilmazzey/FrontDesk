@@ -109,6 +109,21 @@ export type AuditEntry = {
   action: string
   sourceId?: string | null
   scope?: string | null
+  /** Retrieval ranks/scores or answer provenance. Never source text. */
+  detail?: {
+    summary?: string
+    location?: string
+    rank?: number
+    score?: number
+    lexical?: boolean
+    semantic?: boolean
+    basis?: string
+    model?: string
+    cited?: Array<{ sourceId: string; location: string }>
+    uncitedClaims?: number
+    verification?: string
+    abstained?: boolean
+  } | null
 }
 
 export type ToolStatus = {

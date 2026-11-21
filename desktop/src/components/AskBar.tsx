@@ -33,7 +33,7 @@ type Turn = {
 
 function basisLabel(answer: Answer): string {
   if (answer.basis === 'model') return 'General knowledge'
-  if (answer.basis === 'mixed') return 'Your files + general knowledge'
+  if (answer.basis === 'mixed') return 'Partly cited'
   if (answer.basis === 'sources') return 'From your files'
   if (answer.basis === 'web') return 'From the web'
   if (answer.basis === 'files_web') return 'Your files + web'
@@ -137,6 +137,9 @@ function AnswerView({ turn, onAsk, onOpen, onSave, onDeadline }: AnswerViewProps
                   </div>
                   <p className="sourceItem__meta">
                     {citation.location} · as of {when(citation.timestamp)}
+                  </p>
+                  <p className="sourceItem__ref">
+                    Ref: {citation.deepLink ?? citation.sourceId}
                   </p>
                   <details className="sourceItem__more">
                     <summary>Excerpt</summary>

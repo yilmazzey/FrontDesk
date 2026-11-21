@@ -9,7 +9,7 @@ use reqwest::Url;
 use serde::Serialize;
 use tauri::State;
 
-use crate::answer;
+use crate::answer::{self, SemanticCandidate};
 use crate::audit::AuditEntry;
 use crate::contracts::{
     Answer, AppInfo, ChatTurn, Excerpt, ModelRef, SavedItem, SearchHit, SourceGrant, SourceRef,
@@ -19,7 +19,7 @@ use crate::microsoft::{self, MicrosoftState};
 use crate::model;
 use crate::model_download::{self, ModelDownloadState};
 use crate::people_store::{PeopleOverrides, PeopleSnapshot, PersonOverride};
-use crate::retrieve::chunker::{self, Chunk};
+use crate::retrieve::chunker;
 use crate::runtime;
 use crate::sources;
 use crate::sources::{m365, web};
@@ -666,7 +666,49 @@ pub async fn ask(
         for source_id in &result.read_sources {
             audit.append("read", Some(source_id.clone()), None);
         }
-        audit.append("ask", None, None);
+        for chunk in &result.retrieved {
+            audit.append_with_detail(
+                "retrieve",
+                Some(chunk.source_id.clone()),
+                None,
+                Some(serde_json::json!({
+                    "location": chunk.location,
+                    "rank": chunk.rank,
+                    "score": (chunk.score * 1000.0).round() / 1000.0,
+                    "lexical": chunk.lexical,
+                    "semantic": chunk.semantic,
+                })),
+            );
+        }
+        let cited: Vec<serde_json::Value> = result
+            .provenance
+            .cited
+            .iter()
+            .map(|(source_id, location)| {
+                serde_json::json!({ "sourceId": source_id, "location": location })
+            })
+            .collect();
+        let provenance = &result.provenance;
+        audit.append_with_detail(
+            "answer",
+            None,
+            None,
+            Some(serde_json::json!({
+                "summary": format!(
+                    "{} · {} cited · {} uncited · {} verification",
+                    provenance.basis,
+                    provenance.cited.len(),
+                    provenance.uncited_claims,
+                    provenance.verification
+                ),
+                "basis": provenance.basis,
+                "model": provenance.model,
+                "cited": cited,
+                "uncitedClaims": provenance.uncited_claims,
+                "verification": provenance.verification,
+                "abstained": provenance.abstained,
+            })),
+        );
     }
 
     Ok(result.answer)
@@ -716,21 +758,36 @@ async fn read_documents(
     documents
 }
 
-fn preferred_chunks(documents: &[(SourceRef, String)], hits: &[IndexHit]) -> Vec<Chunk> {
-    let mut preferred: Vec<Chunk> = Vec::new();
-    for (source, text) in documents {
-        let chunks = chunker::chunk_source(source, text);
-        for hit in hits.iter().filter(|hit| hit.source_id == source.id) {
-            let Some(chunk) = chunks.get(hit.chunk_index) else {
-                continue;
-            };
-            if preferred.iter().any(|existing| {
-                existing.source_id == chunk.source_id && existing.location == chunk.location
-            }) {
-                continue;
-            }
-            preferred.push(chunk.clone());
+fn preferred_chunks(
+    documents: &[(SourceRef, String)],
+    hits: &[IndexHit],
+) -> Vec<SemanticCandidate> {
+    // Build chunks once per source, then walk the hits in their global
+    // similarity order. Grouping by document first would scramble the vector
+    // rank that hybrid fusion depends on.
+    let chunks_by_source: std::collections::HashMap<&str, Vec<crate::retrieve::chunker::Chunk>> =
+        documents
+            .iter()
+            .map(|(source, text)| (source.id.as_str(), chunker::chunk_source(source, text)))
+            .collect();
+
+    let mut preferred: Vec<SemanticCandidate> = Vec::new();
+    for hit in hits {
+        let Some(chunks) = chunks_by_source.get(hit.source_id.as_str()) else {
+            continue;
+        };
+        let Some(chunk) = chunks.get(hit.chunk_index) else {
+            continue;
+        };
+        if preferred.iter().any(|existing| {
+            existing.chunk.source_id == chunk.source_id && existing.chunk.location == chunk.location
+        }) {
+            continue;
         }
+        preferred.push(SemanticCandidate {
+            chunk: chunk.clone(),
+            score: hit.score,
+        });
     }
     preferred
 }
@@ -1131,7 +1188,12 @@ fn matches_terms(terms: &[String], text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{matched_excerpt, matches_terms, parse_saved, search_terms, write_saved_answer};
+    use super::{
+        matched_excerpt, matches_terms, parse_saved, preferred_chunks, search_terms,
+        write_saved_answer,
+    };
+    use crate::contracts::SourceRef;
+    use crate::index::IndexHit;
 
     #[test]
     fn content_search_matches_whole_words_and_all_query_terms() {
@@ -1146,6 +1208,34 @@ mod tests {
         let text = "The weekly review covered pricing, hiring and the launch plan. We agreed to send the revised scope by Friday and wait for legal before publishing.";
         let excerpt = matched_excerpt(text, &["scope".into()]);
         assert!(excerpt.contains("revised scope"));
+    }
+
+    #[test]
+    fn preferred_chunks_carry_semantic_scores_for_fusion() {
+        let source = SourceRef {
+            id: "file:1".into(),
+            grant_id: "grant".into(),
+            kind: "file".into(),
+            title: "Note".into(),
+            location: "/tmp/note.md".into(),
+            modified: "2026-11-14T00:00:00Z".into(),
+            hash: "v1".into(),
+            people: Vec::new(),
+        };
+        let hits = vec![IndexHit {
+            source_id: "file:1".into(),
+            chunk_index: 0,
+            score: 0.83,
+        }];
+
+        let preferred = preferred_chunks(
+            &[(source, "Waiting on Priya for the budget sign-off.".into())],
+            &hits,
+        );
+
+        assert_eq!(preferred.len(), 1);
+        assert_eq!(preferred[0].score, 0.83);
+        assert_eq!(preferred[0].chunk.source_id, "file:1");
     }
 
     #[test]

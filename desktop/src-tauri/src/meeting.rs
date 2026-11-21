@@ -202,9 +202,9 @@ fn valid_model(path: &Path) -> bool {
 fn safe_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 80
-        && id
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || character == '-' || character == '_')
+        && id.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '-' || character == '_'
+        })
 }
 
 fn display_title(started_at: &str) -> String {
@@ -225,7 +225,8 @@ fn read_record(dir: &Path) -> Result<MeetingRecord, String> {
 }
 
 fn write_record(dir: &Path, record: &MeetingRecord) -> Result<(), String> {
-    fs::create_dir_all(dir).map_err(|error| format!("Could not create the meeting folder: {error}"))?;
+    fs::create_dir_all(dir)
+        .map_err(|error| format!("Could not create the meeting folder: {error}"))?;
     let raw = serde_json::to_string_pretty(record)
         .map_err(|error| format!("Could not serialise the meeting: {error}"))?;
     fs::write(dir.join("meeting.json"), raw)
@@ -264,14 +265,7 @@ fn summary_of(record: &MeetingRecord) -> MeetingSummary {
     }
 }
 
-fn emit(
-    app: &AppHandle,
-    id: &str,
-    kind: &str,
-    phase: &str,
-    percent: Option<u8>,
-    message: &str,
-) {
+fn emit(app: &AppHandle, id: &str, kind: &str, phase: &str, percent: Option<u8>, message: &str) {
     let _ = app.emit(
         "meeting-progress",
         MeetingProgress {
@@ -379,7 +373,8 @@ fn record_microphone(path: &Path, stop: Arc<AtomicBool>) -> Result<(), String> {
         fs::create_dir_all(parent)
             .map_err(|error| format!("Could not create the recording folder: {error}"))?;
     }
-    let file = File::create(path).map_err(|error| format!("Could not start the recording: {error}"))?;
+    let file =
+        File::create(path).map_err(|error| format!("Could not start the recording: {error}"))?;
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: SAMPLE_RATE,
@@ -457,10 +452,7 @@ fn wav_duration(path: &Path) -> Result<f64, String> {
 }
 
 #[tauri::command]
-pub fn meeting_start(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<MeetingStarted, String> {
+pub fn meeting_start(app: AppHandle, state: State<'_, AppState>) -> Result<MeetingStarted, String> {
     let model = model_path(&state.data_dir);
     if !valid_model(&model) {
         return Err("Install the local transcription model first.".into());
@@ -524,15 +516,19 @@ pub fn meeting_start(
     runtime.phase = Some("recording".into());
     drop(runtime);
 
-    emit(&app, &id, "recording", "recording", None, "Listening on the microphone");
+    emit(
+        &app,
+        &id,
+        "recording",
+        "recording",
+        None,
+        "Listening on the microphone",
+    );
     Ok(MeetingStarted { id, started_at })
 }
 
 #[tauri::command]
-pub fn meeting_stop(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<MeetingStopped, String> {
+pub fn meeting_stop(app: AppHandle, state: State<'_, AppState>) -> Result<MeetingStopped, String> {
     let mut runtime = state.meetings.lock()?;
     let Some(mut recording) = runtime.recording.take() else {
         return Err("FrontDesk is not recording.".into());
@@ -546,11 +542,7 @@ pub fn meeting_stop(
             .map_err(|_| "The microphone thread stopped unexpectedly.".to_string())?;
     }
 
-    let failure = recording
-        .error
-        .lock()
-        .ok()
-        .and_then(|mut slot| slot.take());
+    let failure = recording.error.lock().ok().and_then(|mut slot| slot.take());
     let dir = meeting_dir(&state.data_dir, &recording.id);
     if let Some(message) = failure {
         let _ = fs::remove_dir_all(&dir);
@@ -593,7 +585,12 @@ pub fn meeting_stop(
 fn timestamp(seconds: f64) -> String {
     let total = seconds.max(0.0) as u64;
     if total >= 3600 {
-        format!("{}:{:02}:{:02}", total / 3600, (total % 3600) / 60, total % 60)
+        format!(
+            "{}:{:02}:{:02}",
+            total / 3600,
+            (total % 3600) / 60,
+            total % 60
+        )
     } else {
         format!("{:02}:{:02}", total / 60, total % 60)
     }
@@ -685,7 +682,10 @@ fn transcribe_file(
             chunk.clear();
             chunk_index += 1;
             let percent = 40 + ((processed as f64 / total.max(1) as f64) * 40.0) as u8;
-            progress(percent.min(80), &format!("Transcribing part {}", chunk_index));
+            progress(
+                percent.min(80),
+                &format!("Transcribing part {}", chunk_index),
+            );
         }
     }
 
@@ -705,7 +705,14 @@ fn transcribe_audio(
     model: &Path,
 ) -> Result<String, String> {
     transcribe_file(audio, model, |percent, message| {
-        emit(app, id, "transcribe", "transcribing", Some(percent), message);
+        emit(
+            app,
+            id,
+            "transcribe",
+            "transcribing",
+            Some(percent),
+            message,
+        );
     })
 }
 
@@ -766,7 +773,14 @@ fn generate_notes(
 
     let chunks = chunks_of(transcript);
     let result = if chunks.len() <= 1 {
-        emit(app, id, "notes", "writing", Some(82), "Writing notes with the local model");
+        emit(
+            app,
+            id,
+            "notes",
+            "writing",
+            Some(82),
+            "Writing notes with the local model",
+        );
         model::generate(
             models_dir,
             &model_id,
@@ -801,7 +815,14 @@ fn generate_notes(
             }
         }
         let combined = summaries.join("\n\n");
-        emit(app, id, "notes", "writing", Some(94), "Writing the final notes");
+        emit(
+            app,
+            id,
+            "notes",
+            "writing",
+            Some(94),
+            "Writing the final notes",
+        );
         model::generate(
             models_dir,
             &model_id,
@@ -816,9 +837,9 @@ fn generate_notes(
     match result {
         Ok(notes) if !notes.trim().is_empty() => notes,
         Ok(_) => "The model returned no notes. The transcript is saved below.".to_string(),
-        Err(error) => format!(
-            "The transcript is saved below, but notes could not be generated: {error}"
-        ),
+        Err(error) => {
+            format!("The transcript is saved below, but notes could not be generated: {error}")
+        }
     }
 }
 
@@ -883,7 +904,9 @@ fn run_process(app: &AppHandle, id: &str) -> Result<MeetingRecord, String> {
             ) {
                 Ok(path) => record.saved_path = Some(path),
                 Err(error) => {
-                    record.error = Some(format!("The note was saved locally, but the Markdown copy failed: {error}"));
+                    record.error = Some(format!(
+                        "The note was saved locally, but the Markdown copy failed: {error}"
+                    ));
                 }
             }
         }
@@ -899,14 +922,7 @@ fn run_process(app: &AppHandle, id: &str) -> Result<MeetingRecord, String> {
     match result {
         Ok(()) => {
             write_record(&dir, &record)?;
-            emit(
-                app,
-                id,
-                "done",
-                "ready",
-                Some(100),
-                "Notes are ready.",
-            );
+            emit(app, id, "done", "ready", Some(100), "Notes are ready.");
             Ok(record)
         }
         Err(error) => {
@@ -1048,7 +1064,10 @@ pub fn meeting_status(state: State<'_, AppState>) -> Result<MeetingStatus, Strin
     Ok(MeetingStatus {
         recording: runtime.recording.is_some(),
         active_id: runtime.recording.as_ref().map(|item| item.id.clone()),
-        started_at: runtime.recording.as_ref().map(|item| item.started_at.clone()),
+        started_at: runtime
+            .recording
+            .as_ref()
+            .map(|item| item.started_at.clone()),
         processing_id: runtime.processing.clone(),
         phase: runtime.phase.clone().unwrap_or_else(|| "idle".into()),
         model_installed: valid_model(&model),
@@ -1110,7 +1129,8 @@ pub async fn meeting_install_model(
             "Downloading Whisper base (57 MB)",
         );
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|error| format!("The model download was interrupted: {error}"))?;
+            let chunk =
+                chunk.map_err(|error| format!("The model download was interrupted: {error}"))?;
             tokio::io::AsyncWriteExt::write_all(&mut file, &chunk)
                 .await
                 .map_err(|error| format!("Could not write the model: {error}"))?;
@@ -1140,7 +1160,14 @@ pub async fn meeting_install_model(
         }
         fs::rename(&temporary, &target)
             .map_err(|error| format!("Could not install the model: {error}"))?;
-        emit(&app, "", "model", "ready", Some(100), "Whisper base is ready");
+        emit(
+            &app,
+            "",
+            "model",
+            "ready",
+            Some(100),
+            "Whisper base is ready",
+        );
         Ok(target.to_string_lossy().to_string())
     }
     .await;
@@ -1181,6 +1208,57 @@ pub fn meeting_get(state: State<'_, AppState>, id: String) -> Result<MeetingReco
         return Err("Unknown meeting.".into());
     }
     read_record(&meeting_dir(&state.data_dir, &id))
+}
+
+/// Save a copy of the meeting notes to a path the user picked with the native
+/// save dialog. The app always keeps its own local record; this is the
+/// user-owned Markdown export.
+#[tauri::command]
+pub fn meeting_save(
+    state: State<'_, AppState>,
+    id: String,
+    path: String,
+) -> Result<MeetingRecord, String> {
+    if !safe_id(&id) {
+        return Err("Unknown meeting.".into());
+    }
+    let dir = meeting_dir(&state.data_dir, &id);
+    let mut record = read_record(&dir)?;
+    let target = export_notes(&record, &path)?;
+    record.saved_path = Some(target.to_string_lossy().to_string());
+    write_record(&dir, &record)?;
+    Ok(record)
+}
+
+/// Write the user-owned Markdown copy. The internal meeting record always
+/// remains in the app data folder; this is the export the user chose.
+fn export_notes(record: &MeetingRecord, path: &str) -> Result<PathBuf, String> {
+    if record.notes.trim().is_empty() {
+        return Err("There are no notes to save yet.".into());
+    }
+    let mut target = PathBuf::from(path.trim());
+    if target.as_os_str().is_empty() {
+        return Err("Choose where to save the notes.".into());
+    }
+    let has_extension = target
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| !extension.is_empty())
+        .unwrap_or(false);
+    if !has_extension {
+        target.set_extension("md");
+    }
+
+    let mut body = format!("# {}\n\n{}\n", record.title, record.notes.trim());
+    if !record.transcript.trim().is_empty() {
+        body.push_str("\n---\n\n## Transcript\n\n");
+        body.push_str(record.transcript.trim());
+        body.push('\n');
+    }
+
+    fs::write(&target, body)
+        .map_err(|error| format!("Could not save the meeting notes: {error}"))?;
+    Ok(target)
 }
 
 #[tauri::command]
@@ -1241,7 +1319,6 @@ pub fn meeting_reveal(state: State<'_, AppState>, id: String) -> Result<(), Stri
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1272,6 +1349,46 @@ mod tests {
             valid_model(Path::new(&model)),
             "the whisper model should pass magic and size validation"
         );
+    }
+
+    #[test]
+    fn exports_notes_and_transcript_as_markdown() {
+        let dir = std::env::temp_dir().join(format!(
+            "frontdesk-meeting-export-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let record = MeetingRecord {
+            id: "20261121-120000".into(),
+            title: "Meeting — test".into(),
+            started_at: "2026-11-21T12:00:00Z".into(),
+            ended_at: Some("2026-11-21T12:30:00Z".into()),
+            duration_sec: 1800.0,
+            status: "ready".into(),
+            transcript: "00:00 Alice: We approved the budget.".into(),
+            notes: "## Summary\n- Budget approved.".into(),
+            model: Some("gguf:test".into()),
+            saved_path: None,
+            error: None,
+            audio_deleted: true,
+        };
+
+        let target = dir.join("meeting-notes");
+        let written = export_notes(&record, &target.to_string_lossy()).expect("export");
+        assert_eq!(
+            written.extension().and_then(|value| value.to_str()),
+            Some("md")
+        );
+        let text = fs::read_to_string(&written).unwrap();
+        assert!(text.contains("## Summary"));
+        assert!(text.contains("## Transcript"));
+        assert!(text.contains("We approved the budget."));
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

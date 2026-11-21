@@ -752,6 +752,11 @@ export const api = {
     throw new Error('Meeting notes need the desktop app.')
   },
 
+  meetingSave: async (id: string, path: string): Promise<MeetingRecord> => {
+    if (inTauri()) return call<MeetingRecord>('meeting_save', { id, path })
+    throw new Error('Saving meeting notes needs the desktop app.')
+  },
+
   meetingDelete: async (id: string): Promise<void> => {
     if (inTauri()) await call<void>('meeting_delete', { id })
   },
