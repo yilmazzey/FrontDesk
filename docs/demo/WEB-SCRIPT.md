@@ -1,6 +1,6 @@
 # Web presentation script — 3 minutes
 
-Start on the web page, then hand off to the desktop app. Most of the time goes to the **local boundary** and the **RAM/performance** slide.
+Start on the web page, then hand off to the desktop app. Most of the time goes to **how RAG and the local model produce citations**, the **local boundary**, and the **RAM/performance** slide.
 
 Open the web page at `http://localhost:5173/` (or your tunnel).
 
@@ -28,25 +28,39 @@ Close with **Esc**.
 
 ---
 
-## 0:40–1:55 — Where your data goes (the local boundary) — 75s
+## 0:40–1:55 — Where your data goes — 75s
 
 Go to slide **02 · Where your data goes**. Click the slide to open the interactive map.
 
 Say:
 
-> This is the whole pipeline. The important line is the device boundary.
+> This is the whole pipeline. Two things to see: how RAG and the local model turn a question into a cited answer, and where the data actually travels.
 
-Point inside the map:
+### 0:40–1:12 — RAG, the local model and citations
 
-- **Inside this Mac:** local files and OCR, grants and settings, the audit log, the embedding index, the GGUF model files and the local model runtime.
-- **Leaving only:** a read-only Microsoft Graph `GET` with the token for mail, calendar and OneNote — and the question text to Bing only if web search is on.
-- **Never:** note text, mail bodies, calendar content or prompts to a hosted model.
+Point along **AskBar → Tauri `ask` → Hybrid retrieval + rerank → Local model runtime → Citations / Audit log**.
 
-Close with the **×**, not Esc, if the map has focus.
+Say:
 
-> There is no FrontDesk server. The model runs here; the sources stay where they were saved.
+> The question starts in AskBar and goes to the local Tauri core — not to a cloud. Retrieval is hybrid: BM25 plus local vector candidates, fused and reranked. It selects at most five excerpts and 5,000 characters.
 
-If the map has a **Presentation Stage** control, use it for the full-bleed view. Otherwise the overlay is enough.
+> Those excerpts are the only context sent to the local model. The model writes the answer with `[n]` citations. A second local pass checks every sentence against the excerpts; unsupported sentences are dropped, and if nothing supports the answer it abstains instead of guessing.
+
+> The audit log records which chunks and sources were read, never the chunk text. That is why the citation is the product: you can trace the sentence back to the exact excerpt.
+
+### 1:12–1:55 — Where the data travels
+
+Point at the dashed **device boundary**.
+
+Say:
+
+> Everything inside this dashed box stays on this Mac: local files and OCR, grants and settings, the audit log, the embedding index, the GGUF files and the local model runtime.
+
+> With your data, only two things leave: a read-only Microsoft Graph `GET` with the token for mail, calendar and OneNote, and the question text to Bing only if web search is on.
+
+> Never: note text, mail bodies, calendar content or prompts to a hosted model. There is no FrontDesk server. The model runs here; the sources stay where they were saved.
+
+Close with the **×**, not Esc, if the map has focus. If the map has a **Presentation Stage** control, use it for the full-bleed view; otherwise the overlay is enough.
 
 ---
 
