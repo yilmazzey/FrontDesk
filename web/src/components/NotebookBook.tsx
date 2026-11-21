@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { createRoot } from 'react-dom/client'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { PageFlip } from 'page-flip'
 import { AboutPerson, PrivacySection } from '../content/NotebookContent'
 import type { NotebookSection } from '../store'
@@ -60,46 +60,40 @@ export default function NotebookBook({ section }: { section: NotebookSection }) 
   const flipRef = useRef<PageFlip | null>(null)
   const [ready, setReady] = useState(false)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const host = hostRef.current
     if (!host) return
 
     const mount = document.createElement('div')
     mount.className = 'notebookBook__mount'
+    // Static markup initialises synchronously, which is reliable in Safari.
+    mount.innerHTML = renderToStaticMarkup(<BookPages />)
     host.appendChild(mount)
 
-    const root = createRoot(mount)
-    root.render(<BookPages />)
-
-    let flip: PageFlip | null = null
-    const timer = window.setTimeout(() => {
-      const pages = mount.querySelectorAll<HTMLElement>('.notebookBook__page')
-      if (!pages.length) return
-      flip = new PageFlip(mount, {
-        width: 420,
-        height: 600,
-        size: 'stretch',
-        minWidth: 300,
-        maxWidth: 440,
-        minHeight: 420,
-        maxHeight: 620,
-        showCover: true,
-        usePortrait: true,
-        startPage: pageForSection(section),
-        drawShadow: true,
-        maxShadowOpacity: 0.35,
-        flippingTime: 850,
-        mobileScrollSupport: false,
-        showPageCorners: true,
-        clickEventForward: true,
-      })
-      flip.loadFromHTML(pages)
-      flipRef.current = flip
-      setReady(true)
-    }, 0)
+    const pages = mount.querySelectorAll<HTMLElement>('.notebookBook__page')
+    const flip = new PageFlip(mount, {
+      width: 420,
+      height: 600,
+      size: 'stretch',
+      minWidth: 300,
+      maxWidth: 440,
+      minHeight: 420,
+      maxHeight: 620,
+      showCover: true,
+      usePortrait: true,
+      startPage: pageForSection(section),
+      drawShadow: true,
+      maxShadowOpacity: 0.35,
+      flippingTime: 850,
+      mobileScrollSupport: false,
+      showPageCorners: true,
+      clickEventForward: true,
+    })
+    flip.loadFromHTML(pages)
+    flipRef.current = flip
+    setReady(true)
 
     const onKey = (event: KeyboardEvent) => {
-      if (!flip) return
       if (event.key === 'ArrowRight') {
         event.preventDefault()
         flip.flipNext()
@@ -112,19 +106,17 @@ export default function NotebookBook({ section }: { section: NotebookSection }) 
     window.addEventListener('keydown', onKey)
 
     return () => {
-      window.clearTimeout(timer)
       window.removeEventListener('keydown', onKey)
       setReady(false)
       flipRef.current = null
-      root.unmount()
-      flip?.destroy()
+      flip.destroy()
       mount.remove()
     }
   }, [])
 
   useEffect(() => {
-    flipRef.current?.turnToPage(pageForSection(section))
-  }, [section])
+    if (ready) flipRef.current?.turnToPage(pageForSection(section))
+  }, [section, ready])
 
   const turn = (direction: 'prev' | 'next') => {
     const flip = flipRef.current
