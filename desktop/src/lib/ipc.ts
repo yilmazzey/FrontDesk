@@ -774,6 +774,11 @@ export const api = {
     else throw new Error('Meeting transcription needs the desktop app.')
   },
 
+  meetingRegenerateNotes: async (id: string): Promise<void> => {
+    if (inTauri()) await call<void>('meeting_regenerate_notes', { id })
+    else throw new Error('Meeting notes need the desktop app.')
+  },
+
   meetingList: async (): Promise<MeetingSummary[]> =>
     inTauri() ? call<MeetingSummary[]>('meeting_list') : [],
 

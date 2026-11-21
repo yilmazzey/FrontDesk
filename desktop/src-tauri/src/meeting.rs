@@ -661,7 +661,7 @@ fn transcribe_file(
     }
     let total = reader.len() as usize;
 
-    progress(40, "Loading Whisper on this Mac");
+    progress(40, "Loading Whisper locally");
 
     let mut context_params = WhisperContextParameters::default();
     context_params.use_gpu = true;
@@ -739,21 +739,28 @@ fn notes_prompt(transcript: &str) -> String {
     )
 }
 
+fn resolve_model(models_dir: &Path, selected: Option<String>) -> Option<String> {
+    selected
+        .filter(|value| {
+            !value.is_empty()
+                && value != "extractive"
+                && model::path_for(models_dir, value).is_some()
+        })
+        .or_else(|| model::list(models_dir).first().map(|item| item.id.clone()))
+}
+
 fn generate_notes(
     app: &AppHandle,
     id: &str,
     transcript: &str,
     models_dir: &Path,
-    selected_model: Option<String>,
+    model_id: Option<String>,
 ) -> String {
     if transcript.trim().is_empty() {
         return "No speech was detected in this recording.".to_string();
     }
-    let Some(model_id) = selected_model
-        .filter(|value| !value.is_empty() && value != "extractive")
-        .or_else(|| model::list(models_dir).first().map(|item| item.id.clone()))
-    else {
-        return "The transcript is saved below. Install a local model in Settings to generate written notes."
+    let Some(model_id) = model_id else {
+        return "The transcript is saved below. No local model file is installed. Download Phi-4 Mini in Settings, or add a .gguf file to the models folder, to generate written notes."
             .to_string();
     };
 
@@ -850,18 +857,16 @@ fn run_process(app: &AppHandle, id: &str) -> Result<MeetingRecord, String> {
             .lock()
             .map_err(|_| "Could not read the settings.".to_string())?
             .get();
+        let model_id = resolve_model(&state.models_dir, settings.selected_model.clone());
         let notes = generate_notes(
             app,
             id,
             &record.transcript,
             &state.models_dir,
-            settings.selected_model.clone(),
+            model_id.clone(),
         );
         record.notes = notes;
-        record.model = settings
-            .selected_model
-            .clone()
-            .or_else(|| model::list(&state.models_dir).first().map(|item| item.id.clone()));
+        record.model = model_id;
 
         if let Some(folder) = settings.saved_folder.as_deref() {
             let body = format!(
@@ -913,6 +918,90 @@ fn run_process(app: &AppHandle, id: &str) -> Result<MeetingRecord, String> {
             Err(error)
         }
     }
+}
+
+fn run_notes_only(app: &AppHandle, id: &str) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let dir = meeting_dir(&state.data_dir, id);
+    let mut record = read_record(&dir)?;
+    if record.transcript.trim().is_empty() {
+        return Err("There is no transcript to turn into notes yet.".into());
+    }
+    let settings = state
+        .settings
+        .lock()
+        .map_err(|_| "Could not read the settings.".to_string())?
+        .get();
+    let model_id = resolve_model(&state.models_dir, settings.selected_model.clone());
+
+    record.status = "summarizing".into();
+    record.error = None;
+    write_record(&dir, &record)?;
+    state.meetings.set_phase("summarizing");
+
+    let notes = generate_notes(
+        app,
+        id,
+        &record.transcript,
+        &state.models_dir,
+        model_id.clone(),
+    );
+    record.notes = notes;
+    record.model = model_id;
+
+    if let Some(folder) = settings.saved_folder.as_deref() {
+        let body = format!(
+            "{}\n\n---\n\n## Transcript\n\n{}",
+            record.notes.trim(),
+            record.transcript.trim()
+        );
+        if let Ok(path) = crate::commands::write_saved_answer(
+            folder,
+            "briefing",
+            &record.title,
+            &body,
+            &["Local microphone recording".to_string()],
+        ) {
+            if let Some(old) = record.saved_path.take() {
+                let _ = fs::remove_file(old);
+            }
+            record.saved_path = Some(path);
+        }
+    }
+
+    record.status = "ready".into();
+    if record.ended_at.is_none() {
+        record.ended_at = Some(Local::now().to_rfc3339());
+    }
+    write_record(&dir, &record)?;
+    emit(app, id, "done", "ready", Some(100), "Notes are ready.");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn meeting_regenerate_notes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    if !safe_id(&id) {
+        return Err("Unknown meeting.".into());
+    }
+    let record = read_record(&meeting_dir(&state.data_dir, &id))?;
+    if record.transcript.trim().is_empty() {
+        return Err("There is no transcript to turn into notes yet.".into());
+    }
+    state.meetings.begin_process(&id)?;
+    state.meetings.set_phase("summarizing");
+
+    let app_for_thread = app.clone();
+    thread::spawn(move || {
+        let result = run_notes_only(&app_for_thread, &id);
+        let state = app_for_thread.state::<AppState>();
+        state.meetings.finish_process();
+        let _ = result;
+    });
+    Ok(())
 }
 
 #[tauri::command]
@@ -1135,7 +1224,14 @@ pub fn meeting_reveal(state: State<'_, AppState>, id: String) -> Result<(), Stri
             .status()
             .map_err(|error| format!("Could not open the meeting folder: {error}"))?;
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&dir)
+            .status()
+            .map_err(|error| format!("Could not open the meeting folder: {error}"))?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         std::process::Command::new("xdg-open")
             .arg(&dir)

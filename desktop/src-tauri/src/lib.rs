@@ -116,6 +116,7 @@ pub fn run() {
             meeting::meeting_start,
             meeting::meeting_stop,
             meeting::meeting_process,
+            meeting::meeting_regenerate_notes,
             meeting::meeting_list,
             meeting::meeting_get,
             meeting::meeting_delete,

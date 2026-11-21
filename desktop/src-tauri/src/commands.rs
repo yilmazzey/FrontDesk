@@ -1203,12 +1203,27 @@ pub fn select_model(state: State<'_, AppState>, id: Option<String>) -> Result<Ap
 fn ensure_default_model(state: &AppState) -> Result<(), String> {
     let mut store = state_lock(&state.settings)?;
     let settings = store.get();
-    if settings.model_choice_explicit || settings.selected_model.is_some() {
+    if let Some(selected) = settings.selected_model.as_deref() {
+        if model::path_for(&state.models_dir, selected).is_some() {
+            return Ok(());
+        }
+        // The selected GGUF was moved or deleted. Forgetting it is better than
+        // showing a model that cannot be loaded (and failing later in Ask or
+        // meeting notes).
+        let replacement = model::list(&state.models_dir)
+            .first()
+            .map(|item| item.id.clone());
+        store.auto_select_model(replacement);
         return Ok(());
     }
-    let models = model::list(&state.models_dir);
-    if let Some(first) = models.first() {
-        store.auto_select_model(Some(first.id.clone()));
+    if settings.model_choice_explicit {
+        return Ok(());
+    }
+    let first = model::list(&state.models_dir)
+        .first()
+        .map(|item| item.id.clone());
+    if first.is_some() {
+        store.auto_select_model(first);
     }
     Ok(())
 }

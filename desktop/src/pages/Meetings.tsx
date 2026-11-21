@@ -230,6 +230,20 @@ export default function Meetings() {
     }
   }
 
+  async function regenerateNotes() {
+    if (!selected) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api.meetingRegenerateNotes(selected.id)
+      await refresh()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function remove(id: string) {
     if (!window.confirm('Delete this meeting and its transcript? The Markdown copy in Saved is kept.')) {
       return
@@ -262,7 +276,7 @@ export default function Meetings() {
             Listen once, keep the <em className="pageTitle__hand">decisions.</em>
           </h1>
           <p className="pageLede">
-            FrontDesk records your microphone locally, transcribes with Whisper on this Mac, and
+            FrontDesk records your microphone locally, transcribes with Whisper on this computer, and
             writes notes with the local model. Nothing is uploaded. Audio is deleted after a
             successful transcription.
           </p>
@@ -279,9 +293,9 @@ export default function Meetings() {
         <section className="panel meetingSetup">
           <div>
             <p className="sectionLabel">Local transcription</p>
-            <h3>Whisper base, on this Mac</h3>
+            <h3>Whisper base, on this computer</h3>
             <p>
-              One-time download of {status.modelSizeMb} MB. No account, no cloud, no meeting bot.
+              One-time download of {status.modelSizeMb} MB. The same model installs on macOS, Windows and Linux; Whisper runs locally. No account, no cloud, no meeting bot.
             </p>
           </div>
           <div className="meetingSetup__actions">
@@ -338,7 +352,7 @@ export default function Meetings() {
               {recording
                 ? 'Speak normally. Stop when the meeting ends and FrontDesk will transcribe it.'
                 : processing
-                  ? progress?.message || 'Transcribing and writing notes on this Mac.'
+                  ? progress?.message || 'Transcribing and writing notes on this computer.'
                   : status && !status.micAvailable
                     ? 'No microphone was found. Connect one and reopen this page.'
                     : status && !status.modelInstalled
@@ -347,8 +361,8 @@ export default function Meetings() {
             </p>
             {status && !status.recording ? (
               <p className="meetingHint">
-                The first recording asks macOS for microphone access. If it is denied, enable
-                FrontDesk under System Settings → Privacy &amp; Security → Microphone.
+                The first recording asks your system for microphone access. If it is denied,
+                enable FrontDesk in your system's microphone privacy settings.
               </p>
             ) : null}
             {status && !status.llmAvailable ? (
@@ -431,6 +445,15 @@ export default function Meetings() {
                   {selected.status === 'error' ? 'Retry' : 'Resume'}
                 </button>
               ) : null}
+              {selected.transcript && !status?.processingId ? (
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => void regenerateNotes()}
+                >
+                  Regenerate notes
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="btn btn--ghost btn--sm"
@@ -501,7 +524,7 @@ export default function Meetings() {
               <p>{meeting.excerpt || 'Preparing the transcript…'}</p>
               <div className="meetingCard__foot">
                 <span>{formatDuration(meeting.durationSec)}</span>
-                <span>{meeting.savedPath ? 'Saved as Markdown' : 'On this Mac'}</span>
+                <span>{meeting.savedPath ? 'Saved as Markdown' : 'On this device'}</span>
               </div>
             </article>
           ))

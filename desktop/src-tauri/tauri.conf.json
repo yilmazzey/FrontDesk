@@ -63,6 +63,9 @@
       }
     },
     "linux": {
+      "deb": {
+        "depends": ["libasound2"]
+      },
       "appimage": {
         "bundleMediaFramework": false
       }

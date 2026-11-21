@@ -62,9 +62,21 @@ jobs:
             libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
+            libasound2-dev \
+            cmake \
+            libclang-dev \
             patchelf \
             tesseract-ocr \
             poppler-utils
+
+      - name: Windows native tools for Whisper
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files\LLVM\bin\libclang.dll")) {
+            choco install llvm -y
+          }
+          "LIBCLANG_PATH=C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Install workspace dependencies
         run: npm ci
