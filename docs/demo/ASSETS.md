@@ -13,6 +13,7 @@ FrontDesk reads both **Inbox** (mail from other people) and **Sent Items**. You 
   notes/01-launch-scope.md
   notes/02-vendor-shortlist.md
   notes/03-q1-budget.md
+  notes/04-monday-16-november.md
   handwriting/launch-whiteboard.png
 
 ~/Documents/FrontDesk Saved/
@@ -23,6 +24,14 @@ FrontDesk reads both **Inbox** (mail from other people) and **Sent Items**. You 
 Grant **`/Users/zeynep_yilmaz/Documents/FrontDesk Demo`** as the source folder. Set **`/Users/zeynep_yilmaz/Documents/FrontDesk Saved`** as the saved folder. Do not put the saved folder inside the granted folder.
 
 A print-ready version of the handwritten page is at `docs/demo/launch-whiteboard-print.pdf`.
+
+### Date questions
+
+Ask `What happened on 16 November?` or `What happened on previous Monday?`.
+
+The app resolves explicit dates (`16 November`, `16th November 2026`, `2026-11-16`, `16/11/2026`), `today`, `yesterday`, `previous Monday` and `last Monday`. It filters sources by the same date the Timeline shows, then answers with citations. The date is the **source date** — received or modified — not necessarily the event date.
+
+`notes/04-monday-16-november.md` is dated 16 November in its file metadata, so the date demo works even if Microsoft is disconnected.
 
 ---
 
@@ -218,6 +227,7 @@ If the demo account already has Microsoft contacts, the directory may add more n
 - [ ] Ask `What am I waiting on from Zeynep?` returns a cited answer. Clear the chat afterwards.
 - [ ] Search `pilot sites` finds the scan.
 - [ ] Ask `How many pilot sites are we starting with?` returns **three** and cites the scan.
+- [ ] Ask `What happened on 16 November?` cites the dated note, or the mail/OneNote from that day.
 - [ ] People shows Zeynep and Anika with the roles and departments set above.
 - [ ] Clicking Anika shows evidence; **Ask FrontDesk about Anika** returns a cited catch-up.
 - [ ] Meetings records and transcribes 5 seconds.

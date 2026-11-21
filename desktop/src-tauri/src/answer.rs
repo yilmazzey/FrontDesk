@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
+use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
+
 use crate::contracts::{Answer, ChatTurn, Citation, Clarification, SourceGrant, SourceRef};
 use crate::model;
 use crate::retrieve::bm25::{self, Scored};
@@ -164,11 +166,57 @@ pub fn ask_with_documents(
         chunks.extend(chunker::chunk_source(source, text));
     }
 
+    // A named day is a date filter, not a lexical hint. "16 November" and
+    // "previous Monday" must read the same sources the Timeline groups there;
+    // otherwise a question with no content words ("what happened") scores zero
+    // and abstains even though the day has mail, notes or meetings.
+    let date_range = resolve_date_range(question, Local::now().date_naive());
+    let date_mode = date_range.is_some();
+    if let Some(range) = &date_range {
+        chunks.retain(|chunk| chunk_date(chunk).is_some_and(|date| range.contains(date)));
+        if chunks.is_empty() {
+            return finish(
+                date_insufficient(range),
+                Vec::new(),
+                &[],
+                AnswerProvenance {
+                    abstained: true,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+
     let scored = bm25::search(&retrieval_question, &chunks, RETRIEVAL_CANDIDATES);
     let model_id = selected_model.filter(|id| !id.is_empty() && *id != "extractive");
     let candidates = rank_candidates(&retrieval_question, &scored, semantic_candidates);
-    let mut excerpts = select_excerpts(&retrieval_question, &chunks, &candidates);
+    let mut excerpts = if date_mode {
+        date_excerpts(&chunks)
+    } else {
+        select_excerpts(&retrieval_question, &chunks, &candidates)
+    };
+    if date_mode && excerpts.is_empty() {
+        return finish(
+            date_insufficient(date_range.as_ref().expect("date mode")),
+            Vec::new(),
+            &[],
+            AnswerProvenance {
+                abstained: true,
+                ..Default::default()
+            },
+        );
+    }
     let retrieved = retrieved_from(&excerpts, &candidates);
+
+    // Put the resolved day in the citation title so the reader (and the
+    // verifier) can see why these sources were selected.
+    if let Some(range) = &date_range {
+        for excerpt in &mut excerpts {
+            if !excerpt.title.contains(&range.label) {
+                excerpt.title = format!("{} — {}", excerpt.title, range.label);
+            }
+        }
+    }
 
     for chunk in &excerpts {
         if !read_sources.contains(&chunk.source_id) {
@@ -176,9 +224,13 @@ pub fn ask_with_documents(
         }
     }
 
-    let internal = is_internal_question(question) || mentions_known_name(question, &known_names);
-    let evidence_ok =
-        !excerpts.is_empty() && evidence_sufficient(&retrieval_question, &candidates, &excerpts);
+    let internal =
+        date_mode || is_internal_question(question) || mentions_known_name(question, &known_names);
+    let evidence_ok = if date_mode {
+        !excerpts.is_empty()
+    } else {
+        !excerpts.is_empty() && evidence_sufficient(&retrieval_question, &candidates, &excerpts)
+    };
 
     // Chat mode with a model can answer general questions, but manager/team/
     // document questions stay evidence-bound. Otherwise an unrelated note can
@@ -219,7 +271,7 @@ pub fn ask_with_documents(
 
     // Extractive chat mode can still benefit from a clarification when two
     // sources score almost equally. A generative model can synthesize instead.
-    if !chat || model_id.is_none() {
+    if (!chat || model_id.is_none()) && !date_mode {
         if let Some(clarification) = clarify(&retrieval_question, &scored) {
             return finish(
                 Answer {
@@ -251,7 +303,11 @@ pub fn ask_with_documents(
                 },
             );
         }
-        let (text, cited) = extractive(question, &excerpts);
+        let (text, cited) = if let Some(range) = &date_range {
+            date_extractive(range, &excerpts)
+        } else {
+            extractive(question, &excerpts)
+        };
         let answer = answered(text, &cited, &excerpts, "extractive", "sources");
         let provenance = provenance_for(&answer, &cited, &excerpts, 0, "extractive");
         return finish(answer, read_sources, &retrieved, provenance);
@@ -324,6 +380,12 @@ Rules:\n\
     };
 
     let mut user = String::new();
+    if let Some(range) = &date_range {
+        user.push_str(&format!(
+            "The question refers to {}. Only sources dated in that range are included. Use the date in the excerpt headers.\n\n",
+            range.label
+        ));
+    }
     if !excerpts.is_empty() {
         user.push_str("Excerpts:\n\n");
         for (index, excerpt) in excerpts.iter().enumerate() {
@@ -767,6 +829,333 @@ fn clock_answer(question: &str) -> Option<Answer> {
         model: "local-clock".into(),
         basis: "clock".into(),
     })
+}
+
+/// A day (or inclusive range) named in the question. The Timeline groups
+/// sources by the same local date, so "16 November" and "previous Monday"
+/// select the same rows a manager can see there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DateRange {
+    start: NaiveDate,
+    end: NaiveDate,
+    label: String,
+}
+
+impl DateRange {
+    fn single(date: NaiveDate) -> Self {
+        Self {
+            start: date,
+            end: date,
+            label: date.format("%d %B %Y").to_string(),
+        }
+    }
+
+    fn contains(&self, date: NaiveDate) -> bool {
+        date >= self.start && date <= self.end
+    }
+}
+
+/// Resolve only explicit dates and the few relative forms a manager actually
+/// types. A bare "Monday" is deliberately not resolved: it is usually an
+/// upcoming action ("by Monday"), not a request for a past day.
+fn resolve_date_range(question: &str, today: NaiveDate) -> Option<DateRange> {
+    let lower = question.to_lowercase();
+    if let Some(date) = explicit_date(&lower, today.year()) {
+        return Some(DateRange::single(date));
+    }
+    if let Some(date) = relative_weekday(&lower, today) {
+        return Some(DateRange::single(date));
+    }
+    if lower.contains("yesterday") {
+        return Some(DateRange::single(today - Duration::days(1)));
+    }
+    if lower.contains("today") {
+        return Some(DateRange::single(today));
+    }
+    None
+}
+
+fn explicit_date(lower: &str, current_year: i32) -> Option<NaiveDate> {
+    let tokens = word_tokens(lower);
+
+    for token in &tokens {
+        let cleaned = token.trim_matches(|c: char| !c.is_ascii_digit() && c != '-' && c != '/');
+        if cleaned.len() == 10
+            && cleaned.as_bytes().get(4) == Some(&b'-')
+            && cleaned.as_bytes().get(7) == Some(&b'-')
+        {
+            if let Ok(date) = NaiveDate::parse_from_str(cleaned, "%Y-%m-%d") {
+                return Some(date);
+            }
+        }
+        if cleaned.contains('/') {
+            if let Some(date) = slash_date(cleaned, current_year) {
+                return Some(date);
+            }
+        }
+    }
+
+    for (index, token) in tokens.iter().enumerate() {
+        let Some(month) = month_number(token) else {
+            continue;
+        };
+        let day = day_neighbor(&tokens, index, -1).or_else(|| day_neighbor(&tokens, index, 1));
+        let Some(day) = day else {
+            continue;
+        };
+        let year = year_after(&tokens, index).unwrap_or(current_year);
+        if let Some(date) = NaiveDate::from_ymd_opt(year, month, day) {
+            return Some(date);
+        }
+    }
+    None
+}
+
+fn word_tokens(lower: &str) -> Vec<String> {
+    lower
+        .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '/')
+        .filter(|word| !word.is_empty())
+        .map(|word| word.to_string())
+        .collect()
+}
+
+fn slash_date(token: &str, current_year: i32) -> Option<NaiveDate> {
+    let parts: Vec<&str> = token.split('/').collect();
+    if parts.len() < 2 || parts.len() > 3 {
+        return None;
+    }
+    let numbers = parts
+        .iter()
+        .map(|part| part.parse::<i32>().ok())
+        .collect::<Option<Vec<_>>>()?;
+    let (day, month, mut year) = match numbers.as_slice() {
+        [day, month] => (*day, *month, current_year),
+        [year, month, day] if *year >= 1000 => (*day, *month, *year),
+        [day, month, year] => (*day, *month, *year),
+        _ => return None,
+    };
+    if year < 100 {
+        year += 2000;
+    }
+    if !(1..=31).contains(&day) || !(1..=12).contains(&month) {
+        return None;
+    }
+    NaiveDate::from_ymd_opt(year, month as u32, day as u32)
+}
+
+fn month_number(word: &str) -> Option<u32> {
+    match word.trim_matches(|c: char| !c.is_alphabetic()) {
+        "january" | "jan" => Some(1),
+        "february" | "feb" => Some(2),
+        "march" | "mar" => Some(3),
+        "april" | "apr" => Some(4),
+        "may" => Some(5),
+        "june" | "jun" => Some(6),
+        "july" | "jul" => Some(7),
+        "august" | "aug" => Some(8),
+        "september" | "sep" | "sept" => Some(9),
+        "october" | "oct" => Some(10),
+        "november" | "nov" => Some(11),
+        "december" | "dec" => Some(12),
+        _ => None,
+    }
+}
+
+fn day_number(word: &str) -> Option<u32> {
+    let digits: String = word.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    let value: u32 = digits.parse().ok()?;
+    (1..=31).contains(&value).then_some(value)
+}
+
+fn day_neighbor(tokens: &[String], index: usize, direction: isize) -> Option<u32> {
+    let mut cursor = index as isize + direction;
+    let mut skips = 0;
+    while cursor >= 0 && (cursor as usize) < tokens.len() && skips < 2 {
+        let word = tokens[cursor as usize].as_str();
+        if matches!(word, "the" | "of" | "on") {
+            cursor += direction;
+            skips += 1;
+            continue;
+        }
+        return day_number(word);
+    }
+    None
+}
+
+fn year_after(tokens: &[String], index: usize) -> Option<i32> {
+    for word in tokens.iter().skip(index + 1).take(3) {
+        if let Some(year) = year_number(word) {
+            return Some(year);
+        }
+    }
+    None
+}
+
+fn year_number(word: &str) -> Option<i32> {
+    let cleaned = word.trim_matches(|c: char| !c.is_ascii_digit());
+    if cleaned.len() != 4 {
+        return None;
+    }
+    let value: i32 = cleaned.parse().ok()?;
+    (1900..=2100).contains(&value).then_some(value)
+}
+
+fn relative_weekday(lower: &str, today: NaiveDate) -> Option<NaiveDate> {
+    let tokens = word_tokens(lower);
+    for (index, token) in tokens.iter().enumerate() {
+        let Some(target) = weekday_number(token) else {
+            continue;
+        };
+        let previous = index
+            .checked_sub(1)
+            .and_then(|position| tokens.get(position))
+            .map(String::as_str);
+        let next = tokens.get(index + 1).map(String::as_str);
+        if !matches!(previous, Some("previous" | "last" | "past"))
+            && !matches!(next, Some("before"))
+        {
+            continue;
+        }
+        let today_index = today.weekday().num_days_from_monday() as i64;
+        let target_index = target.num_days_from_monday() as i64;
+        let mut delta = (today_index - target_index + 7) % 7;
+        if delta == 0 {
+            delta = 7;
+        }
+        return Some(today - Duration::days(delta));
+    }
+    None
+}
+
+fn weekday_number(word: &str) -> Option<Weekday> {
+    match word.trim_matches(|c: char| !c.is_alphabetic()) {
+        "monday" | "mon" => Some(Weekday::Mon),
+        "tuesday" | "tue" | "tues" => Some(Weekday::Tue),
+        "wednesday" | "wed" => Some(Weekday::Wed),
+        "thursday" | "thu" | "thur" | "thurs" => Some(Weekday::Thu),
+        "friday" | "fri" => Some(Weekday::Fri),
+        "saturday" | "sat" => Some(Weekday::Sat),
+        "sunday" | "sun" => Some(Weekday::Sun),
+        _ => None,
+    }
+}
+
+fn chunk_date(chunk: &Chunk) -> Option<NaiveDate> {
+    if let Ok(stamp) = chrono::DateTime::parse_from_rfc3339(&chunk.timestamp) {
+        return Some(stamp.with_timezone(&Local).date_naive());
+    }
+    let head = chunk.timestamp.get(0..10)?;
+    NaiveDate::parse_from_str(head, "%Y-%m-%d").ok()
+}
+
+fn date_insufficient(range: &DateRange) -> Answer {
+    Answer {
+        status: "insufficient".into(),
+        text: format!(
+            "No granted sources are dated {}. I did not find anything for that day.",
+            range.label
+        ),
+        citations: Vec::new(),
+        clarification: None,
+        model: "none".into(),
+        basis: "none".into(),
+    }
+}
+
+/// Date questions are answered by the sources dated that day, not by a
+/// lexical score. Prefer recaps and decisions, then calendar events.
+fn date_excerpts(chunks: &[Chunk]) -> Vec<Chunk> {
+    let mut candidates: Vec<&Chunk> = chunks.iter().collect();
+    candidates.sort_by(|left, right| {
+        date_chunk_rank(right)
+            .cmp(&date_chunk_rank(left))
+            .then_with(|| right.timestamp.cmp(&left.timestamp))
+            .then_with(|| right.text.len().cmp(&left.text.len()))
+    });
+
+    let mut selected = Vec::new();
+    let mut per_source: HashMap<String, usize> = HashMap::new();
+    let mut used_chars = 0;
+
+    for chunk in candidates {
+        if selected.len() >= MAX_EXCERPTS {
+            break;
+        }
+        let count = per_source.entry(chunk.source_id.clone()).or_insert(0);
+        if *count >= MAX_PER_SOURCE {
+            continue;
+        }
+        if !selected.is_empty() && used_chars + chunk.text.len() > MAX_CONTEXT_CHARS {
+            continue;
+        }
+        used_chars += chunk.text.len();
+        *count += 1;
+        selected.push(chunk.clone());
+    }
+
+    selected
+}
+
+fn date_chunk_rank(chunk: &Chunk) -> i32 {
+    let mut rank = if chunk.source_type == "calendar" { 10 } else { 0 };
+    let title = chunk.title.to_lowercase();
+    for (index, marker) in [
+        "recap", "decision", "summary", "notes", "minutes", "review", "sync", "agenda",
+    ]
+    .iter()
+    .enumerate()
+    {
+        if title.contains(marker) {
+            rank += 5 - index.min(4) as i32;
+        }
+    }
+    if chunk.text.len() > 200 {
+        rank += 2;
+    }
+    rank
+}
+
+/// Extractive fallback for a date question: quote the first useful sentence
+/// from each selected source instead of relying on lexical overlap, which a
+/// "what happened" question does not have.
+fn date_extractive(range: &DateRange, excerpts: &[Chunk]) -> (String, Vec<usize>) {
+    let mut pieces = Vec::new();
+    let mut cited = Vec::new();
+
+    for (index, chunk) in excerpts.iter().take(3).enumerate() {
+        let sentences = split_sentences(&chunk.text);
+        let sentence = sentences
+            .iter()
+            .find(|sentence| bm25::content_words(sentence).len() >= 3)
+            .or_else(|| sentences.first())
+            .map(String::as_str)
+            .unwrap_or(chunk.text.as_str());
+        let sentence = sentence.trim();
+        if sentence.is_empty() {
+            continue;
+        }
+        let clipped: String = sentence.chars().take(220).collect();
+        let clipped = if sentence.chars().count() > 220 {
+            format!("{clipped}…")
+        } else {
+            clipped
+        };
+        pieces.push(format!("{} [{}]", clipped, index + 1));
+        cited.push(index + 1);
+    }
+
+    let text = if pieces.is_empty() {
+        format!(
+            "No readable text was found in the sources dated {}.",
+            range.label
+        )
+    } else {
+        format!("On {}: {}", range.label, pieces.join(" "))
+    };
+    (text, cited)
 }
 
 fn is_internal_question(question: &str) -> bool {
@@ -1501,7 +1890,10 @@ fn split_leading_refs(text: &str) -> (&str, &str) {
 
 fn is_grounded(sentence: &str, excerpt: &Chunk) -> bool {
     let sentence_words: HashSet<String> = bm25::content_words(sentence).into_iter().collect();
-    let excerpt_words: HashSet<String> = bm25::content_words(&excerpt.text).into_iter().collect();
+    let excerpt_words: HashSet<String> =
+        bm25::content_words(&format!("{} {}", excerpt.title, excerpt.text))
+            .into_iter()
+            .collect();
     let overlap = sentence_words.intersection(&excerpt_words).count();
     if overlap == 0 {
         return false;
@@ -2203,5 +2595,172 @@ mod retrieval_tests {
         );
         assert_eq!(result.answer.status, "needs_setup");
         assert!(result.answer.citations.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod date_tests {
+    use super::*;
+
+    fn today() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 11, 21).unwrap()
+    }
+
+    fn source(id: &str, kind: &str, title: &str, modified: &str) -> SourceRef {
+        SourceRef {
+            id: id.into(),
+            grant_id: "test".into(),
+            kind: kind.into(),
+            title: title.into(),
+            location: format!("{title} location"),
+            modified: modified.into(),
+            hash: "v1".into(),
+            people: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn resolves_explicit_and_relative_dates() {
+        for question in [
+            "What happened on 16 November?",
+            "What happened on 16th of November 2026?",
+            "What happened on November 16, 2026?",
+            "What happened on 2026-11-16?",
+            "What happened on 16/11/2026?",
+            "What happened on previous Monday?",
+            "What happened last Monday?",
+        ] {
+            assert_eq!(
+                resolve_date_range(question, today()).map(|range| range.start),
+                NaiveDate::from_ymd_opt(2026, 11, 16),
+                "{question}"
+            );
+        }
+    }
+
+    #[test]
+    fn ignores_bare_weekdays_and_undated_questions() {
+        assert!(resolve_date_range("Who is starting on Monday?", today()).is_none());
+        assert!(resolve_date_range("What am I waiting on from Zeynep?", today()).is_none());
+        assert!(resolve_date_range("What did we decide about clause 4.2?", today()).is_none());
+    }
+
+    #[test]
+    fn explicit_date_selects_only_that_days_sources() {
+        let old = source(
+            "mail:old",
+            "mail",
+            "Recap: pricing sync",
+            "2026-11-16T09:00:00Z",
+        );
+        let new = source(
+            "file:new",
+            "file",
+            "Launch scope",
+            "2026-11-21T09:00:00Z",
+        );
+        let documents = vec![
+            (
+                old,
+                "We decided usage-based pricing. Legal review is still open.".to_string(),
+            ),
+            (
+                new,
+                "Phase 1 starts with three pilot sites in Leeds.".to_string(),
+            ),
+        ];
+
+        let result = ask_with_documents(
+            "What happened on 16 November?",
+            &documents,
+            &[],
+            None,
+            Path::new("."),
+            "extractive",
+            &[],
+        );
+
+        assert_eq!(result.answer.status, "answered");
+        assert!(result.answer.text.to_lowercase().contains("usage-based"));
+        assert!(result
+            .answer
+            .citations
+            .iter()
+            .any(|citation| citation.source_id == "mail:old"));
+        assert!(!result
+            .answer
+            .citations
+            .iter()
+            .any(|citation| citation.source_id == "file:new"));
+    }
+
+    #[test]
+    fn previous_monday_selects_the_same_sources() {
+        let old = source(
+            "mail:old",
+            "mail",
+            "Recap: pricing sync",
+            "2026-11-16T09:00:00Z",
+        );
+        let new = source(
+            "file:new",
+            "file",
+            "Launch scope",
+            "2026-11-21T09:00:00Z",
+        );
+        let documents = vec![
+            (
+                old,
+                "We decided usage-based pricing. Legal review is still open.".to_string(),
+            ),
+            (
+                new,
+                "Phase 1 starts with three pilot sites in Leeds.".to_string(),
+            ),
+        ];
+
+        let result = ask_with_documents(
+            "What happened on previous Monday?",
+            &documents,
+            &[],
+            None,
+            Path::new("."),
+            "extractive",
+            &[],
+        );
+
+        assert_eq!(result.answer.status, "answered");
+        assert!(result.answer.text.contains("16 November 2026"));
+        assert!(result
+            .answer
+            .citations
+            .iter()
+            .any(|citation| citation.source_id == "mail:old"));
+    }
+
+    #[test]
+    fn empty_day_says_which_day_was_searched() {
+        let documents = vec![(
+            source(
+                "file:new",
+                "file",
+                "Launch scope",
+                "2026-11-21T09:00:00Z",
+            ),
+            "Phase 1 starts with three pilot sites in Leeds.".to_string(),
+        )];
+
+        let result = ask_with_documents(
+            "What happened on 17 November?",
+            &documents,
+            &[],
+            None,
+            Path::new("."),
+            "extractive",
+            &[],
+        );
+
+        assert_eq!(result.answer.status, "insufficient");
+        assert!(result.answer.text.contains("17 November 2026"));
     }
 }
