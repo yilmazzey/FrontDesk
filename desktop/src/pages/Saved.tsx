@@ -107,7 +107,7 @@ export default function Saved() {
         <div>
           <p className="eyebrow">Saved</p>
           <h1 className="pageTitle">
-            Kept where <em>you chose.</em>
+            Kept where <em className="pageTitle__hand">you chose.</em>
           </h1>
           <p className="pageLede">
             Answers rehydrated from the Markdown files in your folder. Filter by what they are for;

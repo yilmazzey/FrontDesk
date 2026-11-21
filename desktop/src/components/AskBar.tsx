@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import SaveAnswerDialog from './SaveAnswerDialog'
+import SlingButton from './SlingButton'
 import { when } from '../lib/format'
 import { api } from '../lib/ipc'
 import { useAccess } from '../state/access'
@@ -348,14 +349,21 @@ export default function AskBar({
             }
             autoComplete="off"
           />
-          <button
-            type="submit"
-            className="askBar__submit"
-            disabled={busy || !question.trim()}
-            aria-label="Ask"
-          >
-            {busy ? '…' : 'ASK'}
-          </button>
+          <SlingButton
+            className="askBar__sling"
+            onSend={() => void ask(question)}
+            disabled={busy}
+            padColor="#ffb45c"
+            iconColor="#241d16"
+            accentColor="#ffb45c"
+            wellColor="var(--surface-strong)"
+            bandColor="var(--line-strong)"
+            size={54}
+            strokeWidth={3}
+            armAt={44}
+            maxPull={140}
+            ariaLabel={busy ? 'Asking…' : 'Ask'}
+          />
         </form>
 
         {turns.length === 0 ? (
@@ -526,14 +534,23 @@ export default function AskBar({
                       placeholder="Message FrontDesk…"
                       aria-label="Message FrontDesk"
                     />
-                    <button
-                      type="submit"
-                      className="chatComposer__send"
-                      disabled={busy || !question.trim()}
-                      aria-label="Send message"
-                    >
-                      ↑
-                    </button>
+                    <SlingButton
+                      className="chatComposer__sling"
+                      onSend={() => void ask(question)}
+                      disabled={busy}
+                      padColor="#ffb45c"
+                      iconColor="#241d16"
+                      accentColor="#ffb45c"
+                      wellColor="var(--panel-2)"
+                      bandColor="var(--line-strong)"
+                      size={38}
+                      strokeWidth={2.5}
+                      armAt={32}
+                      maxPull={110}
+                      flight={95}
+                      particles={10}
+                      ariaLabel={busy ? 'Sending…' : 'Send message'}
+                    />
                   </form>
                   <p className="chatHint">
                     Enter to send · Shift+Enter for a new line · Esc to close

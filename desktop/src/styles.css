@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Embolism Spark';
+  src: url('./assets/fonts/Embolism-Spark.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ==========================================================================
    FrontDesk Desktop — warm, local-first shell
    ========================================================================== */
@@ -548,6 +556,13 @@ input {
 .pageTitle em {
   font-style: italic;
   color: var(--amber-soft);
+}
+
+.pageTitle em.pageTitle__hand {
+  font-family: 'Embolism Spark', var(--serif);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.005em;
 }
 
 [data-theme='light'] .pageTitle em {
@@ -2816,32 +2831,8 @@ input {
   color: var(--ink-faint);
 }
 
-.askBar__submit {
-  width: 54px;
-  height: 54px;
+.askBar__sling {
   flex: 0 0 auto;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  background: var(--paper);
-  color: var(--ink-dark);
-  font-family: var(--mono);
-  font-size: 8px;
-  letter-spacing: 0.12em;
-  cursor: pointer;
-  transition:
-    background 160ms ease,
-    transform 160ms ease,
-    opacity 160ms ease;
-}
-
-.askBar__submit:hover:not(:disabled) {
-  background: #fffaf0;
-  transform: translateY(-1px);
-}
-
-.askBar__submit:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .askBar__suggestions {
@@ -2860,10 +2851,6 @@ input {
     padding-left: 14px;
   }
 
-  .askBar__submit {
-    width: 46px;
-    height: 46px;
-  }
 }
 
 .panel--wide {
@@ -3595,32 +3582,9 @@ input {
   color: var(--ink-faint);
 }
 
-.chatComposer__send {
-  display: grid;
-  place-items: center;
+.chatComposer__sling {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  background: var(--paper);
-  font-family: var(--sans);
-  font-size: 18px;
-  line-height: 1;
-  color: var(--ink-dark);
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease;
-}
-
-.chatComposer__send:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: #fffaf0;
-}
-
-.chatComposer__send:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+  margin-bottom: 1px;
 }
 
 .chatHint {
@@ -5452,6 +5416,7 @@ input {
 
 .openLoops .panel__head {
   align-items: center;
+  border-bottom: 0;
 }
 
 .authPrompt__tenant {
