@@ -4087,3 +4087,90 @@ a.monitorDownload__row:hover {
   object-position: 50% 30%;
   filter: saturate(0.98) contrast(1.02);
 }
+
+/* Hackathon marks */
+.hackathonMark {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+}
+
+.hackathonMark__logos {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hackathonMark__logo {
+  display: block;
+  width: auto;
+  object-fit: contain;
+}
+
+.hackathonMark__logo--pfizer {
+  height: 18px;
+}
+
+.hackathonMark__logo--newpage {
+  height: 16px;
+}
+
+.hackathonMark__x {
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.hackathonMark__suffix {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hackathonMark__dot {
+  color: var(--amber);
+}
+
+.hackathonMark__onLight {
+  display: none;
+}
+
+[data-theme='light'] .hackathonMark__onDark {
+  display: none;
+}
+
+[data-theme='light'] .hackathonMark__onLight {
+  display: block;
+}
+
+.hackathonMark--compact {
+  gap: 7px;
+}
+
+.hackathonMark--compact .hackathonMark__logos {
+  gap: 6px;
+}
+
+.hackathonMark--compact .hackathonMark__logo--pfizer {
+  height: 15px;
+}
+
+.hackathonMark--compact .hackathonMark__logo--newpage {
+  height: 14px;
+}
+
+.hackathonMark--compact .hackathonMark__x {
+  font-size: 9px;
+}
+
+@media (max-width: 760px) {
+  .hero__event .hackathonMark__logo--pfizer {
+    height: 15px;
+  }
+
+  .hero__event .hackathonMark__logo--newpage {
+    height: 13px;
+  }
+}

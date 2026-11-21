@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { site } from '../config'
+import HackathonMark from './HackathonMark'
 import { useUI, type NotebookSection } from '../store'
 
 const Arrow = () => (
@@ -91,8 +92,7 @@ export function Hero() {
   return (
     <section className="hero" aria-label="Introduction">
       <p className="hero__event">
-        <span className="hero__eventDot" aria-hidden="true" />
-        Pfizer &amp; Newpage Solutions Hackathon Challenge
+        <HackathonMark />
       </p>
 
       <h1 className="hero__title">

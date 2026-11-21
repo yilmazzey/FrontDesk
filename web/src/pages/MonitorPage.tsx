@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { site } from '../config'
+import HackathonMark from '../components/HackathonMark'
 
 const VERSION = __APP_VERSION__
 const BASE =
@@ -60,7 +60,7 @@ export default function MonitorPage() {
     <main className="monitorPage">
       <div className="monitorDownload">
         <div className="monitorDownload__intro">
-          <p className="monitorDownload__eyebrow">{site.hackathon} · Desktop</p>
+          <p className="monitorDownload__eyebrow"><HackathonMark compact suffix="Desktop" /></p>
 
           <h1 className="monitorDownload__title">
             Take the desk
