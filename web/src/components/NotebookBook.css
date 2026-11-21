@@ -1,0 +1,143 @@
+.notebookBook {
+  width: min(100%, 1040px);
+}
+
+.notebookBook .stf__parent {
+  margin: 0 auto;
+}
+
+.notebookBook__page {
+  box-sizing: border-box;
+  overflow: hidden auto;
+  background:
+    radial-gradient(110% 80% at 100% 0%, rgba(255, 255, 255, 0.6), transparent 54%),
+    linear-gradient(200deg, #f8f2e4 0%, #f2e8d5 62%, #ecdfc8 100%);
+  color: var(--ink-dark);
+}
+
+.notebookBook__page--cover,
+.notebookBook__page--back {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 70% at 20% 10%, rgba(255, 248, 232, 0.55), transparent 55%),
+    linear-gradient(150deg, #c99243 0%, #a56620 62%, #74471a 100%);
+  color: #fbf4e9;
+}
+
+.notebookBook__eyebrow {
+  margin: 0 0 16px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.notebookBook__page--cover h2,
+.notebookBook__page--back h2 {
+  margin: 0 0 16px;
+  font-family: var(--serif);
+  font-size: clamp(2rem, 4vw, 2.9rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.notebookBook__lede,
+.notebookBook__page--back p {
+  max-width: 30ch;
+  margin: 0;
+  color: rgba(251, 244, 233, 0.78);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.notebookBook__toc {
+  display: grid;
+  gap: 10px;
+  margin: 28px 0 0;
+  padding: 16px 0 0;
+  border-top: 1px solid rgba(251, 244, 233, 0.22);
+  list-style: none;
+}
+
+.notebookBook__toc li {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  color: rgba(251, 244, 233, 0.82);
+  font-size: 12px;
+}
+
+.notebookBook__toc b {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  opacity: 0.55;
+}
+
+.notebookBook__hint {
+  display: block;
+  margin-top: 26px;
+  font-family: var(--mono);
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.notebookBook__page .leaf {
+  max-width: none;
+  padding: 30px 28px 24px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.notebookBook__page .leaf__title {
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+}
+
+.notebookBook__page .aboutPerson__head {
+  gap: 16px;
+  margin: 4px 0 14px;
+}
+
+.notebookBook__page .aboutPerson__portrait {
+  width: 96px;
+  height: 122px;
+}
+
+.notebookBook__page .aboutPerson__portrait span {
+  font-size: 34px;
+}
+
+.notebookBook__page .aboutPerson__facts {
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 10px;
+}
+
+.notebookBook__page .aboutPerson__facts p {
+  font-size: 10px;
+}
+
+.notebookBook__contact {
+  display: grid;
+  gap: 6px;
+  margin-top: 22px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+}
+
+.notebookBook__contact a {
+  width: fit-content;
+  padding-bottom: 1px;
+  border-bottom: 1px solid rgba(251, 244, 233, 0.3);
+  color: #fbf4e9;
+  text-decoration: none;
+}

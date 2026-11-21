@@ -86,6 +86,7 @@ function Desk() {
   const { scene, bounds } = useDesk()
   const toggleLamp = useUI((s) => s.toggleLamp)
   const openNotebook = useUI((s) => s.openNotebook)
+  const setSection = useUI((s) => s.setSection)
   const enterApp = useUI((s) => s.enterApp)
 
   return (
@@ -97,7 +98,15 @@ function Desk() {
       <LivingDesk scene={scene} bounds={bounds} />
 
       <HitBox id="lamp" box={bounds.lamp} onActivate={toggleLamp} />
-      <HitBox id="notebook" box={bounds.notebook} grow={0.1} onActivate={openNotebook} />
+      <HitBox
+        id="notebook"
+        box={bounds.notebook}
+        grow={0.1}
+        onActivate={() => {
+          setSection('anika')
+          openNotebook()
+        }}
+      />
     </group>
   )
 }
