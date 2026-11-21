@@ -53,45 +53,49 @@
 }
 
 /* --------------------------------------------------------------------------
-   Glass mode — set on the root only when the Tauri shell is running. The
-   native window carries the macOS vibrancy material; these translucent
-   surfaces let it show through without washing out the browser preview.
+   Native window chrome — the Tauri window is opaque and uses an overlay
+   titlebar. macOS still owns the traffic lights, but the webview paints the
+   strip behind them, so no dark HUD material can bleed through in light mode.
    -------------------------------------------------------------------------- */
-[data-runtime='tauri'] {
-  --bg: rgba(18, 16, 14, 0.48);
-  --bg-deep: rgba(12, 10, 9, 0.34);
-  --panel: rgba(23, 20, 15, 0.7);
-  --panel-2: rgba(28, 24, 18, 0.58);
-  --line: rgba(244, 236, 225, 0.14);
-  --line-strong: rgba(244, 236, 225, 0.24);
+.windowBar {
+  display: none;
 }
 
-[data-runtime='tauri'][data-theme='light'] {
-  --bg: rgba(233, 221, 201, 0.64);
-  --bg-deep: rgba(225, 211, 188, 0.5);
-  --panel: rgba(244, 235, 218, 0.82);
-  --panel-2: rgba(239, 228, 208, 0.72);
-  --line: rgba(36, 29, 22, 0.14);
-  --line-strong: rgba(36, 29, 22, 0.24);
+[data-runtime='tauri'] .app {
+  padding-top: 30px;
 }
 
-[data-runtime='tauri'] .app,
-[data-runtime='tauri'] .sidebar,
-[data-runtime='tauri'] .titlebar {
-  backdrop-filter: blur(12px) saturate(1.04);
-  -webkit-backdrop-filter: blur(12px) saturate(1.04);
+[data-runtime='tauri'] .windowBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: block;
+  height: 30px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    var(--bg-deep) 0 var(--sidebar-w, 224px),
+    var(--bg) var(--sidebar-w, 224px)
+  );
 }
 
-[data-runtime='tauri'] .panel,
-[data-runtime='tauri'] .panel--inset,
-[data-runtime='tauri'] .ask,
-[data-runtime='tauri'] .stat,
-[data-runtime='tauri'] .result,
-[data-runtime='tauri'] .searchField,
-[data-runtime='tauri'] .modelCard,
-[data-runtime='tauri'] .connectRow {
-  backdrop-filter: blur(8px) saturate(1.03);
-  -webkit-backdrop-filter: blur(8px) saturate(1.03);
+[data-runtime='tauri'][data-theme='light'] .windowBar {
+  background: linear-gradient(
+    90deg,
+    var(--bg-deep) 0 var(--sidebar-w, 224px),
+    var(--paper) var(--sidebar-w, 224px)
+  );
+}
+
+.windowBar__drag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 84px;
+  pointer-events: auto;
 }
 
 * {
@@ -144,6 +148,7 @@ input {
    ========================================================================== */
 
 .app {
+  --sidebar-w: 224px;
   display: grid;
   grid-template-columns: 224px minmax(0, 1fr);
   height: 100dvh;
@@ -154,6 +159,7 @@ input {
 }
 
 .app--rail {
+  --sidebar-w: 62px;
   grid-template-columns: 62px minmax(0, 1fr);
 }
 
@@ -5535,28 +5541,8 @@ input {
   color: var(--amber);
 }
 
-/* The work area dims slightly while the line sidebar is in focus. */
 .work {
   position: relative;
-}
-
-.work.is-dimmed::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  pointer-events: none;
-  background: rgba(6, 5, 4, 0.18);
-  animation: navDim 0.22s ease both;
-}
-
-@keyframes navDim {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 /* Light theme: the native HUD material leaves a dark strip behind the custom
@@ -5567,7 +5553,7 @@ input {
 }
 
 [data-theme='light'][data-runtime='tauri'] .titlebar {
-  background: rgba(247, 241, 228, 0.92);
+  background: var(--paper);
 }
 
 [data-theme='light'] .titlebar__title,

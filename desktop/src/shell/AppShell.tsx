@@ -34,7 +34,6 @@ export function AppShell() {
   )
   const [core, setCore] = useState<'checking' | 'online' | 'browser'>('checking')
   const [syncing, setSyncing] = useState(false)
-  const [navHover, setNavHover] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('frontdesk.sidebar') === 'collapsed',
   )
@@ -127,6 +126,10 @@ export function AppShell() {
 
   return (
     <div className={`app${sidebarCollapsed ? ' app--rail' : ''}`}>
+      <div className="windowBar" aria-hidden="true">
+        <div className="windowBar__drag" data-tauri-drag-region />
+      </div>
+
       <aside className="sidebar">
         <div className="sidebar__brand">
           <span className="sidebar__dot" aria-hidden="true" />
@@ -149,10 +152,6 @@ export function AppShell() {
         <nav
           className="sidebar__nav"
           aria-label="Primary"
-          onPointerEnter={() => setNavHover(true)}
-          onPointerLeave={() => setNavHover(false)}
-          onFocus={() => setNavHover(true)}
-          onBlur={() => setNavHover(false)}
         >
           <LineSidebar
             items={nav.map((item) => item.label)}
@@ -163,8 +162,8 @@ export function AppShell() {
             ))}
             activeIndex={activeIndex}
             accentColor="var(--amber)"
-            textColor="rgba(251,244,233,0.58)"
-            markerColor="rgba(251,244,233,0.2)"
+            textColor="var(--ink-faint)"
+            markerColor="var(--line-strong)"
             proximityRadius={92}
             maxShift={16}
             markerLength={26}
@@ -217,7 +216,7 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className={`work${navHover ? ' is-dimmed' : ''}`}>
+      <div className="work">
         <header className="titlebar">
           <span className="titlebar__title">{titles[pathname] ?? 'FrontDesk'}</span>
           <div className="titlebar__right">

@@ -35,6 +35,15 @@
   transition: opacity 0.25s ease;
 }
 
+[data-theme='light'] .line-sidebar::before {
+  background: linear-gradient(
+    90deg,
+    rgba(36, 29, 22, 0.1) 0%,
+    rgba(36, 29, 22, 0.04) 62%,
+    rgba(36, 29, 22, 0) 100%
+  );
+}
+
 .line-sidebar:hover::before,
 .line-sidebar:focus-within::before {
   opacity: 1;
