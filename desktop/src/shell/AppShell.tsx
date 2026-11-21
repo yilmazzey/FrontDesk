@@ -135,18 +135,6 @@ export function AppShell() {
           <span className="sidebar__dot" aria-hidden="true" />
           <span className="sidebar__word">FrontDesk</span>
           <span className="sidebar__tag">desktop</span>
-          <button
-            type="button"
-            className="sidebar__collapse"
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d={sidebarCollapsed ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
-            </svg>
-          </button>
         </div>
 
         <nav
@@ -165,7 +153,7 @@ export function AppShell() {
             textColor="var(--ink-faint)"
             markerColor="var(--line-strong)"
             proximityRadius={92}
-            maxShift={16}
+            maxShift={0}
             markerLength={26}
             markerGap={4}
             itemGap={16}
@@ -191,6 +179,20 @@ export function AppShell() {
           <div className="sidebar__grants">
             {grants.length} {grants.length === 1 ? 'grant' : 'grants'} active
           </div>
+
+          <button
+            type="button"
+            className="sidebar__rail"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d={sidebarCollapsed ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+            </svg>
+            <span className="sidebar__railText">Collapse sidebar</span>
+          </button>
 
           <button
             type="button"

@@ -162,7 +162,6 @@
    background and requestAnimationFrame is throttled. */
 .line-sidebar__item[aria-current='page'] .line-sidebar__label {
   color: var(--accent-color);
-  transform: translateX(var(--max-shift));
 }
 
 .line-sidebar__item[aria-current='page'] .line-sidebar__index {

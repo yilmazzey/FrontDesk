@@ -74,19 +74,6 @@
   display: block;
   height: 30px;
   pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    var(--bg-deep) 0 var(--sidebar-w, 224px),
-    var(--bg) var(--sidebar-w, 224px)
-  );
-}
-
-[data-runtime='tauri'][data-theme='light'] .windowBar {
-  background: linear-gradient(
-    90deg,
-    var(--bg-deep) 0 var(--sidebar-w, 224px),
-    var(--paper) var(--sidebar-w, 224px)
-  );
 }
 
 .windowBar__drag {
@@ -163,36 +150,52 @@ input {
   grid-template-columns: 62px minmax(0, 1fr);
 }
 
-.sidebar__collapse {
-  display: inline-flex;
+.sidebar__rail {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-left: auto;
-  border: 1px solid var(--line);
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
   border-radius: 4px;
   background: transparent;
   color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     color 0.18s ease,
-    border-color 0.18s ease;
+    background 0.18s ease;
 }
 
-.sidebar__collapse:hover {
+.sidebar__rail:hover {
   color: var(--ink);
-  border-color: var(--amber);
+  background: rgba(244, 236, 225, 0.04);
 }
 
-.sidebar__collapse svg {
-  width: 13px;
-  height: 13px;
+[data-theme='light'] .sidebar__rail:hover {
+  background: rgba(36, 29, 22, 0.05);
+}
+
+.sidebar__rail svg {
+  width: 14px;
+  height: 14px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.app--rail .sidebar__rail {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.app--rail .sidebar__railText {
+  display: none;
 }
 
 .app--rail .sidebar {
@@ -213,10 +216,6 @@ input {
 .app--rail .sidebar__grants,
 .app--rail .themeSwitch__text {
   display: none;
-}
-
-.app--rail .sidebar__collapse {
-  margin-left: 0;
 }
 
 .app--rail .navItem {
@@ -243,12 +242,7 @@ input {
   flex-direction: column;
   gap: 26px;
   padding: 26px 18px 20px;
-  border-right: 1px solid var(--line);
-  background: var(--bg-deep);
-}
-
-[data-theme='light'] .sidebar {
-  background: rgba(36, 29, 22, 0.04);
+  background: transparent;
 }
 
 .sidebar__brand {
@@ -435,7 +429,6 @@ input {
   gap: 16px;
   flex: 0 0 auto;
   padding: 14px 22px;
-  border-bottom: 1px solid var(--line);
   user-select: none;
 }
 
@@ -1268,7 +1261,7 @@ input {
   }
 
   .sidebar__tag,
-  .sidebar__collapse {
+  .sidebar__railText {
     display: none;
   }
 
@@ -5545,17 +5538,7 @@ input {
   position: relative;
 }
 
-/* Light theme: the native HUD material leaves a dark strip behind the custom
-   titlebar. Paint the bar with the paper colour and use dark ink instead. */
-[data-theme='light'] .titlebar {
-  background: var(--paper);
-  color: var(--ink-dark);
-}
-
-[data-theme='light'][data-runtime='tauri'] .titlebar {
-  background: var(--paper);
-}
-
+/* Light theme: the titlebar inherits the page background. */
 [data-theme='light'] .titlebar__title,
 [data-theme='light'] .titlebar__status {
   color: rgba(29, 23, 17, 0.62);
