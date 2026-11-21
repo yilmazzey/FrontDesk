@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ManagerSnapshot, OpenLoop } from '../types/source'
+import { loopKey, useDismissedLoops } from '../state/dismissedLoops'
 
 type Props = {
   snapshot: ManagerSnapshot | null
@@ -50,7 +51,8 @@ function Group({
 }
 
 export default function OpenLoopsCard({ snapshot, loading, onAsk }: Props) {
-  const loops = snapshot?.openLoops ?? []
+  const { dismissed, count: hiddenCount } = useDismissedLoops()
+  const loops = (snapshot?.openLoops ?? []).filter((loop) => !dismissed.has(loopKey(loop)))
   const mine = loops.filter((loop) => loop.direction === 'mine')
   const waiting = loops.filter((loop) => loop.direction === 'waiting')
 
@@ -100,6 +102,11 @@ export default function OpenLoopsCard({ snapshot, loading, onAsk }: Props) {
         >
           Review commitments
         </button>
+        {hiddenCount > 0 ? (
+          <p className="panel__note openLoops__hidden">
+            {hiddenCount} hidden. <Link to="/loops">Restore on Open loops</Link>
+          </p>
+        ) : null}
       </div>
     </section>
   )

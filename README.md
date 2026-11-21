@@ -4,7 +4,9 @@ A local-first second brain for managers, built for the **Pfizer & Newpage Soluti
 
 FrontDesk is a Tauri desktop app with a Rust core and a separate web landing page. It reads only the sources you grant, keeps originals where they live, and turns meetings, notes, mail, calendar events and OneNote pages into a manager-shaped daily view.
 
-- **Manager dashboard** — next meeting prep, open commitments, people catch-up nudges and a short timeline.
+- **Manager dashboard** — next meeting prep, open commitments, people catch-up nudges, live deadline countdowns and a short timeline.
+- **Deadlines** — add a due date from the dashboard or straight from an answer; day, hour and minute counters update on the dashboard.
+- **Open loops** — swipe a commitment to mark it **Done** or **Delete** it, or use the drawer buttons; hidden items can be restored.
 - **Ask** — a conversational assistant with inline `[n]` citations, local files, optional web snippets and a local-clock path.
 - **Timeline** — searchable, filterable history with sticky day headers, a **Today** jump and likely meeting links.
 - **Search** — content search with matched excerpts, people and dates; every result row opens the original.

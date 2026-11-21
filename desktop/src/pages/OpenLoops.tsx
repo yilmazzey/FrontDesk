@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { CheckmarkCircle02Icon, Delete02Icon } from '@hugeicons/core-free-icons'
+import SwipeRow from '../components/SwipeRow'
 import { api } from '../lib/ipc'
 import { useAccess } from '../state/access'
+import { loopKey, useDismissedLoops } from '../state/dismissedLoops'
 import type { OpenLoop } from '../types/source'
+
+const AnySwipeRow = SwipeRow as any
 
 type Filter = 'all' | 'mine' | 'waiting'
 
@@ -14,6 +20,96 @@ function sourceDate(value: string) {
 
 function directionLabel(direction: OpenLoop['direction']) {
   return direction === 'mine' ? 'I owe' : 'Waiting on'
+}
+
+function LoopRow({
+  loop,
+  onAsk,
+  onOpen,
+  onPerson,
+}: {
+  loop: OpenLoop
+  onAsk: (question: string) => void
+  onOpen: (loop: OpenLoop) => void
+  onPerson: (person: string) => void
+}) {
+  const { dismiss } = useDismissedLoops()
+  const askQuestion = loop.person
+    ? `What do I owe ${loop.person}, and what is still open?`
+    : `Catch me up on: ${loop.text}`
+
+  return (
+    <AnySwipeRow
+      className="loopSwipe"
+      label={`Open loop: ${loop.text}`}
+      actions={[
+        {
+          id: 'delete',
+          label: 'Delete',
+          icon: <HugeiconsIcon icon={Delete02Icon} size={18} strokeWidth={2} />,
+        },
+        {
+          id: 'done',
+          label: 'Done',
+          color: '#3f8f63',
+          dismiss: true,
+          icon: <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} strokeWidth={2} />,
+        },
+      ]}
+      onCommit={(action: { id: string }) =>
+        dismiss(loop, action.id === 'done' ? 'done' : 'drop')
+      }
+      actionColor="#b34a42"
+      drawerColor="var(--panel-2)"
+      rowColor="var(--surface)"
+      textColor="var(--ink)"
+      height={88}
+      radius={12}
+      actionWidth={82}
+      commitAt={0.55}
+    >
+      <div className="loopSwipe__content">
+        <span className={`loopPageRow__mark is-${loop.direction}`} aria-hidden="true" />
+        <div className="loopSwipe__body">
+          <p className="loopPageRow__text">{loop.text}</p>
+          <div className="loopPageRow__meta">
+            <span className={`loopBadge is-${loop.direction}`}>
+              {directionLabel(loop.direction)}
+            </span>
+            {loop.person ? (
+              <button
+                type="button"
+                className="loopPerson"
+                onClick={() => onPerson(loop.person ?? '')}
+                title={`Filter by ${loop.person}`}
+              >
+                {loop.person}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="loopSource"
+              onClick={() => onOpen(loop)}
+              title="Open the source"
+            >
+              {loop.sourceTitle}
+              {loop.timestamp ? ` · ${sourceDate(loop.timestamp)}` : ''}
+            </button>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm loopSwipe__ask"
+          onClick={(event) => {
+            event.stopPropagation()
+            onAsk(askQuestion)
+          }}
+        >
+          Ask
+        </button>
+      </div>
+    </AnySwipeRow>
+  )
 }
 
 function LoopGroup({
@@ -40,50 +136,8 @@ function LoopGroup({
       {items.length ? (
         <ul className="loopPageList">
           {items.map((loop) => (
-            <li className="loopPageRow" key={loop.id}>
-              <span className={`loopPageRow__mark is-${loop.direction}`} aria-hidden="true" />
-              <div className="loopPageRow__body">
-                <p className="loopPageRow__text">{loop.text}</p>
-                <div className="loopPageRow__meta">
-                  <span className={`loopBadge is-${loop.direction}`}>
-                    {directionLabel(loop.direction)}
-                  </span>
-                  {loop.person ? (
-                    <button
-                      type="button"
-                      className="loopPerson"
-                      onClick={() => onPerson(loop.person ?? '')}
-                      title={`Filter by ${loop.person}`}
-                    >
-                      {loop.person}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="loopSource"
-                    onClick={() => onOpen(loop)}
-                    title="Open the source"
-                  >
-                    {loop.sourceTitle}
-                    {loop.timestamp ? ` · ${sourceDate(loop.timestamp)}` : ''}
-                  </button>
-                </div>
-              </div>
-              <div className="loopPageRow__actions">
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() =>
-                    onAsk(
-                      loop.person
-                        ? `What do I owe ${loop.person}, and what is still open?`
-                        : `Catch me up on: ${loop.text}`,
-                    )
-                  }
-                >
-                  Ask
-                </button>
-              </div>
+            <li className="loopPageRowWrap" key={loop.id}>
+              <LoopRow loop={loop} onAsk={onAsk} onOpen={onOpen} onPerson={onPerson} />
             </li>
           ))}
         </ul>
@@ -102,12 +156,16 @@ export default function OpenLoops() {
     resync,
   } = useAccess()
   const navigate = useNavigate()
+  const { dismissed, count: hiddenCount, restoreAll } = useDismissedLoops()
   const [notice, setNotice] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [person, setPerson] = useState<string | null>(null)
 
-  const loops = snapshot?.openLoops ?? []
+  const loops = useMemo(
+    () => (snapshot?.openLoops ?? []).filter((loop) => !dismissed.has(loopKey(loop))),
+    [snapshot, dismissed],
+  )
 
   const people = useMemo(() => {
     const counts = new Map<string, number>()
@@ -165,6 +223,11 @@ export default function OpenLoops() {
           </p>
         </div>
         <div className="loopsHeader__actions">
+          {hiddenCount > 0 ? (
+            <button type="button" className="btn btn--ghost" onClick={restoreAll}>
+              Restore {hiddenCount} hidden
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn--ghost"

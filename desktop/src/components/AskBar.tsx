@@ -8,6 +8,9 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import SaveAnswerDialog from './SaveAnswerDialog'
+import DeadlineDialog from './DeadlineDialog'
+import { useDeadlines } from '../state/deadlines'
+import { suggestDeadlineDueAt, suggestDeadlineTitle } from '../lib/deadlineText'
 import SlingButton from './SlingButton'
 import { when } from '../lib/format'
 import { api } from '../lib/ipc'
@@ -61,9 +64,10 @@ type AnswerViewProps = {
   onAsk: (question: string) => void
   onOpen: (citation: Citation) => void
   onSave: (turn: Turn) => void
+  onDeadline: (turn: Turn) => void
 }
 
-function AnswerView({ turn, onAsk, onOpen, onSave }: AnswerViewProps) {
+function AnswerView({ turn, onAsk, onOpen, onSave, onDeadline }: AnswerViewProps) {
   const answer = turn.answer
   if (!answer) return null
 
@@ -156,6 +160,15 @@ function AnswerView({ turn, onAsk, onOpen, onSave }: AnswerViewProps) {
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => onSave(turn)}>
           Save answer
         </button>
+        {answer.status === 'answered' ? (
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => onDeadline(turn)}
+          >
+            Set deadline
+          </button>
+        ) : null}
       </div>
     </section>
   )
@@ -173,6 +186,8 @@ export default function AskBar({
   suggestions = defaultSuggestions,
 }: Props) {
   const { info, models, selectMode } = useAccess()
+  const { add: addDeadline } = useDeadlines()
+  const [deadlineTurn, setDeadlineTurn] = useState<Turn | null>(null)
   const [question, setQuestion] = useState('')
   const [turns, setTurns] = useState<Turn[]>([])
   const [notice, setNotice] = useState<string | null>(null)
@@ -205,6 +220,10 @@ export default function AskBar({
     if (!open) return
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      if (deadlineTurn) {
+        setDeadlineTurn(null)
+        return
+      }
       if (saveTurn) {
         setSaveTurn(null)
         return
@@ -217,7 +236,7 @@ export default function AskBar({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, preview, saveTurn])
+  }, [deadlineTurn, open, preview, saveTurn])
 
   useEffect(() => {
     if (!focusSignal) return
@@ -491,6 +510,7 @@ export default function AskBar({
                               onAsk={(value) => void ask(value)}
                               onOpen={(citation) => void openCitation(citation)}
                               onSave={(selected) => setSaveTurn(selected)}
+                              onDeadline={(selected) => setDeadlineTurn(selected)}
                             />
                           </div>
                         </div>
@@ -565,6 +585,20 @@ export default function AskBar({
                   body={saveTurn.answer.text}
                   sources={saveTurn.answer.citations.map((citation) => citation.title)}
                   onClose={() => setSaveTurn(null)}
+                />
+              ) : null}
+
+              {deadlineTurn?.answer ? (
+                <DeadlineDialog
+                  open={Boolean(deadlineTurn)}
+                  initialTitle={suggestDeadlineTitle(deadlineTurn.answer.text)}
+                  initialDueAt={suggestDeadlineDueAt(deadlineTurn.answer.text)}
+                  source={deadlineTurn.question}
+                  onClose={() => setDeadlineTurn(null)}
+                  onSave={(input) => {
+                    addDeadline(input)
+                    setDeadlineTurn(null)
+                  }}
                 />
               ) : null}
             </div>,
