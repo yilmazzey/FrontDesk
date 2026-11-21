@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import AskBar from '../components/AskBar'
 import NextUpCard from '../components/NextUpCard'
+import DeadlinePanel from '../components/DeadlinePanel'
 import OpenLoopsCard from '../components/OpenLoopsCard'
 import PeoplePanel from '../components/PeoplePanel'
 import TimelinePreview from '../components/TimelinePreview'
@@ -95,6 +96,10 @@ export default function Dashboard() {
           loading={snapshotLoading}
           onAsk={openAsk}
         />
+      </div>
+
+      <div className="dashboardWide">
+        <DeadlinePanel />
       </div>
 
       <PeoplePanel

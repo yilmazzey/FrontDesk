@@ -100,6 +100,7 @@ export type AppInfo = {
   savedFolder: string | null
   microsoftClientId: string | null
   microsoftTenant?: string | null
+  keepMicrosoftSignedIn?: boolean
   includePrivateOnenote: boolean
 }
 
@@ -317,4 +318,61 @@ export type BrowserSignInPrompt = {
 export type BrowserSignInPoll = {
   status: 'pending' | 'connected' | 'error' | 'idle'
   error: string | null
+}
+
+export type MeetingStatus = {
+  recording: boolean
+  activeId: string | null
+  startedAt: string | null
+  processingId: string | null
+  phase: string
+  modelInstalled: boolean
+  modelSizeMb: number
+  modelPath: string
+  micAvailable: boolean
+  llmAvailable: boolean
+}
+
+export type MeetingSummary = {
+  id: string
+  title: string
+  startedAt: string
+  durationSec: number
+  status: string
+  excerpt: string
+  model: string | null
+  savedPath: string | null
+}
+
+export type MeetingRecord = {
+  id: string
+  title: string
+  startedAt: string
+  endedAt: string | null
+  durationSec: number
+  status: string
+  transcript: string
+  notes: string
+  model: string | null
+  savedPath: string | null
+  error: string | null
+  audioDeleted: boolean
+}
+
+export type MeetingStarted = {
+  id: string
+  startedAt: string
+}
+
+export type MeetingStopped = {
+  id: string
+  durationSec: number
+}
+
+export type MeetingProgress = {
+  id: string
+  kind: string
+  phase: string
+  percent: number | null
+  message: string
 }

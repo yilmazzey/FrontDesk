@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import PathLink from '../components/PathLink'
 import PrivacySettings from '../components/PrivacySettings'
@@ -34,6 +34,7 @@ export default function Settings() {
   const [signInExpired, setSignInExpired] = useState(false)
   const [clock, setClock] = useState(() => Date.now())
   const [microsoftBusy, setMicrosoftBusy] = useState(false)
+  const finishingRef = useRef(false)
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null)
   const [indexBusy, setIndexBusy] = useState(false)
   const [indexNotice, setIndexNotice] = useState<string | null>(null)
@@ -171,6 +172,31 @@ export default function Settings() {
     }
   }, [])
 
+  const completeMicrosoftSignIn = useCallback(async () => {
+    if (finishingRef.current) return
+    finishingRef.current = true
+    // Close the modal as soon as Microsoft confirms. Granting sources and
+    // refreshing the dashboard can take a few seconds; the user should not be
+    // trapped behind the prompt while that happens.
+    setDeviceCode(null)
+    setCodeExpiresAt(null)
+    setCodeIssuedAt(null)
+    setSignInExpired(false)
+    setMicrosoftBusy(false)
+    setNotice('Microsoft account connected. Loading your sources…')
+    try {
+      await api.grantMicrosoftSources()
+      await refresh()
+      setMicrosoftProfile(await api.getMicrosoftProfile())
+      setMicrosoftChecks(await api.microsoftDiagnostics())
+      setNotice('Microsoft account connected. Mail, calendar and OneNote are available.')
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      finishingRef.current = false
+    }
+  }, [refresh])
+
   useEffect(() => {
     if (!deviceCode || !codeExpiresAt) return
     setClock(Date.now())
@@ -201,16 +227,7 @@ export default function Settings() {
         const result = await api.pollMicrosoftSignIn()
         if (!active) return
         if (result.status === 'connected') {
-          await api.grantMicrosoftSources()
-          await refresh()
-          setMicrosoftProfile(await api.getMicrosoftProfile())
-          setMicrosoftChecks(await api.microsoftDiagnostics())
-          setDeviceCode(null)
-          setCodeExpiresAt(null)
-          setCodeIssuedAt(null)
-          setSignInExpired(false)
-          setMicrosoftBusy(false)
-          setNotice('Microsoft account connected. Mail, calendar and OneNote are available.')
+          await completeMicrosoftSignIn()
           return
         }
         timer = setTimeout(poll, Math.max(1, result.intervalSeconds) * 1000)
@@ -244,7 +261,7 @@ export default function Settings() {
       active = false
       clearTimeout(timer)
     }
-  }, [deviceCode, signInExpired, codeExpiresAt, refresh])
+  }, [deviceCode, signInExpired, codeExpiresAt, completeMicrosoftSignIn])
 
   async function copyToClipboard(value: string): Promise<boolean> {
     try {
@@ -268,6 +285,42 @@ export default function Settings() {
       return copied
     } catch {
       return false
+    }
+  }
+
+  useEffect(() => {
+    if (!deviceCode) return
+    const check = () => {
+      void api
+        .pollMicrosoftSignIn()
+        .then((result) => {
+          if (result.status === 'connected') void completeMicrosoftSignIn()
+        })
+        .catch(() => {
+          // A background check must not disturb the prompt.
+        })
+    }
+    const onVisibility = () => {
+      if (!document.hidden) check()
+    }
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [deviceCode, completeMicrosoftSignIn])
+
+  async function checkMicrosoftSignIn() {
+    try {
+      const result = await api.pollMicrosoftSignIn()
+      if (result.status === 'connected') {
+        await completeMicrosoftSignIn()
+      } else {
+        setNotice('Microsoft is still waiting for approval. Finish the browser step and check again.')
+      }
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : String(cause))
     }
   }
 
@@ -317,6 +370,7 @@ export default function Settings() {
       setNotice('Enter a Microsoft client ID below, or set VITE_MICROSOFT_CLIENT_ID in desktop/.env.local.')
       return
     }
+    finishingRef.current = false
     setMicrosoftBusy(true)
     setNotice(null)
     // Clear the old prompt first: otherwise the expiry effect can fire against
@@ -360,6 +414,7 @@ export default function Settings() {
   async function cancelMicrosoftSignIn() {
     try {
       await api.cancelMicrosoftSignIn()
+      finishingRef.current = false
       setDeviceCode(null)
       setCodeExpiresAt(null)
       setCodeIssuedAt(null)
@@ -504,9 +559,7 @@ export default function Settings() {
       <header className="pageHead pageHead--tight">
         <div>
           <p className="eyebrow">Preferences</p>
-          <h1 className="pageTitle">
-            Yours to <em>configure.</em>
-          </h1>
+          <h1 className="pageTitle">Settings</h1>
         </div>
       </header>
 
@@ -803,6 +856,14 @@ export default function Settings() {
                 <button
                   type="button"
                   className="btn btn--ghost btn--sm"
+                  onClick={() => void checkMicrosoftSignIn()}
+                  disabled={microsoftBusy}
+                >
+                  Check connection
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
                   onClick={() => void startMicrosoftSignIn()}
                   disabled={microsoftBusy}
                 >
@@ -826,6 +887,24 @@ export default function Settings() {
             </div>,
             document.body,
           ) : null}
+
+          <label className="privateToggle">
+            <input
+              type="checkbox"
+              checked={info?.keepMicrosoftSignedIn ?? false}
+              onChange={(event) => {
+                const enabled = event.target.checked
+                void api.setKeepMicrosoftSignedIn(enabled).then(() => refresh())
+              }}
+            />
+            <span>
+              <strong>Stay signed in</strong>
+              <em>
+                Stores a read-only refresh token in the macOS Keychain so you do not sign in on
+                every launch. Source data is never stored. Off by default.
+              </em>
+            </span>
+          </label>
 
           <label className="privateToggle">
             <input

@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, inTauri } from '../lib/ipc'
+import { clearPeopleCache, getPeopleCache, setPeopleCache } from '../state/peopleCache'
 import type {
   DepartmentCluster,
   GraphEvidence,
@@ -168,8 +169,8 @@ function kindColor(edge: PeopleGraphEdge) {
 
 export default function People() {
   const navigate = useNavigate()
-  const [data, setData] = useState<PeopleGraphData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<PeopleGraphData | null>(() => getPeopleCache())
+  const [loading, setLoading] = useState(() => getPeopleCache() === null)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
@@ -198,14 +199,21 @@ export default function People() {
   const frameRef = useRef(0)
   const viewRef = useRef({ zoom: 1, pan: { x: 0, y: 0 } })
 
-  const load = useCallback(() => {
+  const load = useCallback((force = false) => {
+    const cached = getPeopleCache()
+    if (!force && cached) {
+      setData(cached)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     api
       .peopleGraph()
       .then((graph) => {
+        setPeopleCache(graph)
         setData(graph)
-        setSelected(graph.selfId || null)
+        setSelected(graph.selfId || graph.nodes[0]?.id || null)
       })
       .catch((reason: unknown) => {
         setError(reason instanceof Error ? reason.message : String(reason))
@@ -215,6 +223,21 @@ export default function People() {
 
   useEffect(() => {
     load()
+  }, [load])
+
+  useEffect(() => {
+    if (data && !selected) {
+      setSelected(data.selfId || data.nodes[0]?.id || null)
+    }
+  }, [data, selected])
+
+  useEffect(() => {
+    const onInvalidate = () => {
+      clearPeopleCache()
+      void load(true)
+    }
+    window.addEventListener('frontdesk-people-invalidate', onInvalidate)
+    return () => window.removeEventListener('frontdesk-people-invalidate', onInvalidate)
   }, [load])
 
   useEffect(() => {
@@ -512,7 +535,7 @@ export default function People() {
       await api.upsertPerson(person)
       setDraft(null)
       setNotice(draft.isNew ? 'Person added.' : 'Saved locally.')
-      load()
+      load(true)
     } catch (reason) {
       setNotice(reason instanceof Error ? reason.message : String(reason))
     } finally {
@@ -524,7 +547,7 @@ export default function People() {
     try {
       await api.removePerson(node.id)
       setNotice('Local edits removed.')
-      load()
+      load(true)
     } catch (reason) {
       setNotice(reason instanceof Error ? reason.message : String(reason))
     }
@@ -564,6 +587,7 @@ export default function People() {
       })
       if (typeof path !== 'string') return
       const snapshot = await api.importPeopleGraph(path)
+      setPeopleCache(snapshot.graph)
       setData(snapshot.graph)
       setSelected(snapshot.graph.selfId || snapshot.graph.nodes[0]?.id || null)
       setNotice(
@@ -590,7 +614,7 @@ export default function People() {
           <button type="button" className="btn btn--ghost" onClick={startAdd}>
             Add person
           </button>
-          <button type="button" className="btn btn--ghost" onClick={load} disabled={loading}>
+          <button type="button" className="btn btn--ghost" onClick={() => load(true)} disabled={loading}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />
             </svg>
@@ -616,7 +640,7 @@ export default function People() {
         <section className="panel peopleEmpty">
           <h2>Could not build the graph</h2>
           <p>{error}</p>
-          <button type="button" className="btn btn--primary" onClick={load}>
+          <button type="button" className="btn btn--primary" onClick={() => load(true)}>
             Try again
           </button>
         </section>

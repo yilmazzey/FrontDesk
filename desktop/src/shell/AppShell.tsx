@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api, inTauri } from '../lib/ipc'
 import { useAccess } from '../state/access'
 import { previewPrivacy } from '../components/PrivacyShield'
+import LineSidebar from '../components/LineSidebar'
 
 const nav = [
   { to: '/', label: 'Dashboard', end: true, glyph: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
   { to: '/timeline', label: 'Timeline', end: false, glyph: 'M12 4.2a7.8 7.8 0 1 0 0 15.6 7.8 7.8 0 0 0 0-15.6ZM12 8v4.4l3 1.8' },
   { to: '/loops', label: 'Open loops', end: false, glyph: 'M4 12a8 8 0 0 1 13.7-5.7M20 4v5h-5M20 12a8 8 0 0 1-13.7 5.7M4 20v-5h5' },
+  { to: '/meetings', label: 'Meetings', end: false, glyph: 'M12 3.5a2.8 2.8 0 0 0-2.8 2.8v5.4a2.8 2.8 0 0 0 5.6 0V6.3A2.8 2.8 0 0 0 12 3.5ZM5.8 11.7a6.2 6.2 0 0 0 12.4 0M12 18v3M9 21h6' },
   { to: '/people', label: 'People', end: false, glyph: 'M12 6.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM19 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM10.7 5.2 6.4 15M13.3 5.2l4.3 9.8M7.5 17.5h9' },
   { to: '/saved', label: 'Saved', end: false, glyph: 'M6 4h12v16l-6-4-6 4V4Z' },
   { to: '/search', label: 'Search', end: false, glyph: 'M11 4.2a6.8 6.8 0 1 0 0 13.6 6.8 6.8 0 0 0 0-13.6ZM16 16l4 4' },
@@ -18,6 +20,7 @@ const titles: Record<string, string> = {
   '/': 'Dashboard',
   '/timeline': 'Timeline',
   '/loops': 'Open loops',
+  '/meetings': 'Meetings',
   '/people': 'People graph',
   '/saved': 'Saved',
   '/search': 'Search',
@@ -110,46 +113,56 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKey)
   }, [navigate])
 
+  const activeIndex = Math.max(
+    0,
+    nav.findIndex((item) =>
+      item.end
+        ? pathname === item.to
+        : pathname === item.to || pathname.startsWith(`${item.to}/`),
+    ),
+  )
+
   const selected = info?.selectedModel
     ? models.find((model) => model.id === info.selectedModel)?.name ?? info.selectedModel
     : 'Extractive'
 
   return (
     <div className={`app${sidebarCollapsed ? ' app--rail' : ''}`}>
+      <div className="windowBar" aria-hidden="true">
+        <div className="windowBar__drag" data-tauri-drag-region />
+      </div>
+
       <aside className="sidebar">
         <div className="sidebar__brand">
           <span className="sidebar__dot" aria-hidden="true" />
           <span className="sidebar__word">FrontDesk</span>
           <span className="sidebar__tag">desktop</span>
-          <button
-            type="button"
-            className="sidebar__collapse"
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d={sidebarCollapsed ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
-            </svg>
-          </button>
         </div>
 
-        <nav className="sidebar__nav" aria-label="Primary">
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              title={item.label}
-              className={({ isActive }) => `navItem${isActive ? ' is-active' : ''}`}
-            >
+        <nav
+          className="sidebar__nav"
+          aria-label="Primary"
+        >
+          <LineSidebar
+            items={nav.map((item) => item.label)}
+            icons={nav.map((item) => (
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d={item.glyph} />
               </svg>
-              <span className="navItem__label">{item.label}</span>
-            </NavLink>
-          ))}
+            ))}
+            activeIndex={activeIndex}
+            accentColor="var(--amber)"
+            textColor="var(--ink-faint)"
+            markerColor="var(--line-strong)"
+            proximityRadius={92}
+            maxShift={0}
+            markerLength={26}
+            markerGap={4}
+            itemGap={16}
+            fontSize={0.82}
+            smoothing={120}
+            onItemClick={(index) => navigate(nav[index].to)}
+          />
         </nav>
 
         <div className="sidebar__foot">
@@ -168,6 +181,20 @@ export function AppShell() {
           <div className="sidebar__grants">
             {grants.length} {grants.length === 1 ? 'grant' : 'grants'} active
           </div>
+
+          <button
+            type="button"
+            className="sidebar__rail"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d={sidebarCollapsed ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+            </svg>
+            <span className="sidebar__railText">Collapse sidebar</span>
+          </button>
 
           <button
             type="button"

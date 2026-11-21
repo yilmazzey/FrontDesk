@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Embolism Spark';
+  src: url('./assets/fonts/Embolism-Spark.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ==========================================================================
    FrontDesk Desktop — warm, local-first shell
    ========================================================================== */
@@ -53,45 +61,36 @@
 }
 
 /* --------------------------------------------------------------------------
-   Glass mode — set on the root only when the Tauri shell is running. The
-   native window carries the macOS vibrancy material; these translucent
-   surfaces let it show through without washing out the browser preview.
+   Native window chrome — the Tauri window is opaque and uses an overlay
+   titlebar. macOS still owns the traffic lights, but the webview paints the
+   strip behind them, so no dark HUD material can bleed through in light mode.
    -------------------------------------------------------------------------- */
-[data-runtime='tauri'] {
-  --bg: rgba(18, 16, 14, 0.48);
-  --bg-deep: rgba(12, 10, 9, 0.34);
-  --panel: rgba(23, 20, 15, 0.7);
-  --panel-2: rgba(28, 24, 18, 0.58);
-  --line: rgba(244, 236, 225, 0.14);
-  --line-strong: rgba(244, 236, 225, 0.24);
+.windowBar {
+  display: none;
 }
 
-[data-runtime='tauri'][data-theme='light'] {
-  --bg: rgba(233, 221, 201, 0.64);
-  --bg-deep: rgba(225, 211, 188, 0.5);
-  --panel: rgba(244, 235, 218, 0.82);
-  --panel-2: rgba(239, 228, 208, 0.72);
-  --line: rgba(36, 29, 22, 0.14);
-  --line-strong: rgba(36, 29, 22, 0.24);
+[data-runtime='tauri'] .app {
+  padding-top: 30px;
 }
 
-[data-runtime='tauri'] .app,
-[data-runtime='tauri'] .sidebar,
-[data-runtime='tauri'] .titlebar {
-  backdrop-filter: blur(12px) saturate(1.04);
-  -webkit-backdrop-filter: blur(12px) saturate(1.04);
+[data-runtime='tauri'] .windowBar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: block;
+  height: 30px;
+  pointer-events: none;
 }
 
-[data-runtime='tauri'] .panel,
-[data-runtime='tauri'] .panel--inset,
-[data-runtime='tauri'] .ask,
-[data-runtime='tauri'] .stat,
-[data-runtime='tauri'] .result,
-[data-runtime='tauri'] .searchField,
-[data-runtime='tauri'] .modelCard,
-[data-runtime='tauri'] .connectRow {
-  backdrop-filter: blur(8px) saturate(1.03);
-  -webkit-backdrop-filter: blur(8px) saturate(1.03);
+.windowBar__drag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 84px;
+  pointer-events: auto;
 }
 
 * {
@@ -144,6 +143,7 @@ input {
    ========================================================================== */
 
 .app {
+  --sidebar-w: 224px;
   display: grid;
   grid-template-columns: 224px minmax(0, 1fr);
   height: 100dvh;
@@ -154,39 +154,56 @@ input {
 }
 
 .app--rail {
+  --sidebar-w: 62px;
   grid-template-columns: 62px minmax(0, 1fr);
 }
 
-.sidebar__collapse {
-  display: inline-flex;
+.sidebar__rail {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-left: auto;
-  border: 1px solid var(--line);
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
   border-radius: 4px;
   background: transparent;
   color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     color 0.18s ease,
-    border-color 0.18s ease;
+    background 0.18s ease;
 }
 
-.sidebar__collapse:hover {
+.sidebar__rail:hover {
   color: var(--ink);
-  border-color: var(--amber);
+  background: rgba(244, 236, 225, 0.04);
 }
 
-.sidebar__collapse svg {
-  width: 13px;
-  height: 13px;
+[data-theme='light'] .sidebar__rail:hover {
+  background: rgba(36, 29, 22, 0.05);
+}
+
+.sidebar__rail svg {
+  width: 14px;
+  height: 14px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.app--rail .sidebar__rail {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.app--rail .sidebar__railText {
+  display: none;
 }
 
 .app--rail .sidebar {
@@ -207,10 +224,6 @@ input {
 .app--rail .sidebar__grants,
 .app--rail .themeSwitch__text {
   display: none;
-}
-
-.app--rail .sidebar__collapse {
-  margin-left: 0;
 }
 
 .app--rail .navItem {
@@ -237,12 +250,7 @@ input {
   flex-direction: column;
   gap: 26px;
   padding: 26px 18px 20px;
-  border-right: 1px solid var(--line);
-  background: var(--bg-deep);
-}
-
-[data-theme='light'] .sidebar {
-  background: rgba(36, 29, 22, 0.04);
+  background: transparent;
 }
 
 .sidebar__brand {
@@ -429,7 +437,6 @@ input {
   gap: 16px;
   flex: 0 0 auto;
   padding: 14px 22px;
-  border-bottom: 1px solid var(--line);
   user-select: none;
 }
 
@@ -549,6 +556,13 @@ input {
 .pageTitle em {
   font-style: italic;
   color: var(--amber-soft);
+}
+
+.pageTitle em.pageTitle__hand {
+  font-family: 'Embolism Spark', var(--serif);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.005em;
 }
 
 [data-theme='light'] .pageTitle em {
@@ -1262,7 +1276,7 @@ input {
   }
 
   .sidebar__tag,
-  .sidebar__collapse {
+  .sidebar__railText {
     display: none;
   }
 
@@ -2817,32 +2831,8 @@ input {
   color: var(--ink-faint);
 }
 
-.askBar__submit {
-  width: 54px;
-  height: 54px;
+.askBar__sling {
   flex: 0 0 auto;
-  border: 1px solid var(--line-strong);
-  border-radius: 50%;
-  background: var(--paper);
-  color: var(--ink-dark);
-  font-family: var(--mono);
-  font-size: 8px;
-  letter-spacing: 0.12em;
-  cursor: pointer;
-  transition:
-    background 160ms ease,
-    transform 160ms ease,
-    opacity 160ms ease;
-}
-
-.askBar__submit:hover:not(:disabled) {
-  background: #fffaf0;
-  transform: translateY(-1px);
-}
-
-.askBar__submit:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .askBar__suggestions {
@@ -2861,10 +2851,6 @@ input {
     padding-left: 14px;
   }
 
-  .askBar__submit {
-    width: 46px;
-    height: 46px;
-  }
 }
 
 .panel--wide {
@@ -3596,32 +3582,9 @@ input {
   color: var(--ink-faint);
 }
 
-.chatComposer__send {
-  display: grid;
-  place-items: center;
+.chatComposer__sling {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  background: var(--paper);
-  font-family: var(--sans);
-  font-size: 18px;
-  line-height: 1;
-  color: var(--ink-dark);
-  transition:
-    opacity 160ms ease,
-    transform 160ms ease;
-}
-
-.chatComposer__send:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: #fffaf0;
-}
-
-.chatComposer__send:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+  margin-bottom: 1px;
 }
 
 .chatHint {
@@ -5453,6 +5416,7 @@ input {
 
 .openLoops .panel__head {
   align-items: center;
+  border-bottom: 0;
 }
 
 .authPrompt__tenant {
@@ -5533,4 +5497,649 @@ input {
 
 .timelineDay.is-today .timelineDay__head h2 {
   color: var(--amber);
+}
+
+.work {
+  position: relative;
+}
+
+/* Light theme: the titlebar inherits the page background. */
+[data-theme='light'] .titlebar__title,
+[data-theme='light'] .titlebar__status {
+  color: rgba(29, 23, 17, 0.62);
+}
+
+[data-theme='light'] .titlebar__shield {
+  border-color: rgba(29, 23, 17, 0.18);
+  color: rgba(29, 23, 17, 0.68);
+}
+
+[data-theme='light'] .titlebar__shield:hover {
+  border-color: var(--amber);
+  color: var(--ink-dark);
+}
+
+/* --------------------------------------------------------------------------
+   Meeting notes
+   -------------------------------------------------------------------------- */
+
+.meetingsPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.meetingSetup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+}
+
+.meetingSetup h3 {
+  margin: 5px 0 4px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
+.meetingSetup p {
+  max-width: 56ch;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.meetingSetup__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 240px;
+}
+
+.meetingRecorder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  transition:
+    border-color 220ms ease,
+    background 220ms ease;
+}
+
+.meetingRecorder.is-recording {
+  border-color: rgba(224, 108, 92, 0.6);
+  background:
+    radial-gradient(70% 100% at 10% 50%, rgba(224, 108, 92, 0.1), transparent 70%),
+    var(--surface);
+}
+
+.meetingRecorder__main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.meetingRecorder__copy {
+  min-width: 0;
+}
+
+.meetingRecorder__copy h2 {
+  margin: 4px 0 6px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.6rem, 2.6vw, 2.3rem);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.meetingRecorder__copy p {
+  max-width: 66ch;
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}
+
+.meetingRecorder__copy .meetingHint {
+  margin-top: 7px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+}
+
+.meetingRecord {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid rgba(255, 180, 92, 0.55);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink-dark);
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.meetingRecord svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.meetingRecord:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--amber);
+  background: #fffaf0;
+}
+
+.meetingRecord:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.meetingRecord.is-live {
+  border-color: #e06c5c;
+  background: #e06c5c;
+  color: #fff8f2;
+  box-shadow: 0 0 0 6px rgba(224, 108, 92, 0.12);
+}
+
+.meetingRecord.is-live svg {
+  fill: currentColor;
+  stroke: none;
+}
+
+.meetingRecorder__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.meetingProgress {
+  width: 100%;
+}
+
+.meetingProgress__bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.meetingProgress__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--amber);
+  transition: width 300ms ease;
+}
+
+.meetingProgress p {
+  margin: 6px 0 0;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+.meetingProgress--wide {
+  padding: 0 2px;
+}
+
+.meetingDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.meetingDetail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.meetingDetail__head h2 {
+  margin: 8px 0 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  letter-spacing: -0.025em;
+}
+
+.meetingDetail__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.meetingDetail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.meetingTabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meetingTabs__meta {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+.meetingText {
+  max-height: min(52vh, 560px);
+  margin: 0;
+  padding: 16px 18px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--ink-dim);
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.meetingList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.meetingList .empty {
+  grid-column: 1 / -1;
+}
+
+.meetingCard {
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.meetingCard:hover,
+.meetingCard:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.meetingCard__head,
+.meetingCard__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+.meetingCard h3 {
+  margin: 12px 0 6px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.meetingCard p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-dim);
+  font-size: 11px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.meetingCard__foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.tag--bad {
+  border-color: rgba(224, 108, 92, 0.45);
+  color: #e06c5c;
+}
+
+@media (max-width: 760px) {
+  .meetingSetup,
+  .meetingRecorder {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .meetingSetup__actions,
+  .meetingRecorder__actions {
+    align-items: flex-start;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .meetingRecord {
+    width: 54px;
+    height: 54px;
+  }
+
+  .meetingDetail__head {
+    flex-direction: column;
+  }
+
+  .meetingDetail__actions {
+    justify-content: flex-start;
+  }
+}
+
+.meetingText--notes {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.meetingNote {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.meetingNote h3,
+.meetingNote h4 {
+  margin: 10px 0 2px;
+  font-family: var(--serif);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+.meetingNote h3 {
+  font-size: 18px;
+}
+
+.meetingNote h4 {
+  font-size: 15px;
+  color: var(--amber-soft);
+}
+
+.meetingNote p {
+  margin: 0;
+}
+
+.meetingNote ul {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.meetingNote li::marker {
+  color: var(--amber);
+}
+
+/* --------------------------------------------------------------------------
+   Deadlines and swipeable open loops
+   -------------------------------------------------------------------------- */
+
+.deadlinesPanel .panel__meta {
+  margin-left: auto;
+}
+
+.deadlinesAdd {
+  flex: 0 0 auto;
+}
+
+.deadlineGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.deadlineCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+
+.deadlineCard.is-overdue {
+  border-color: rgba(224, 108, 92, 0.35);
+}
+
+.deadlineCard__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.deadlineCard__remove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.deadlineCard__remove:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.deadlineCard h3 {
+  margin: 10px 0 3px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.deadlineCard__due {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+.deadlineCountdown {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.deadlineUnit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.deadlineUnit > span:last-child {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.deadlineCounter {
+  font-family: var(--serif);
+  line-height: 1;
+  color: var(--ink);
+}
+
+.deadlineCard.is-overdue .deadlineCounter {
+  color: #d56a5b;
+}
+
+.deadlineCard__source {
+  display: -webkit-box;
+  margin: 12px 0 0;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-size: 9px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.deadlineDialog {
+  width: min(540px, 100%);
+}
+
+.deadlineInput {
+  width: 100%;
+  margin: 6px 0 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  outline: none;
+}
+
+.deadlineInput:focus {
+  border-color: var(--amber);
+}
+
+.deadlineFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 12px;
+}
+
+.deadlineSource {
+  margin-top: 2px;
+}
+
+.loopPageRowWrap {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loopPageRowWrap + .loopPageRowWrap {
+  margin-top: 8px;
+}
+
+.loopSwipe {
+  margin-bottom: 0;
+}
+
+.loopSwipe .swipe-row__clip {
+  border: 1px solid var(--line);
+}
+
+.loopSwipe .swipe-row__surface {
+  align-items: stretch;
+  padding: 0 14px;
+}
+
+.loopSwipe__content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 0;
+  box-sizing: border-box;
+}
+
+.loopSwipe__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.loopSwipe .loopPageRow__text {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.loopSwipe .loopPageRow__mark {
+  margin-top: 0;
+}
+
+.loopSwipe .loopPageRow__meta {
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.loopSwipe .loopPerson,
+.loopSwipe .loopSource {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loopSwipe__ask {
+  flex: 0 0 auto;
+  margin-top: -2px;
+}
+
+.openLoops__hidden {
+  margin: 8px 0 0;
+}
+
+@media (max-width: 700px) {
+  .deadlineFields {
+    grid-template-columns: 1fr;
+  }
+
+  .loopSwipe__ask {
+    display: none;
+  }
 }
