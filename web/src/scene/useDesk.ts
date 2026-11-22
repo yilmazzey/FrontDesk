@@ -6,7 +6,7 @@ import { boundsOf, collectParts, type PartMap } from '../lib/geometry'
 
 export type DeskBounds = Record<keyof typeof partNames, THREE.Box3 | null>
 
-const MODEL_URL = '/desk.glb'
+const MODEL_URL = `${import.meta.env.BASE_URL}desk.glb`
 
 /**
  * Loads the desk once and prepares it:
