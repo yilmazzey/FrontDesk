@@ -154,8 +154,9 @@ export default function MonitorPage() {
             </li>
             <li>
               <strong>Settings → Local model → Download Phi-4 Mini.</strong> It is about 2.3 GB,
-              downloaded from Hugging Face, SHA-256 verified and run locally. FrontDesk also installs
-              the llama.cpp runtime automatically; there is no Homebrew or PATH step.
+              downloaded from Hugging Face, SHA-256 verified and run locally. Select Phi-4 Mini
+              when it appears. FrontDesk also installs the llama.cpp runtime automatically; there
+              is no Homebrew or PATH step.
             </li>
             <li>
               <strong>No model yet?</strong> Choose Extractive. It answers with quoted, cited
