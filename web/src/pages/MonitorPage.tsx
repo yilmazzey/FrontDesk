@@ -35,7 +35,7 @@ const downloads = [
   ['macOS · Intel', '.dmg', 'mac-intel'],
   ['Windows 10/11 · 64-bit', '.exe', 'windows'],
   ['Linux · 64-bit AppImage', 'AppImage · no install', 'linux'],
-  ['Linux · Debian / Ubuntu', '.deb', null],
+  ['Linux · Debian / Ubuntu', '.deb · coming soon', null],
   ['llama-server (auto-installed)', '~16 MB · in-app', null],
   ['Local model (optional)', 'GGUF · 2.3 GB', null],
 ] as const
