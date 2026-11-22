@@ -10,8 +10,8 @@ use core_foundation::dictionary::{CFDictionary, CFDictionaryRef};
 use core_foundation::string::CFString;
 #[cfg(target_os = "macos")]
 use core_graphics::window::{
-    copy_window_info, kCGNullWindowID, kCGWindowListExcludeDesktopElements,
-    kCGWindowListOptionAll, kCGWindowName, kCGWindowOwnerName,
+    copy_window_info, kCGNullWindowID, kCGWindowListExcludeDesktopElements, kCGWindowListOptionAll,
+    kCGWindowName, kCGWindowOwnerName,
 };
 
 /// A strong signal that this Mac is being shared or recorded by a remote-access
@@ -152,9 +152,8 @@ pub fn detect() -> ScreenShareState {
     let teams_video_active = process_args.lines().any(|line| {
         line.contains("teams") && line.contains("video_capture.mojom.videocaptureservice")
     });
-    let teams_label = teams_meeting_label().or_else(|| {
-        (teams_running && teams_video_active).then_some("Microsoft Teams meeting")
-    });
+    let teams_label = teams_meeting_label()
+        .or_else(|| (teams_running && teams_video_active).then_some("Microsoft Teams meeting"));
     if let Some(label) = teams_label {
         if !apps.iter().any(|app| app == label) {
             apps.push(label.to_string());
@@ -178,9 +177,6 @@ mod tests {
     fn optional_teams_meeting_window_smoke() {
         // Environment-dependent: prints Some(...) only while a Teams meeting
         // window is on screen. Kept as a manual smoke test, not an assertion.
-        println!(
-            "teams window label: {:?}",
-            super::teams_meeting_label()
-        );
+        println!("teams window label: {:?}", super::teams_meeting_label());
     }
 }

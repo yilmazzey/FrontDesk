@@ -1100,7 +1100,11 @@ fn date_excerpts(chunks: &[Chunk]) -> Vec<Chunk> {
 }
 
 fn date_chunk_rank(chunk: &Chunk) -> i32 {
-    let mut rank = if chunk.source_type == "calendar" { 10 } else { 0 };
+    let mut rank = if chunk.source_type == "calendar" {
+        10
+    } else {
+        0
+    };
     let title = chunk.title.to_lowercase();
     for (index, marker) in [
         "recap", "decision", "summary", "notes", "minutes", "review", "sync", "agenda",
@@ -2653,12 +2657,7 @@ mod date_tests {
             "Recap: pricing sync",
             "2026-11-16T09:00:00Z",
         );
-        let new = source(
-            "file:new",
-            "file",
-            "Launch scope",
-            "2026-11-21T09:00:00Z",
-        );
+        let new = source("file:new", "file", "Launch scope", "2026-11-21T09:00:00Z");
         let documents = vec![
             (
                 old,
@@ -2702,12 +2701,7 @@ mod date_tests {
             "Recap: pricing sync",
             "2026-11-16T09:00:00Z",
         );
-        let new = source(
-            "file:new",
-            "file",
-            "Launch scope",
-            "2026-11-21T09:00:00Z",
-        );
+        let new = source("file:new", "file", "Launch scope", "2026-11-21T09:00:00Z");
         let documents = vec![
             (
                 old,
@@ -2741,12 +2735,7 @@ mod date_tests {
     #[test]
     fn empty_day_says_which_day_was_searched() {
         let documents = vec![(
-            source(
-                "file:new",
-                "file",
-                "Launch scope",
-                "2026-11-21T09:00:00Z",
-            ),
+            source("file:new", "file", "Launch scope", "2026-11-21T09:00:00Z"),
             "Phase 1 starts with three pilot sites in Leeds.".to_string(),
         )];
 
