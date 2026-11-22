@@ -14,6 +14,12 @@ const assets = {
 
 type AssetKey = keyof typeof assets
 
+// Only the Apple Silicon DMG is attached to the current preview release.
+// Keep the other platform rows honest until their installers are published.
+const available = new Set<AssetKey>(['mac-arm'])
+const MODEL_PAGE =
+  'https://huggingface.co/bartowski/microsoft_Phi-4-mini-instruct-GGUF'
+
 function detectPlatform(): AssetKey {
   if (typeof navigator === 'undefined') return 'mac-arm'
   const platform = navigator.platform || navigator.userAgent || ''
@@ -55,6 +61,8 @@ export default function MonitorPage() {
   }, [])
 
   const primaryAsset = assets[primary]
+  const primaryAvailable = available.has(primary)
+  const releasesUrl = 'https://github.com/yilmazzey/FrontDesk/releases/latest'
 
   return (
     <main className="monitorPage">
@@ -75,20 +83,28 @@ export default function MonitorPage() {
           </p>
 
           <div className="monitorDownload__actions">
-            <a className="btn btn--primary" href={`${BASE}/${primaryAsset.file}`}>
-              Download for {primaryAsset.label} <span aria-hidden="true">↓</span>
-            </a>
-            <a className="btn btn--ghost" href={`${BASE}/${assets.linux.file}`}>
-              Linux AppImage <span aria-hidden="true">↓</span>
-            </a>
-            <a
-              className="btn btn--ghost"
-              href="https://github.com/yilmazzey/FrontDesk/releases/latest"
-            >
+            {primaryAvailable ? (
+              <a className="btn btn--primary" href={`${BASE}/${primaryAsset.file}`}>
+                Download for {primaryAsset.label} <span aria-hidden="true">↓</span>
+              </a>
+            ) : (
+              <a className="btn btn--primary" href={releasesUrl}>
+                See available downloads <span aria-hidden="true">→</span>
+              </a>
+            )}
+            <a className="btn btn--ghost" href={releasesUrl}>
               All releases <span aria-hidden="true">→</span>
             </a>
             <span className="monitorDownload__pill">v{__APP_VERSION__} · unsigned preview</span>
           </div>
+
+          {!primaryAvailable ? (
+            <p className="monitorDownload__notice">
+              This preview currently ships <strong>macOS Apple Silicon</strong> only. Intel macOS,
+              Windows and Linux installers are not published yet; use All releases to see what is
+              available.
+            </p>
+          ) : null}
 
           <p className="monitorDownload__notice">
             The preview is signed ad-hoc, so macOS asks you to confirm the first launch (System
@@ -100,7 +116,7 @@ export default function MonitorPage() {
         <div className="monitorDownload__releases">
           <div className="monitorDownload__sizes" aria-label="Downloads and sizes">
             {downloads.map(([label, meta, asset]) =>
-              asset ? (
+              asset && available.has(asset) ? (
                 <a
                   className="monitorDownload__row"
                   href={`${BASE}/${assets[asset].file}`}
@@ -112,7 +128,7 @@ export default function MonitorPage() {
               ) : (
                 <div className="monitorDownload__row" key={label}>
                   <span>{label}</span>
-                  <b>{meta}</b>
+                  <b>{asset ? `${meta} · coming soon` : meta}</b>
                 </div>
               ),
             )}
@@ -127,6 +143,41 @@ export default function MonitorPage() {
             macOS, Windows and Linux.
           </p>
         </div>
+
+        <section className="monitorDownload__after" id="after-install" aria-labelledby="after-install-title">
+          <p className="monitorDownload__eyebrow">After install</p>
+          <h2 id="after-install-title">Open it, then add the model.</h2>
+          <ol>
+            <li>
+              <strong>Open FrontDesk.</strong> If macOS blocks the unsigned preview, allow it in
+              System Settings → Privacy &amp; Security → Open Anyway.
+            </li>
+            <li>
+              <strong>Settings → Local model → Download Phi-4 Mini.</strong> It is about 2.3 GB,
+              downloaded from Hugging Face, SHA-256 verified and run locally. FrontDesk also installs
+              the llama.cpp runtime automatically; there is no Homebrew or PATH step.
+            </li>
+            <li>
+              <strong>No model yet?</strong> Choose Extractive. It answers with quoted, cited
+              excerpts from your files and needs no download.
+            </li>
+            <li>
+              <strong>Settings → Sources &amp; access.</strong> Grant a local folder, connect
+              Microsoft 365 read-only, and choose a folder for Saved answers.
+            </li>
+            <li>
+              <strong>Meetings.</strong> The 57 MB Whisper model downloads on first use; audio is
+              deleted after a successful transcription.
+            </li>
+          </ol>
+          <p className="monitorDownload__notice">
+            Prefer to manage the GGUF yourself? Download it from{' '}
+            <a href={MODEL_PAGE} target="_blank" rel="noreferrer">
+              Hugging Face
+            </a>{' '}
+            and put the file in the models folder shown in Settings → Local model.
+          </p>
+        </section>
       </div>
     </main>
   )

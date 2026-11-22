@@ -4260,6 +4260,51 @@ a {
   color: var(--ink-dim);
 }
 
+.monitorDownload__after {
+  grid-column: 1 / -1;
+  max-width: 920px;
+  margin-top: clamp(34px, 5vw, 64px);
+  padding-top: clamp(24px, 3vw, 38px);
+  border-top: 1px solid var(--line);
+}
+
+.monitorDownload__after h2 {
+  margin: 0 0 20px;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.8rem, 2.8vw, 2.8rem);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  color: var(--ink);
+}
+
+.monitorDownload__after ol {
+  margin: 0;
+  padding-left: 1.35em;
+  display: grid;
+  gap: 14px;
+  font-size: clamp(14px, 1.05vw, 17px);
+  line-height: 1.65;
+  color: var(--ink-dim);
+}
+
+.monitorDownload__after li::marker {
+  color: var(--amber-soft);
+  font-family: var(--mono);
+  font-size: 0.82em;
+}
+
+.monitorDownload__after strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.monitorDownload__after a {
+  color: var(--amber-soft);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 .monitorDownload__releases {
   min-width: 0;
   padding-top: 4px;
