@@ -660,9 +660,11 @@ fn transcribe_file(
 
     progress(40, "Loading Whisper locally");
 
-    let mut context_params = WhisperContextParameters::default();
-    context_params.use_gpu = true;
-    context_params.flash_attn = true;
+    let context_params = WhisperContextParameters {
+        use_gpu: true,
+        flash_attn: true,
+        ..Default::default()
+    };
     let context = WhisperContext::new_with_params(&model.to_string_lossy(), context_params)
         .map_err(|error| format!("Could not load the transcription model: {error}"))?;
 

@@ -101,7 +101,9 @@ struct AuthTokens {
 
 static KEEP_SIGNED_IN: AtomicBool = AtomicBool::new(false);
 static RESTORE_ATTEMPTED: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "macos")]
 const KEYCHAIN_SERVICE: &str = "studio.frontdesk.desktop";
+#[cfg(target_os = "macos")]
 const KEYCHAIN_ACCOUNT: &str = "microsoft-refresh-token";
 
 #[derive(Serialize, Deserialize)]
