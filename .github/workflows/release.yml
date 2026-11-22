@@ -24,7 +24,7 @@ jobs:
             args: '--target aarch64-apple-darwin --bundles dmg'
           - platform: macos-13
             args: '--target x86_64-apple-darwin --bundles dmg'
-          - platform: ubuntu-22.04
+          - platform: ubuntu-24.04
             args: '--bundles appimage,deb'
           - platform: windows-latest
             args: '--bundles nsis'
@@ -49,7 +49,7 @@ jobs:
           workspaces: desktop/src-tauri -> target
 
       - name: Linux bundle dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
